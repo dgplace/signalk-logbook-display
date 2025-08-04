@@ -60,6 +60,25 @@
 <!-- existing table and map elements go here -->
 
 <script>
+async function regenerateAndReload() {
+  // call the server route to regenerate JSON
+  await fetch('/plugins/voyage-webapp/generate', { method: 'GET', credentials: 'include' });
+  // reload the map data
+  await init(); // call your init() function from earlier
+}
+
+document.getElementById('regenBtn').addEventListener('click', () => {
+  regenerateAndReload().catch(err => console.error(err));
+});
+</script>
+
+<table id="voyTable">
+  <thead><tr><th>#</th><th>Start</th><th>End</th><th>NM</th><th>Max Speed</th><th>Max Wind</th></tr></thead>
+  <tbody></tbody>
+</table>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
 let map, polylines = [];
 
 async function load() {
@@ -118,38 +137,6 @@ document.getElementById('regenBtn').addEventListener('click', async () => {
   });
   await load();
 });
-</script>
-
-<table id="voyTable">
-  <thead><tr><th>#</th><th>Start</th><th>End</th><th>NM</th><th>Max Speed</th><th>Max Wind</th></tr></thead>
-  <tbody></tbody>
-</table>
-<div id="map"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-async function load() {
-  const res  = await fetch('voyages.json');
-  const data = await res.json();
-  const map  = L.map('map').setView([0,0], 2);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-              { maxZoom: 19 }).addTo(map);
-  const tbody = document.querySelector('#voyTable tbody');
-  data.voyages.forEach((v,i) => {
-    const row = tbody.insertRow();
-    row.innerHTML = `<td>${i+1}</td><td>${new Date(v.startTime).toLocaleString()}</td>
-                     <td>${new Date(v.endTime).toLocaleString()}</td>
-                     <td>${v.nm.toFixed(1)}</td>
-                     <td>${v.maxSpeed.toFixed(1)}</td>
-                     <td>${v.maxWind.toFixed(1)}</td>`;
-    const latLngs = v.coords.map(([lon,lat]) => [lat, lon]);
-    const line = L.polyline(latLngs,{color:'blue'}).addTo(map);
-    if (i === 0) map.fitBounds(line.getBounds());
-    row.onclick = () => {
-      map.fitBounds(line.getBounds());
-    };
-  });
-}
-load().catch(console.error);
 </script>
 </body>
 </html>
