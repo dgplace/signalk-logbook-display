@@ -19,6 +19,17 @@ function haversine([lon1, lat1], [lon2, lat2]) {
   return (R * c) / 1852; // nautical miles
 }
 
+function circularMean(angles) {
+  const sum = angles.reduce((acc, angle) => {
+    const rad = degToRad(angle);
+    acc.x += Math.cos(rad);
+    acc.y += Math.sin(rad);
+    return acc;
+  }, {x: 0, y: 0});
+  const avg = Math.atan2(sum.y, sum.x) * (180 / Math.PI);
+  return (avg + 360) % 360;
+}
+
 async function readEntries(dir) {
   const files = await fs.readdir(dir);
   const entries = [];
@@ -36,16 +47,48 @@ async function readEntries(dir) {
 function groupVoyages(entries) {
   const voyages = [];
   let current = null;
+  let lastDate = null;
+
+  function isConsecutiveDay(d1, d2) {
+    const oneDay = 24 * 60 * 60 * 1000;
+    const diff = d2.getTime() - d1.getTime();
+    return diff >= 0 && diff <= oneDay;
+  }
+
   for (const entry of entries) {
+    const entryDate = new Date(entry.datetime.getFullYear(), entry.datetime.getMonth(), entry.datetime.getDate());
+
     if (!current) {
       current = { 
         startTime: entry.datetime,
         endTime: entry.datetime,
         distance: 0, maxSpeed: 0, maxWind: 0,
-        coords: []
+        coords: [],
+        windHeadings: []
       };
+    } else {
+      if (!lastDate || !isConsecutiveDay(lastDate, entryDate)) {
+        voyages.push({
+          startTime: current.startTime.toISOString(),
+          endTime:   current.endTime.toISOString(),
+          nm:        parseFloat(current.distance.toFixed(1)),
+          maxSpeed:  current.maxSpeed,
+          maxWind:   current.maxWind,
+          avgWindHeading: current.windHeadings.length > 0 ? circularMean(current.windHeadings) : null,
+          coords:    current.coords
+        });
+        current = { 
+          startTime: entry.datetime,
+          endTime: entry.datetime,
+          distance: 0, maxSpeed: 0, maxWind: 0,
+          coords: [],
+          windHeadings: []
+        };
+      }
     }
+
     current.endTime = entry.datetime;
+
     if (entry.position && typeof entry.position.longitude === 'number' &&
         typeof entry.position.latitude === 'number') {
       const coord = [entry.position.longitude, entry.position.latitude];
@@ -60,19 +103,14 @@ function groupVoyages(entries) {
     }
     if (entry.wind && typeof entry.wind.speed === 'number') {
       if (entry.wind.speed > current.maxWind) current.maxWind = entry.wind.speed;
+      if (typeof entry.wind.heading === 'number') {
+        current.windHeadings.push(entry.wind.heading);
+      }
     }
-    if (entry.end) {
-      voyages.push({
-        startTime: current.startTime.toISOString(),
-        endTime:   current.endTime.toISOString(),
-        nm:        parseFloat(current.distance.toFixed(1)),
-        maxSpeed:  current.maxSpeed,
-        maxWind:   current.maxWind,
-        coords:    current.coords
-      });
-      current = null;
-    }
+
+    lastDate = entryDate;
   }
+
   if (current) {
     voyages.push({
       startTime: current.startTime.toISOString(),
@@ -80,6 +118,7 @@ function groupVoyages(entries) {
       nm:        parseFloat(current.distance.toFixed(1)),
       maxSpeed:  current.maxSpeed,
       maxWind:   current.maxWind,
+      avgWindHeading: current.windHeadings.length > 0 ? circularMean(current.windHeadings) : null,
       coords:    current.coords
     });
   }
