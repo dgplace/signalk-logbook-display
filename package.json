@@ -1,0 +1,18 @@
+{
+  "name": "voyage-webapp",
+  "version": "1.0.0",
+  "description": "Voyage summary and map viewer",
+  "main": "plugin.js",
+  "keywords": [
+    "signalk-webapp",
+    "signalk-node-server-plugin",
+    "signalk-category-utility"
+  ],
+  "signalk": {
+    "appIcon": "./public/icon.png",
+    "displayName": "Voyages"
+  },
+  "dependencies": {
+    "yaml": "^2.3.0"
+  }
+}
