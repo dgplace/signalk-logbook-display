@@ -64,15 +64,19 @@ function groupVoyages(entries) {
         endTime: entry.datetime,
         distance: 0, maxSpeed: 0, maxWind: 0,
         coords: [],
-        windHeadings: []
+        windHeadings: [],
+        speedSum: 0,
+        speedCount: 0
       };
     } else {
       if (!lastDate || !isConsecutiveDay(lastDate, entryDate)) {
+        const avgSpeed = current.speedCount > 0 ? current.speedSum / current.speedCount : 0;
         voyages.push({
           startTime: current.startTime.toISOString(),
           endTime:   current.endTime.toISOString(),
           nm:        parseFloat(current.distance.toFixed(1)),
           maxSpeed:  current.maxSpeed,
+          avgSpeed:  avgSpeed,
           maxWind:   current.maxWind,
           avgWindHeading: current.windHeadings.length > 0 ? circularMean(current.windHeadings) : null,
           coords:    current.coords
@@ -82,7 +86,9 @@ function groupVoyages(entries) {
           endTime: entry.datetime,
           distance: 0, maxSpeed: 0, maxWind: 0,
           coords: [],
-          windHeadings: []
+          windHeadings: [],
+          speedSum: 0,
+          speedCount: 0
         };
       }
     }
@@ -99,12 +105,16 @@ function groupVoyages(entries) {
     }
     if (entry.speed) {
       const s = entry.speed.sog ?? entry.speed.stw;
-      if (typeof s === 'number' && s > current.maxSpeed) current.maxSpeed = s;
+      if (typeof s === 'number') {
+        if (s > current.maxSpeed) current.maxSpeed = s;
+        current.speedSum += s;
+        current.speedCount++;
+      }
     }
     if (entry.wind && typeof entry.wind.speed === 'number') {
       if (entry.wind.speed > current.maxWind) current.maxWind = entry.wind.speed;
-      if (typeof entry.wind.heading === 'number') {
-        current.windHeadings.push(entry.wind.heading);
+      if (typeof entry.wind.direction === 'number') {
+        current.windHeadings.push(entry.wind.direction);
       }
     }
 
@@ -112,11 +122,13 @@ function groupVoyages(entries) {
   }
 
   if (current) {
+    const avgSpeed = current.speedCount > 0 ? current.speedSum / current.speedCount : 0;
     voyages.push({
       startTime: current.startTime.toISOString(),
       endTime:   current.endTime.toISOString(),
       nm:        parseFloat(current.distance.toFixed(1)),
       maxSpeed:  current.maxSpeed,
+      avgSpeed:  avgSpeed,
       maxWind:   current.maxWind,
       avgWindHeading: current.windHeadings.length > 0 ? circularMean(current.windHeadings) : null,
       coords:    current.coords
