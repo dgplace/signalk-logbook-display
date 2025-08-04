@@ -105,9 +105,11 @@ async function load() {
 
   // if map already exists (after regeneration), remove it
   if (map) {
-    map.remove();
-    polylines = [];
+    map.off();       // remove all listeners
+    map.remove();    // safely destroy the Leaflet map instance
   }
+  polylines = [];
+
   map = L.map('map').setView([0, 0], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
               { maxZoom: 19 }).addTo(map);
