@@ -65,12 +65,15 @@ function groupVoyages(entries) {
         distance: 0, maxSpeed: 0, maxWind: 0,
         coords: [],
         windHeadings: [],
+        windSpeedSum: 0,
+        windSpeedCount: 0,
         speedSum: 0,
         speedCount: 0
       };
     } else {
       if (!lastDate || !isConsecutiveDay(lastDate, entryDate)) {
         const avgSpeed = current.speedCount > 0 ? current.speedSum / current.speedCount : 0;
+        const avgWindSpeed = current.windSpeedCount > 0 ? current.windSpeedSum / current.windSpeedCount : 0;
         voyages.push({
           startTime: current.startTime.toISOString(),
           endTime:   current.endTime.toISOString(),
@@ -78,6 +81,7 @@ function groupVoyages(entries) {
           maxSpeed:  current.maxSpeed,
           avgSpeed:  avgSpeed,
           maxWind:   current.maxWind,
+          avgWindSpeed: avgWindSpeed,
           avgWindHeading: current.windHeadings.length > 0 ? circularMean(current.windHeadings) : null,
           coords:    current.coords
         });
@@ -87,6 +91,8 @@ function groupVoyages(entries) {
           distance: 0, maxSpeed: 0, maxWind: 0,
           coords: [],
           windHeadings: [],
+          windSpeedSum: 0,
+          windSpeedCount: 0,
           speedSum: 0,
           speedCount: 0
         };
@@ -113,6 +119,8 @@ function groupVoyages(entries) {
     }
     if (entry.wind && typeof entry.wind.speed === 'number') {
       if (entry.wind.speed > current.maxWind) current.maxWind = entry.wind.speed;
+      current.windSpeedSum += entry.wind.speed;
+      current.windSpeedCount++;
       if (typeof entry.wind.direction === 'number') {
         current.windHeadings.push(entry.wind.direction);
       }
@@ -123,6 +131,7 @@ function groupVoyages(entries) {
 
   if (current) {
     const avgSpeed = current.speedCount > 0 ? current.speedSum / current.speedCount : 0;
+    const avgWindSpeed = current.windSpeedCount > 0 ? current.windSpeedSum / current.windSpeedCount : 0;
     voyages.push({
       startTime: current.startTime.toISOString(),
       endTime:   current.endTime.toISOString(),
@@ -130,6 +139,7 @@ function groupVoyages(entries) {
       maxSpeed:  current.maxSpeed,
       avgSpeed:  avgSpeed,
       maxWind:   current.maxWind,
+      avgWindSpeed: avgWindSpeed,
       avgWindHeading: current.windHeadings.length > 0 ? circularMean(current.windHeadings) : null,
       coords:    current.coords
     });
