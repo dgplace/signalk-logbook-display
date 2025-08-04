@@ -5,12 +5,53 @@
   <title>Voyages</title>
   <link rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <style>
-    body, html { height: 100%; margin: 0; }
-    #map { height: 60%; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 8px; border: 1px solid #ddd; }
-  </style>
+<style>
+  /* adopt Signal K theme variables with fallbacks */
+  body, html {
+    height: 100%;
+    margin: 0;
+    background-color: var(--background-page-color, #0f172a);
+    color: var(--text-color, #e5e7eb);
+    font-family: var(--font-family, sans-serif);
+  }
+  #map {
+    height: 60%;
+  }
+  /* style the regeneration button to match SK buttons */
+  button#regenBtn {
+    background-color: var(--button-primary-bg-color, #2563eb);
+    color: var(--button-primary-text-color, #ffffff);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  button#regenBtn:hover {
+    background-color: var(--button-primary-bg-hover-color, #1e40af);
+  }
+  /* give the table Signal K‑style borders and zebra stripes */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid var(--border-color, #334155);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  th, td {
+    padding: 8px;
+    border: 1px solid var(--border-color, #334155);
+  }
+  th {
+    background-color: var(--table-header-bg-color, #1e293b);
+    color: var(--table-header-text-color, #e2e8f0);
+  }
+  tbody tr:nth-child(odd) {
+    background-color: var(--table-row-bg-alt-color, rgba(255,255,255,0.03));
+  }
+  tbody tr:hover {
+    background-color: var(--table-row-hover-bg-color, rgba(255,255,255,0.05));
+  }
+</style>
 </head>
 <body>
 <h2>Voyages</h2>
