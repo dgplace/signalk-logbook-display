@@ -64,6 +64,27 @@ function degToCompass(deg) {
   const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   return dirs[Math.round(deg / 45) % 8];
 }
+async function regenerateAndReload() {
+  // call the server route to regenerate JSON
+  await fetch('/plugins/voyage-webapp/generate', { method: 'GET', credentials: 'include' });
+  // reload the map data
+  await init(); // call your init() function from earlier
+}
+
+document.getElementById('regenBtn').addEventListener('click', () => {
+  regenerateAndReload().catch(err => console.error(err));
+});
+</script>
+
+<table id="voyTable">
+  <thead><tr><th>#</th><th>Start</th><th>End</th><th>NM</th><th>Max Speed</th><th>Max Wind</th><th>Avg Wind Dir</th></tr></thead>
+  <tbody></tbody>
+</table>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+let map, polylines = [];
 
 async function load() {
   // fetch the data
@@ -125,11 +146,5 @@ document.getElementById('regenBtn').addEventListener('click', async () => {
 });
 </script>
 
-<table id="voyTable">
-  <thead><tr><th>#</th><th>Start</th><th>End</th><th>NM</th><th>Max Speed</th><th>Max Wind</th><th>Avg Wind Dir</th></tr></thead>
-  <tbody></tbody>
-</table>
-<div id="map"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </body>
 </html>
