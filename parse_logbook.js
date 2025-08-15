@@ -59,10 +59,11 @@ function groupVoyages(entries) {
     const entryDate = new Date(entry.datetime.getFullYear(), entry.datetime.getMonth(), entry.datetime.getDate());
 
     if (!current) {
-      current = { 
+      current = {
         startTime: entry.datetime,
         endTime: entry.datetime,
         distance: 0, maxSpeed: 0, maxWind: 0,
+        maxSpeedCoord: null,
         coords: [],
         windHeadings: [],
         windSpeedSum: 0,
@@ -83,12 +84,14 @@ function groupVoyages(entries) {
           maxWind:   current.maxWind,
           avgWindSpeed: avgWindSpeed,
           avgWindHeading: current.windHeadings.length > 0 ? circularMean(current.windHeadings) : null,
-          coords:    current.coords
+          coords:    current.coords,
+          maxSpeedCoord: current.maxSpeedCoord
         });
-        current = { 
+        current = {
           startTime: entry.datetime,
           endTime: entry.datetime,
           distance: 0, maxSpeed: 0, maxWind: 0,
+          maxSpeedCoord: null,
           coords: [],
           windHeadings: [],
           windSpeedSum: 0,
@@ -101,9 +104,10 @@ function groupVoyages(entries) {
 
     current.endTime = entry.datetime;
 
+    let coord = null;
     if (entry.position && typeof entry.position.longitude === 'number' &&
         typeof entry.position.latitude === 'number') {
-      const coord = [entry.position.longitude, entry.position.latitude];
+      coord = [entry.position.longitude, entry.position.latitude];
       if (current.coords.length > 0) {
         current.distance += haversine(current.coords[current.coords.length-1], coord);
       }
@@ -112,7 +116,10 @@ function groupVoyages(entries) {
     if (entry.speed) {
       const s = entry.speed.sog ?? entry.speed.stw;
       if (typeof s === 'number') {
-        if (s > current.maxSpeed) current.maxSpeed = s;
+        if (s > current.maxSpeed) {
+          current.maxSpeed = s;
+          if (coord) current.maxSpeedCoord = coord;
+        }
         current.speedSum += s;
         current.speedCount++;
       }
@@ -141,7 +148,8 @@ function groupVoyages(entries) {
       maxWind:   current.maxWind,
       avgWindSpeed: avgWindSpeed,
       avgWindHeading: current.windHeadings.length > 0 ? circularMean(current.windHeadings) : null,
-      coords:    current.coords
+      coords:    current.coords,
+      maxSpeedCoord: current.maxSpeedCoord
     });
   }
   return voyages;
