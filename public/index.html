@@ -99,7 +99,7 @@ document.getElementById('regenBtn').addEventListener('click', () => {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-let map, polylines = [];
+let map, polylines = [], maxMarker;
 
 async function load() {
   // fetch the data
@@ -112,6 +112,7 @@ async function load() {
     map.remove();    // safely destroy the Leaflet map instance
   }
   polylines = [];
+  maxMarker = null;
 
   map = L.map('map').setView([0, 0], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -148,6 +149,16 @@ async function load() {
       line.setStyle({ color: 'red', weight: 4 });
       // fit map bounds to selected line
       map.fitBounds(line.getBounds());
+      // remove existing marker
+      if (maxMarker) {
+        map.removeLayer(maxMarker);
+        maxMarker = null;
+      }
+      if (v.maxSpeedCoord && v.maxSpeedCoord.length === 2) {
+        const [lon, lat] = v.maxSpeedCoord;
+        maxMarker = L.circleMarker([lat, lon], { color: 'orange', radius: 6 }).addTo(map);
+        maxMarker.bindPopup(`Max SoG: ${v.maxSpeed.toFixed(1)} kn`).openPopup();
+      }
     });
   });
 }
