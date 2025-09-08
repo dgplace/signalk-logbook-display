@@ -23,11 +23,16 @@
     justify-content: space-between;
     align-items: center;
   }
+  .map-row {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+    margin-top: 1em;
+  }
   #map {
-    width: 100%;
+    flex: 1 1 87.5%;
     height: 60vh;  /* responsive height: 60% of viewport */
     min-height: 300px;
-    margin-top: 1em;
   }
   /* style the regeneration button to match SK buttons */
   button#regenBtn {
@@ -65,12 +70,26 @@
     color: white;
   }
   .details-panel {
-    margin-top: 0.75em;
+    flex: 0 0 12.5%;
+    min-width: 180px;
+    max-width: 420px;
     padding: 10px;
     border: 1px solid var(--border-color, #334155);
     border-radius: 4px;
     background-color: var(--background-input-color, #f8fafc);
   }
+  .expander-btn {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.9em;
+    margin-right: 6px;
+  }
+  .day-row {
+    background-color: var(--table-row-bg-alt-color, rgba(0,0,0,0.03));
+  }
+  .day-row.hidden { display: none; }
+  .idx-cell { white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -83,8 +102,10 @@
     <thead><tr><th>#</th><th>Start</th><th>End</th><th>NM</th><th>Max Speed</th><th>Avg Speed</th><th>Max Wind</th><th>Avg Wind</th><th>Avg Wind Dir</th></tr></thead>
     <tbody></tbody>
   </table>
-  <div id="map"></div>
-  <div id="pointDetails" class="details-panel" aria-live="polite"></div>
+  <div class="map-row">
+    <div id="map"></div>
+    <div id="pointDetails" class="details-panel" aria-live="polite"></div>
+  </div>
 </div>
 
 <script>
@@ -98,8 +119,8 @@ function degToCompass(deg) {
 
 <script>
 let map, polylines = [], maxMarker;
-let activeLine = null;           // currently highlighted red line
-let activeLineClick = null;      // stored click handler for active line
+let activePolylines = [];        // currently highlighted red polylines
+let activeLineClickers = [];     // stored click handlers for active polylines
 let selectedPointMarker = null;  // marker for selected point
 
 async function load() {
@@ -126,8 +147,17 @@ async function load() {
     // create table row
     const avgWindDir = (v.avgWindHeading !== undefined && v.avgWindHeading !== null) ? degToCompass(v.avgWindHeading) : '';
     const row = tbody.insertRow();
+
+    // Compute day segments if we have timestamped points
+    const hasPoints = Array.isArray(v.points) && v.points.length && v.points[0].entry?.datetime;
+    const segments = computeDaySegments(v);
+    v._segments = segments; // store for later use
+
+    const isMultiDay = segments.length > 1;
+    const expander = isMultiDay ? `<button class="expander-btn" aria-label="Toggle days">▸</button>` : '';
+
     row.innerHTML =
-      `<td>${i+1}</td><td>${new Date(v.startTime).toLocaleString()}</td>
+      `<td class="idx-cell">${expander}${i+1}</td><td>${new Date(v.startTime).toLocaleString()}</td>
        <td>${new Date(v.endTime).toLocaleString()}</td>
        <td>${v.nm.toFixed(1)}</td>
        <td>${v.maxSpeed.toFixed(1)}</td>
@@ -136,21 +166,54 @@ async function load() {
        <td>${v.avgWindSpeed.toFixed(1)}</td>
        <td>${avgWindDir}</td>`;
 
-    // draw the polyline and store it
-    const latLngs = v.coords.map(([lon, lat]) => [lat, lon]);
-    const line = L.polyline(latLngs, { color: 'blue', weight: 2 }).addTo(map);
-    polylines.push(line);
-    if (i === 0) map.fitBounds(line.getBounds());
+    // draw the polyline(s) for this voyage and store them
+    let voyageBounds = null;
+    if (segments.length > 0) {
+      segments.forEach(seg => {
+        const latLngs = seg.points.map(p => [p.lat, p.lon]);
+        const pl = L.polyline(latLngs, { color: 'blue', weight: 2 }).addTo(map);
+        seg.polyline = pl;
+        polylines.push(pl);
+        const b = pl.getBounds();
+        voyageBounds = voyageBounds ? voyageBounds.extend(b) : b;
+      });
+    } else {
+      // fallback: draw entire voyage as a single line from coords
+      const latLngs = v.coords.map(([lon, lat]) => [lat, lon]);
+      const line = L.polyline(latLngs, { color: 'blue', weight: 2 }).addTo(map);
+      polylines.push(line);
+      v._fallbackPolyline = line;
+      voyageBounds = line.getBounds();
+    }
+    if (i === 0 && voyageBounds) map.fitBounds(voyageBounds);
 
     // click handler to highlight this line
     row.addEventListener('click', () => {
       // reset all polylines to default style
       polylines.forEach(pl => pl.setStyle({ color: 'blue', weight: 2 }));
-      // highlight selected voyage
-      line.setStyle({ color: 'red', weight: 4 });
-      activeLine = line;
-      // fit map bounds to selected line
-      map.fitBounds(line.getBounds());
+      // remove previous click handlers
+      detachActiveClickers();
+
+      // highlight selected voyage (all segments or fallback line)
+      activePolylines = [];
+      if (v._segments && v._segments.length > 0) {
+        v._segments.forEach(seg => {
+          seg.polyline.setStyle({ color: 'red', weight: 4 });
+          activePolylines.push(seg.polyline);
+        });
+        // fit map bounds to selected voyage
+        if (v._segments[0].polyline) {
+          let b = v._segments[0].polyline.getBounds();
+          for (let k = 1; k < v._segments.length; k++) {
+            b = b.extend(v._segments[k].polyline.getBounds());
+          }
+          map.fitBounds(b);
+        }
+      } else if (v._fallbackPolyline) {
+        v._fallbackPolyline.setStyle({ color: 'red', weight: 4 });
+        activePolylines = [v._fallbackPolyline];
+        map.fitBounds(v._fallbackPolyline.getBounds());
+      }
       // remove existing marker
       if (maxMarker) {
         map.removeLayer(maxMarker);
@@ -167,48 +230,86 @@ async function load() {
         map.removeLayer(selectedPointMarker);
         selectedPointMarker = null;
       }
-      if (activeLineClick) {
-        line.off('click', activeLineClick);
-        activeLineClick = null;
-      }
+      detachActiveClickers();
 
       // attach click handler to red path to select nearest point
-      const points = Array.isArray(v.points) && v.points.length ? v.points :
-                     (Array.isArray(v.entries) && v.entries.length ? v.entries :
-                       v.coords.map(([lon, lat]) => ({ lon, lat })));
-
-      const onLineClick = (e) => {
-        if (!points || points.length === 0) return;
-        // find nearest point to clicked latlng
-        const clickLL = e.latlng;
-        let bestIdx = 0;
-        let bestDist = Infinity;
-        for (let idx = 0; idx < points.length; idx++) {
-          const p = points[idx];
-          if (typeof p.lat !== 'number' || typeof p.lon !== 'number') continue;
-          const pll = L.latLng(p.lat, p.lon);
-          const d = clickLL.distanceTo(pll);
-          if (d < bestDist) {
-            bestDist = d;
-            bestIdx = idx;
-          }
-        }
-        const sel = points[bestIdx];
-        const lat = sel.lat, lon = sel.lon;
-        // move or create selection marker
-        if (!selectedPointMarker) {
-          selectedPointMarker = L.circleMarker([lat, lon], { color: 'red', radius: 6, weight: 2, fillOpacity: 0.7 }).addTo(map);
-        } else {
-          selectedPointMarker.setLatLng([lat, lon]);
-        }
-        // update details panel
-        renderPointDetails(sel);
-      };
-      line.on('click', onLineClick);
-      activeLineClick = onLineClick;
+      const voyagePoints = Array.isArray(v.points) && v.points.length ? v.points :
+                           (Array.isArray(v.entries) && v.entries.length ? v.entries :
+                             v.coords.map(([lon, lat]) => ({ lon, lat })));
+      activePolylines.forEach(pl => {
+        const onLineClick = (e) => onPolylineClick(e, voyagePoints);
+        pl.on('click', onLineClick);
+        activeLineClickers.push({ pl, onLineClick });
+      });
       // initial details hint
       setDetailsHint('Click on the red path to inspect a point.');
     });
+
+    // if multi-day, add collapsible day rows
+    if (isMultiDay) {
+      const dayRows = [];
+      let insertAfter = row;
+      segments.forEach((seg, idx) => {
+        const dr = tbody.insertRow(insertAfter.rowIndex + 1);
+        dr.classList.add('day-row', 'hidden');
+        const avgWindDirDay = (seg.avgWindHeading !== undefined && seg.avgWindHeading !== null) ? degToCompass(seg.avgWindHeading) : '';
+        dr.innerHTML = `
+          <td class="idx-cell">↳ ${i+1}.${idx+1}</td>
+          <td>${new Date(seg.startTime).toLocaleString()}</td>
+          <td>${new Date(seg.endTime).toLocaleString()}</td>
+          <td>${seg.nm.toFixed(1)}</td>
+          <td>${seg.maxSpeed.toFixed(1)}</td>
+          <td>${seg.avgSpeed.toFixed(1)}</td>
+          <td>${seg.maxWind.toFixed(1)}</td>
+          <td>${seg.avgWindSpeed.toFixed(1)}</td>
+          <td>${avgWindDirDay}</td>
+        `;
+
+        // click handler for day row
+        dr.addEventListener('click', () => {
+          // reset to default
+          polylines.forEach(pl => pl.setStyle({ color: 'blue', weight: 2 }));
+          detachActiveClickers();
+          activePolylines = [];
+          // highlight only this day
+          if (seg.polyline) {
+            seg.polyline.setStyle({ color: 'red', weight: 4 });
+            activePolylines = [seg.polyline];
+            map.fitBounds(seg.polyline.getBounds());
+          }
+          // remove existing marker
+          if (maxMarker) { map.removeLayer(maxMarker); maxMarker = null; }
+          if (seg.maxSpeedCoord) {
+            const [lon, lat] = seg.maxSpeedCoord;
+            maxMarker = L.circleMarker([lat, lon], { color: 'orange', radius: 6 }).addTo(map);
+            maxMarker.bindPopup(`Max SoG: ${seg.maxSpeed.toFixed(1)} kn`).openPopup();
+          }
+          // clear previous point selection
+          if (selectedPointMarker) { map.removeLayer(selectedPointMarker); selectedPointMarker = null; }
+          // attach click for this segment
+          if (seg.points && seg.points.length) {
+            const onLineClick = (e) => onPolylineClick(e, seg.points);
+            seg.polyline.on('click', onLineClick);
+            activeLineClickers.push({ pl: seg.polyline, onLineClick });
+          }
+          setDetailsHint('Click on the red path to inspect a point.');
+        });
+
+        dayRows.push(dr);
+        insertAfter = dr;
+      });
+
+      const btn = row.querySelector('.expander-btn');
+      if (btn) {
+        let expanded = false;
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          expanded = !expanded;
+          btn.textContent = expanded ? '▾' : '▸';
+          dayRows.forEach(r => r.classList.toggle('hidden', !expanded));
+        });
+      }
+    }
   });
 }
 
@@ -287,6 +388,115 @@ function escapeHtml(str) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+// Utilities for per-day segmentation and interaction
+function detachActiveClickers() {
+  if (Array.isArray(activeLineClickers)) {
+    activeLineClickers.forEach(({ pl, onLineClick }) => {
+      try { pl.off('click', onLineClick); } catch (_) {}
+    });
+  }
+  activeLineClickers = [];
+}
+
+function onPolylineClick(e, points) {
+  if (!points || points.length === 0) return;
+  const clickLL = e.latlng;
+  let bestIdx = 0;
+  let bestDist = Infinity;
+  for (let idx = 0; idx < points.length; idx++) {
+    const p = points[idx];
+    if (typeof p.lat !== 'number' || typeof p.lon !== 'number') continue;
+    const pll = L.latLng(p.lat, p.lon);
+    const d = clickLL.distanceTo(pll);
+    if (d < bestDist) { bestDist = d; bestIdx = idx; }
+  }
+  const sel = points[bestIdx];
+  const lat = sel.lat, lon = sel.lon;
+  if (!selectedPointMarker) {
+    selectedPointMarker = L.circleMarker([lat, lon], { color: 'red', radius: 6, weight: 2, fillOpacity: 0.7 }).addTo(map);
+  } else {
+    selectedPointMarker.setLatLng([lat, lon]);
+  }
+  renderPointDetails(sel);
+}
+
+function computeDaySegments(v) {
+  const pts = Array.isArray(v.points) && v.points.length ? v.points : null;
+  if (!pts) return [];
+  const byDay = new Map();
+  for (const p of pts) {
+    const dtStr = p.entry?.datetime || p.datetime;
+    if (!dtStr) continue;
+    const d = new Date(dtStr);
+    if (Number.isNaN(d)) continue;
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    if (!byDay.has(key)) byDay.set(key, []);
+    byDay.get(key).push(p);
+  }
+  // sort keys
+  const keys = Array.from(byDay.keys()).sort();
+  const segments = [];
+  for (const key of keys) {
+    const points = byDay.get(key);
+    // ensure points sorted by time
+    points.sort((a,b) => new Date(a.entry?.datetime || a.datetime) - new Date(b.entry?.datetime || b.datetime));
+    const startTime = points[0]?.entry?.datetime || points[0]?.datetime;
+    const endTime = points[points.length-1]?.entry?.datetime || points[points.length-1]?.datetime;
+    // metrics
+    let nm = 0;
+    let maxSpeed = 0;
+    let maxSpeedCoord = null;
+    let speedSum = 0, speedCount = 0;
+    let maxWind = 0;
+    let windSpeedSum = 0, windSpeedCount = 0;
+    const windHeadings = [];
+    for (let i = 0; i < points.length; i++) {
+      if (i > 0) {
+        const a = L.latLng(points[i-1].lat, points[i-1].lon);
+        const b = L.latLng(points[i].lat, points[i].lon);
+        nm += a.distanceTo(b) / 1852; // meters -> NM
+      }
+      const entry = points[i].entry || points[i];
+      const s = entry?.speed?.sog ?? entry?.speed?.stw;
+      if (typeof s === 'number') {
+        if (s > maxSpeed) { maxSpeed = s; maxSpeedCoord = [points[i].lon, points[i].lat]; }
+        speedSum += s; speedCount++;
+      }
+      const w = entry?.wind?.speed;
+      if (typeof w === 'number') { if (w > maxWind) maxWind = w; windSpeedSum += w; windSpeedCount++; }
+      const wd = entry?.wind?.direction; if (typeof wd === 'number') windHeadings.push(wd);
+    }
+    const avgSpeed = speedCount ? (speedSum / speedCount) : 0;
+    const avgWindSpeed = windSpeedCount ? (windSpeedSum / windSpeedCount) : 0;
+    const avgWindHeading = windHeadings.length ? circularMean(windHeadings) : null;
+    segments.push({
+      dateKey: key,
+      startTime, endTime,
+      nm: parseFloat(nm.toFixed(1)),
+      maxSpeed, avgSpeed,
+      maxWind, avgWindSpeed, avgWindHeading,
+      points,
+      maxSpeedCoord,
+      polyline: null
+    });
+  }
+  return segments;
+}
+
+function circularMean(degrees) {
+  // degrees: array of angles in degrees [0,360)
+  let sumSin = 0, sumCos = 0;
+  for (const d of degrees) {
+    const rad = d * Math.PI / 180;
+    sumSin += Math.sin(rad);
+    sumCos += Math.cos(rad);
+  }
+  const avgRad = Math.atan2(sumSin / degrees.length, sumCos / degrees.length);
+  let deg = avgRad * 180 / Math.PI;
+  if (deg < 0) deg += 360;
+  return deg;
 }
 </script>
 
