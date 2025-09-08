@@ -2,6 +2,7 @@
 """Merge successive course change log entries with the same starting direction.
 
 Usage:
+
   python merge_course_changes.py input.yml output.yml
 
 The script reads a YAML file containing a list of log entries. Successive
@@ -16,6 +17,7 @@ import math
 import re
 from typing import List, Dict, Any, Optional, Tuple
 
+
 import yaml
 
 
@@ -26,6 +28,7 @@ def circular_mean(angles: List[float]) -> float:
     sin_sum = sum(math.sin(math.radians(a)) for a in angles)
     cos_sum = sum(math.cos(math.radians(a)) for a in angles)
     return (math.degrees(math.atan2(sin_sum, cos_sum)) + 360.0) % 360.0
+
 
 
 def parse_course_change(entry: Dict[str, Any]) -> Optional[Tuple[float, float]]:
@@ -42,12 +45,14 @@ def parse_course_change(entry: Dict[str, Any]) -> Optional[Tuple[float, float]]:
     return float(match.group(1)), float(match.group(2))
 
 
+
 def merge_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     merged: List[Dict[str, Any]] = []
     i = 0
     n = len(entries)
     while i < n:
         entry = entries[i]
+
         parsed = parse_course_change(entry) if isinstance(entry, dict) else None
         if parsed:
             from_course, _ = parsed
@@ -61,12 +66,15 @@ def merge_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                     i += 1
                 else:
                     break
+
             if len(group) == 1:
                 merged.append(entry)
                 continue
             combined = group[0].copy()
+
             _, final_to = parse_course_change(group[-1])  # type: ignore[arg-type]
             combined["text"] = f"Course change: {from_course:g}° → {final_to:g}°"
+
             if "position" in group[-1]:
                 combined["position"] = group[-1]["position"]
             # Determine maximum speed and wind values
@@ -107,18 +115,20 @@ def merge_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def main() -> None:
+
     if len(sys.argv) != 3:
         print(f"Usage: {sys.argv[0]} <input.yml> <output.yml>")
         sys.exit(1)
     in_path, out_path = sys.argv[1:3]
     with open(in_path, "r", encoding="utf-8") as f:
+
         data = yaml.safe_load(f)
     if not isinstance(data, list):
         print("Log must contain a list of entries", file=sys.stderr)
         sys.exit(1)
-    result = merge_entries(data)
-    with open(out_path, "w", encoding="utf-8") as f:
+    result = merge_entries(data)    with open(out_path, "w", encoding="utf-8") as f:
         yaml.safe_dump(result, f, sort_keys=False)
+
 
 
 if __name__ == "__main__":
