@@ -11,6 +11,9 @@ into a single entry. Course changes are identified from the ``text`` field in
 the form ``"Course change: X° → Y°"``. The resulting entry uses the last
 ``to`` value and position, the maximum of ``maxSpeed`` and ``maxWind`` values,
 and averages the wind speed and direction.
+
+Additionally, after merging, any "Course change" entries with a speed over ground
+("sog") less than 0.6 knots are removed from the output.
 """
 import sys
 import math
@@ -39,6 +42,15 @@ def parse_course_change(entry: Dict[str, Any]) -> Optional[Tuple[float, float]]:
     if not match:
         return None
     return float(match.group(1)), float(match.group(2))
+
+def get_sog(entry: Dict[str, Any]) -> Optional[float]:
+    """Return sog (knots) from entry if available and numeric, else None."""
+    spd = entry.get("speed")
+    if isinstance(spd, dict):
+        sog = spd.get("sog")
+        if isinstance(sog, (int, float)):
+            return float(sog)
+    return None
 
 def merge_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     merged: List[Dict[str, Any]] = []
@@ -71,6 +83,8 @@ def merge_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
             if "position" in group[-1]:
                 combined["position"] = group[-1]["position"]
+            if "speed" in group[-1]:
+                combined["speed"] = group[-1]["speed"]
             # Determine maximum speed and wind values
             max_speed = max(
                 (e.get("maxSpeed") for e in group if e.get("maxSpeed") is not None),
@@ -105,7 +119,15 @@ def merge_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         else:
             merged.append(entry)
             i += 1
-    return merged
+    # After merging, drop course change entries with sog < 0.6 kt
+    filtered: List[Dict[str, Any]] = []
+    for e in merged:
+        is_course_change = parse_course_change(e) is not None if isinstance(e, dict) else False
+        sog = get_sog(e) if isinstance(e, dict) else None
+        if is_course_change and sog is not None and sog < 0.6:
+            continue  # skip low-speed course change entries
+        filtered.append(e)
+    return filtered
 
 
 def main() -> None:
