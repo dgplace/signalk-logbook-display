@@ -2,17 +2,21 @@
 """Merge successive course change log entries with the same starting direction.
 
 Usage:
-  python merge_course_changes.py path/to/log.yml > merged.yml
 
-The script reads a YAML file containing a list of log entries.  Successive
-entries that describe course changes with the same ``from`` value are merged
-into a single entry.  The resulting entry uses the last ``to`` value and
-position, the maximum of ``maxSpeed`` and ``maxWind`` values, and averages the
-wind speed and direction.
+  python merge_course_changes.py input.yml output.yml
+
+The script reads a YAML file containing a list of log entries. Successive
+entries that describe course changes with the same starting course are merged
+into a single entry. Course changes are identified from the ``text`` field in
+the form ``"Course change: X° → Y°"``. The resulting entry uses the last
+``to`` value and position, the maximum of ``maxSpeed`` and ``maxWind`` values,
+and averages the wind speed and direction.
 """
 import sys
 import math
-from typing import List, Dict, Any
+import re
+from typing import List, Dict, Any, Optional, Tuple
+
 
 import yaml
 
@@ -26,23 +30,51 @@ def circular_mean(angles: List[float]) -> float:
     return (math.degrees(math.atan2(sin_sum, cos_sum)) + 360.0) % 360.0
 
 
+
+def parse_course_change(entry: Dict[str, Any]) -> Optional[Tuple[float, float]]:
+    """Extract (from, to) course values from an entry's text if present."""
+    text = entry.get("text")
+    if not isinstance(text, str):
+        return None
+    match = re.search(
+        r"Course change:\s*([0-9]+(?:\.[0-9]+)?)\s*[°º]?\s*(?:→|->)\s*([0-9]+(?:\.[0-9]+)?)",
+        text,
+    )
+    if not match:
+        return None
+    return float(match.group(1)), float(match.group(2))
+
+
+
 def merge_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     merged: List[Dict[str, Any]] = []
     i = 0
     n = len(entries)
     while i < n:
         entry = entries[i]
-        if isinstance(entry, dict) and "from" in entry and "to" in entry:
+
+        parsed = parse_course_change(entry) if isinstance(entry, dict) else None
+        if parsed:
+            from_course, _ = parsed
             group = [entry]
             i += 1
-            while i < n and isinstance(entries[i], dict) and entries[i].get("from") == entry["from"]:
-                group.append(entries[i])
-                i += 1
+            while i < n:
+                next_entry = entries[i]
+                next_parsed = parse_course_change(next_entry) if isinstance(next_entry, dict) else None
+                if next_parsed and next_parsed[0] == from_course:
+                    group.append(next_entry)
+                    i += 1
+                else:
+                    break
+
             if len(group) == 1:
                 merged.append(entry)
                 continue
             combined = group[0].copy()
-            combined["to"] = group[-1]["to"]
+
+            _, final_to = parse_course_change(group[-1])  # type: ignore[arg-type]
+            combined["text"] = f"Course change: {from_course:g}° → {final_to:g}°"
+
             if "position" in group[-1]:
                 combined["position"] = group[-1]["position"]
             # Determine maximum speed and wind values
@@ -83,17 +115,20 @@ def merge_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} <log.yml>")
+
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} <input.yml> <output.yml>")
         sys.exit(1)
-    path = sys.argv[1]
-    with open(path, "r", encoding="utf-8") as f:
+    in_path, out_path = sys.argv[1:3]
+    with open(in_path, "r", encoding="utf-8") as f:
+
         data = yaml.safe_load(f)
     if not isinstance(data, list):
         print("Log must contain a list of entries", file=sys.stderr)
         sys.exit(1)
-    result = merge_entries(data)
-    yaml.safe_dump(result, sys.stdout, sort_keys=False)
+    result = merge_entries(data)    with open(out_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(result, f, sort_keys=False)
+
 
 
 if __name__ == "__main__":
