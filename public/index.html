@@ -248,9 +248,10 @@ async function load() {
     // if multi-day, add collapsible day rows
     if (isMultiDay) {
       const dayRows = [];
-      let insertAfter = row;
+      // use sectionRowIndex which is index within tbody, not global rowIndex
+      let insertIndex = row.sectionRowIndex + 1;
       segments.forEach((seg, idx) => {
-        const dr = tbody.insertRow(insertAfter.rowIndex + 1);
+        const dr = tbody.insertRow(insertIndex);
         dr.classList.add('day-row', 'hidden');
         const avgWindDirDay = (seg.avgWindHeading !== undefined && seg.avgWindHeading !== null) ? degToCompass(seg.avgWindHeading) : '';
         dr.innerHTML = `
@@ -296,7 +297,7 @@ async function load() {
         });
 
         dayRows.push(dr);
-        insertAfter = dr;
+        insertIndex += 1;
       });
 
       const btn = row.querySelector('.expander-btn');
