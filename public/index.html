@@ -64,6 +64,13 @@
     background-color: var(--table-row-hover-bg-color, blue);
     color: white;
   }
+  .details-panel {
+    margin-top: 0.75em;
+    padding: 10px;
+    border: 1px solid var(--border-color, #334155);
+    border-radius: 4px;
+    background-color: var(--background-input-color, #f8fafc);
+  }
 </style>
 </head>
 <body>
@@ -77,6 +84,7 @@
     <tbody></tbody>
   </table>
   <div id="map"></div>
+  <div id="pointDetails" class="details-panel" aria-live="polite"></div>
 </div>
 
 <script>
@@ -84,22 +92,15 @@ function degToCompass(deg) {
   const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   return dirs[Math.round(deg / 45) % 8];
 }
-async function regenerateAndReload() {
-  // call the server route to regenerate JSON
-  await fetch('/plugins/voyage-webapp/generate', { method: 'GET', credentials: 'include' });
-  // reload the map data
-  await init(); // call your init() function from earlier
-}
-
-document.getElementById('regenBtn').addEventListener('click', () => {
-  regenerateAndReload().catch(err => console.error(err));
-});
 </script>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
 let map, polylines = [], maxMarker;
+let activeLine = null;           // currently highlighted red line
+let activeLineClick = null;      // stored click handler for active line
+let selectedPointMarker = null;  // marker for selected point
 
 async function load() {
   // fetch the data
@@ -147,6 +148,7 @@ async function load() {
       polylines.forEach(pl => pl.setStyle({ color: 'blue', weight: 2 }));
       // highlight selected voyage
       line.setStyle({ color: 'red', weight: 4 });
+      activeLine = line;
       // fit map bounds to selected line
       map.fitBounds(line.getBounds());
       // remove existing marker
@@ -159,12 +161,59 @@ async function load() {
         maxMarker = L.circleMarker([lat, lon], { color: 'orange', radius: 6 }).addTo(map);
         maxMarker.bindPopup(`Max SoG: ${v.maxSpeed.toFixed(1)} kn`).openPopup();
       }
+
+      // clear previous point selection and handler
+      if (selectedPointMarker) {
+        map.removeLayer(selectedPointMarker);
+        selectedPointMarker = null;
+      }
+      if (activeLineClick) {
+        line.off('click', activeLineClick);
+        activeLineClick = null;
+      }
+
+      // attach click handler to red path to select nearest point
+      const points = Array.isArray(v.points) && v.points.length ? v.points :
+                     (Array.isArray(v.entries) && v.entries.length ? v.entries :
+                       v.coords.map(([lon, lat]) => ({ lon, lat })));
+
+      const onLineClick = (e) => {
+        if (!points || points.length === 0) return;
+        // find nearest point to clicked latlng
+        const clickLL = e.latlng;
+        let bestIdx = 0;
+        let bestDist = Infinity;
+        for (let idx = 0; idx < points.length; idx++) {
+          const p = points[idx];
+          if (typeof p.lat !== 'number' || typeof p.lon !== 'number') continue;
+          const pll = L.latLng(p.lat, p.lon);
+          const d = clickLL.distanceTo(pll);
+          if (d < bestDist) {
+            bestDist = d;
+            bestIdx = idx;
+          }
+        }
+        const sel = points[bestIdx];
+        const lat = sel.lat, lon = sel.lon;
+        // move or create selection marker
+        if (!selectedPointMarker) {
+          selectedPointMarker = L.circleMarker([lat, lon], { color: 'red', radius: 6, weight: 2, fillOpacity: 0.7 }).addTo(map);
+        } else {
+          selectedPointMarker.setLatLng([lat, lon]);
+        }
+        // update details panel
+        renderPointDetails(sel);
+      };
+      line.on('click', onLineClick);
+      activeLineClick = onLineClick;
+      // initial details hint
+      setDetailsHint('Click on the red path to inspect a point.');
     });
   });
 }
 
 // call load() initially
-load().catch(console.error);
+load().then(() => setDetailsHint('Select a voyage, then click the red path to inspect points.')).catch(console.error);
 
 // regenerate button logic, if you still have it
 document.getElementById('regenBtn').addEventListener('click', async () => {
@@ -174,6 +223,50 @@ document.getElementById('regenBtn').addEventListener('click', async () => {
   });
   await load();
 });
+</script>
+
+<script>
+// Simple details panel rendering
+function setDetailsHint(msg) {
+  const panel = document.getElementById('pointDetails');
+  panel.innerHTML = `<em>${msg}</em>`;
+}
+
+function degToCompassLocal(deg) {
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  return dirs[Math.round(deg / 45) % 8];
+}
+
+function renderPointDetails(point) {
+  const panel = document.getElementById('pointDetails');
+  const entry = point.entry || point; // fall back if only lon/lat exist
+
+  // build a compact summary + raw JSON
+  const when = entry.datetime ? new Date(entry.datetime).toLocaleString() : '—';
+  const sog = entry?.speed?.sog;
+  const stw = entry?.speed?.stw;
+  const windSpd = entry?.wind?.speed;
+  const windDir = entry?.wind?.direction;
+  const windDirTxt = typeof windDir === 'number' ? `${windDir.toFixed(0)}° (${degToCompassLocal(windDir)})` : '—';
+
+  const summary = `
+    <div><strong>Time:</strong> ${when}</div>
+    <div><strong>Position:</strong> ${point.lat?.toFixed?.(5) ?? '—'}, ${point.lon?.toFixed?.(5) ?? '—'}</div>
+    <div><strong>SOG:</strong> ${typeof sog === 'number' ? sog.toFixed(2) + ' kn' : '—'}</div>
+    <div><strong>STW:</strong> ${typeof stw === 'number' ? stw.toFixed(2) + ' kn' : '—'}</div>
+    <div><strong>Wind:</strong> ${typeof windSpd === 'number' ? windSpd.toFixed(2) + ' kn' : '—'} @ ${windDirTxt}</div>
+  `;
+
+  const raw = `<pre style="white-space: pre-wrap;">${escapeHtml(JSON.stringify(entry, null, 2))}</pre>`;
+  panel.innerHTML = `<h3 style="margin:0 0 6px 0;">Point Details</h3>${summary}<details><summary>Raw data</summary>${raw}</details>`;
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
 </script>
 
 </body>

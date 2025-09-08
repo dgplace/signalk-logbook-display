@@ -65,6 +65,7 @@ function groupVoyages(entries) {
         distance: 0, maxSpeed: 0, maxWind: 0,
         maxSpeedCoord: null,
         coords: [],
+        points: [],
         windHeadings: [],
         windSpeedSum: 0,
         windSpeedCount: 0,
@@ -85,6 +86,7 @@ function groupVoyages(entries) {
           avgWindSpeed: avgWindSpeed,
           avgWindHeading: current.windHeadings.length > 0 ? circularMean(current.windHeadings) : null,
           coords:    current.coords,
+          points:    current.points,
           maxSpeedCoord: current.maxSpeedCoord
         });
         current = {
@@ -93,6 +95,7 @@ function groupVoyages(entries) {
           distance: 0, maxSpeed: 0, maxWind: 0,
           maxSpeedCoord: null,
           coords: [],
+          points: [],
           windHeadings: [],
           windSpeedSum: 0,
           windSpeedCount: 0,
@@ -112,6 +115,19 @@ function groupVoyages(entries) {
         current.distance += haversine(current.coords[current.coords.length-1], coord);
       }
       current.coords.push(coord);
+      // store a rich point with all entry information for later selection on the map
+      const sanitized = JSON.parse(JSON.stringify(entry));
+      // ensure datetime is a string in output JSON
+      if (sanitized && sanitized.datetime instanceof Date) {
+        sanitized.datetime = sanitized.datetime.toISOString();
+      } else if (entry.datetime instanceof Date) {
+        sanitized.datetime = entry.datetime.toISOString();
+      }
+      current.points.push({
+        lon: entry.position.longitude,
+        lat: entry.position.latitude,
+        entry: sanitized
+      });
     }
     if (entry.speed) {
       const s = entry.speed.sog ?? entry.speed.stw;
@@ -149,6 +165,7 @@ function groupVoyages(entries) {
       avgWindSpeed: avgWindSpeed,
       avgWindHeading: current.windHeadings.length > 0 ? circularMean(current.windHeadings) : null,
       coords:    current.coords,
+      points:    current.points,
       maxSpeedCoord: current.maxSpeedCoord
     });
   }
