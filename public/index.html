@@ -237,6 +237,26 @@ function degToCompassLocal(deg) {
   return dirs[Math.round(deg / 45) % 8];
 }
 
+function toDMS(value, isLat) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '—';
+  const abs = Math.abs(value);
+  let deg = Math.floor(abs);
+  let minFloat = (abs - deg) * 60;
+  let min = Math.floor(minFloat);
+  let sec = Math.round((minFloat - min) * 60);
+  if (sec === 60) { sec = 0; min += 1; }
+  if (min === 60) { min = 0; deg += 1; }
+  const dir = isLat ? (value >= 0 ? 'N' : 'S') : (value >= 0 ? 'E' : 'W');
+  const mm = String(min).padStart(2, '0');
+  const ss = String(sec).padStart(2, '0');
+  return `${deg}°${mm}′${ss}″${dir}`;
+}
+
+function formatPosition(lat, lon) {
+  if (typeof lat !== 'number' || typeof lon !== 'number') return '—';
+  return `${toDMS(lat, true)} ${toDMS(lon, false)}`;
+}
+
 function renderPointDetails(point) {
   const panel = document.getElementById('pointDetails');
   const entry = point.entry || point; // fall back if only lon/lat exist
@@ -249,9 +269,10 @@ function renderPointDetails(point) {
   const windDir = entry?.wind?.direction;
   const windDirTxt = typeof windDir === 'number' ? `${windDir.toFixed(0)}° (${degToCompassLocal(windDir)})` : '—';
 
+  const posStr = formatPosition(point.lat, point.lon);
   const summary = `
     <div><strong>Time:</strong> ${when}</div>
-    <div><strong>Position:</strong> ${point.lat?.toFixed?.(5) ?? '—'}, ${point.lon?.toFixed?.(5) ?? '—'}</div>
+    <div><strong>Position:</strong> ${posStr}</div>
     <div><strong>SOG:</strong> ${typeof sog === 'number' ? sog.toFixed(2) + ' kn' : '—'}</div>
     <div><strong>STW:</strong> ${typeof stw === 'number' ? stw.toFixed(2) + ' kn' : '—'}</div>
     <div><strong>Wind:</strong> ${typeof windSpd === 'number' ? windSpd.toFixed(2) + ' kn' : '—'} @ ${windDirTxt}</div>
