@@ -17,9 +17,7 @@ import math
 import re
 from typing import List, Dict, Any, Optional, Tuple
 
-
 import yaml
-
 
 def circular_mean(angles: List[float]) -> float:
     """Return the circular mean of a list of angles in degrees."""
@@ -28,8 +26,6 @@ def circular_mean(angles: List[float]) -> float:
     sin_sum = sum(math.sin(math.radians(a)) for a in angles)
     cos_sum = sum(math.cos(math.radians(a)) for a in angles)
     return (math.degrees(math.atan2(sin_sum, cos_sum)) + 360.0) % 360.0
-
-
 
 def parse_course_change(entry: Dict[str, Any]) -> Optional[Tuple[float, float]]:
     """Extract (from, to) course values from an entry's text if present."""
@@ -43,8 +39,6 @@ def parse_course_change(entry: Dict[str, Any]) -> Optional[Tuple[float, float]]:
     if not match:
         return None
     return float(match.group(1)), float(match.group(2))
-
-
 
 def merge_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     merged: List[Dict[str, Any]] = []
@@ -115,7 +109,6 @@ def merge_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def main() -> None:
-
     if len(sys.argv) != 3:
         print(f"Usage: {sys.argv[0]} <input.yml> <output.yml>")
         sys.exit(1)
@@ -126,9 +119,9 @@ def main() -> None:
     if not isinstance(data, list):
         print("Log must contain a list of entries", file=sys.stderr)
         sys.exit(1)
-    result = merge_entries(data)    with open(out_path, "w", encoding="utf-8") as f:
+    result = merge_entries(data)
+    with open(out_path, "w", encoding="utf-8") as f:
         yaml.safe_dump(result, f, sort_keys=False)
-
 
 
 if __name__ == "__main__":
