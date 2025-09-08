@@ -159,5 +159,7 @@ function groupVoyages(entries) {
   const dir     = process.argv[2];
   const entries = await readEntries(dir);
   const voyages = groupVoyages(entries);
+  // Ensure voyages are emitted in chronological order by start time
+  voyages.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
   console.log(JSON.stringify({ voyages }, null, 2));
 })();
