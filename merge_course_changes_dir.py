@@ -2,7 +2,7 @@
 """Batch-run course change merging over YAML files in a directory.
 
 Usage:
-  python merge_course_changes_dir.py <directory> [--inplace] [--out-dir DIR]
+  python merge_course_changes_dir.py <directory> [--inplace] [--out-dir DIR] [--fix-maxima-pos]
 
 Behavior:
 - Without --inplace, writes results to <directory>/merged/<filename> (or --out-dir).
@@ -23,24 +23,26 @@ import yaml
 
 try:
     # Reuse the core merging logic from the existing script
-    from merge_course_changes import merge_entries
+    from merge_course_changes import merge_entries, fix_maxima_positions
 except Exception as e:  # pragma: no cover - helpful error for CLI usage
     print(f"Error importing merge_course_changes: {e}", file=sys.stderr)
     sys.exit(1)
 
 
-def process_file(src_path: str, dst_path: str) -> None:
+def process_file(src_path: str, dst_path: str, fix_maxima_pos: bool = False) -> None:
     with open(src_path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
     if not isinstance(data, list):
         raise ValueError(f"{src_path}: YAML root must be a list of entries")
+    if fix_maxima_pos:
+        data = fix_maxima_positions(data)
     result = merge_entries(data)
     os.makedirs(os.path.dirname(dst_path), exist_ok=True)
     with open(dst_path, "w", encoding="utf-8") as f:
         yaml.safe_dump(result, f, sort_keys=False)
 
 
-def process_inplace(src_path: str) -> None:
+def process_inplace(src_path: str, fix_maxima_pos: bool = False) -> None:
     dir_name = os.path.dirname(src_path) or "."
     with tempfile.NamedTemporaryFile("w", delete=False, dir=dir_name, encoding="utf-8", suffix=".tmp") as tmp:
         tmp_path = tmp.name
@@ -48,6 +50,8 @@ def process_inplace(src_path: str) -> None:
             data = yaml.safe_load(f)
         if not isinstance(data, list):
             raise ValueError(f"{src_path}: YAML root must be a list of entries")
+        if fix_maxima_pos:
+            data = fix_maxima_positions(data)
         result = merge_entries(data)
         yaml.safe_dump(result, tmp, sort_keys=False)
     # Atomic replace
@@ -59,6 +63,11 @@ def main(argv: List[str] | None = None) -> int:
     parser.add_argument("directory", help="Directory containing .yml files (non-recursive)")
     parser.add_argument("--inplace", action="store_true", help="Overwrite source files atomically")
     parser.add_argument("--out-dir", default=None, help="Output directory (default: <directory>/merged when not --inplace)")
+    parser.add_argument(
+        "--fix-maxima-pos",
+        action="store_true",
+        help="Backfill position for max wind/heel/speed entries using last good position",
+    )
     args = parser.parse_args(argv)
 
     base_dir = os.path.abspath(args.directory)
@@ -82,10 +91,10 @@ def main(argv: List[str] | None = None) -> int:
     for src in files:
         try:
             if args.inplace:
-                process_inplace(src)
+                process_inplace(src, fix_maxima_pos=args.fix_maxima_pos)
             else:
                 dst = os.path.join(out_dir, os.path.basename(src))  # type: ignore[arg-type]
-                process_file(src, dst)
+                process_file(src, dst, fix_maxima_pos=args.fix_maxima_pos)
             processed += 1
         except Exception as e:
             failed += 1
@@ -97,4 +106,3 @@ def main(argv: List[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

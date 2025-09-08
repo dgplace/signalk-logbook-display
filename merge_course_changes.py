@@ -3,7 +3,7 @@
 
 Usage:
 
-  python merge_course_changes.py input.yml output.yml
+  python merge_course_changes.py input.yml output.yml [--fix-maxima-pos]
 
 The script reads a YAML file containing a list of log entries. Successive
 entries that describe course changes with the same starting course are merged
@@ -14,8 +14,14 @@ and averages the wind speed and direction.
 
 Additionally, after merging, any "Course change" entries with a speed over ground
 ("sog") less than 0.6 knots are removed from the output.
+
+Optionally, with ``--fix-maxima-pos``, entries indicating maximums (e.g.,
+"max wind", "max heel", or "max speed") that have a missing or invalid
+position will have their position backfilled with the last known good position
+from earlier entries.
 """
 import sys
+import argparse
 import math
 import re
 from typing import List, Dict, Any, Optional, Tuple
@@ -130,17 +136,79 @@ def merge_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return filtered
 
 
+def _is_good_position_value(pos: Any) -> bool:
+    if not isinstance(pos, dict):
+        return False
+    lon = pos.get("longitude")
+    lat = pos.get("latitude")
+    if not isinstance(lon, (int, float)) or not isinstance(lat, (int, float)):
+        return False
+    # Basic bounds check and filter out (0,0) which is commonly invalid for logs
+    if not (-180.0 <= float(lon) <= 180.0 and -90.0 <= float(lat) <= 90.0):
+        return False
+    if float(lon) == 0.0 and float(lat) == 0.0:
+        return False
+    return True
+
+
+def _is_maxima_entry(entry: Dict[str, Any]) -> bool:
+    # Check explicit fields first
+    maxima_fields = ("maxWind", "maxHeel", "maxSpeed")
+    if any(k in entry and entry.get(k) is not None for k in maxima_fields):
+        return True
+    # Fallback to text matching if present
+    text = entry.get("text")
+    if isinstance(text, str):
+        return re.search(r"\bmax(?:imum)?\s+(wind|heel|speed)\b", text, re.IGNORECASE) is not None
+    return False
+
+
+def fix_maxima_positions(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Backfill positions for maxima entries using last known good position.
+
+    - A "good" position is within valid lat/lon bounds and not (0,0).
+    - Maxima entries are those with maxWind/maxHeel/maxSpeed fields or text matching
+      "max wind/heel/speed" (case-insensitive).
+    """
+    last_good_pos: Optional[Dict[str, Any]] = None
+    for e in entries:
+        pos = e.get("position") if isinstance(e, dict) else None
+        is_max = _is_maxima_entry(e) if isinstance(e, dict) else False
+        # Update last_good_pos only from non-maxima entries with a valid position
+        if not is_max and _is_good_position_value(pos):
+            # Keep a copy to avoid accidental later mutation
+            last_good_pos = {
+                "longitude": float(pos["longitude"]),  # type: ignore[index]
+                "latitude": float(pos["latitude"])    # type: ignore[index]
+            }
+            continue
+        # For maxima entries, backfill if position is missing/invalid and we have a prior good one
+        if is_max and last_good_pos is not None and not _is_good_position_value(pos):
+            e["position"] = last_good_pos.copy()
+    return entries
+
+
 def main() -> None:
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} <input.yml> <output.yml>")
-        sys.exit(1)
-    in_path, out_path = sys.argv[1:3]
+    parser = argparse.ArgumentParser(description="Merge course change log entries and optional maxima position fixes")
+    parser.add_argument("input", help="Input YAML file with log entries")
+    parser.add_argument("output", help="Output YAML file for merged/fixed entries")
+    parser.add_argument(
+        "--fix-maxima-pos",
+        action="store_true",
+        help="Backfill position for max wind/heel/speed entries using last good position",
+    )
+    args = parser.parse_args()
+
+    in_path = args.input
+    out_path = args.output
     with open(in_path, "r", encoding="utf-8") as f:
 
         data = yaml.safe_load(f)
     if not isinstance(data, list):
         print("Log must contain a list of entries", file=sys.stderr)
         sys.exit(1)
+    if args.fix_maxima_pos:
+        data = fix_maxima_positions(data)
     result = merge_entries(data)
     with open(out_path, "w", encoding="utf-8") as f:
         yaml.safe_dump(result, f, sort_keys=False)
