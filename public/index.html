@@ -6,12 +6,14 @@
   <link rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
+  /* Account for borders/padding in element sizing to avoid overflow */
+  *, *::before, *::after { box-sizing: border-box; }
   /* adopt Signal K theme variables with fallbacks */
   body, html {
     height: 100%;
     margin: 0;
-    /* subtle shaded background */
-    background: var(--background-page-color, #f6f7fb);
+    /* slightly darker shaded background */
+    background: var(--background-page-color, #eef2f7);
     color: var(--text-color, #000000);
     font-family: var(--font-family, sans-serif);
   }
@@ -37,7 +39,7 @@
     flex: 1 1 auto;
     min-height: 0;           /* important for flex children to allow overflow */
     overflow: auto;          /* scrollable table body */
-    border: 1px solid var(--border-color, #e2e8f0);
+    border: 1px solid var(--border-color, #d1d5db);
     border-radius: 8px;
     background: var(--background-panel-color, #ffffff);
     box-shadow: 0 1px 2px rgba(0,0,0,0.06);
@@ -47,6 +49,8 @@
     gap: 12px;
     align-items: stretch;
     min-height: 0; /* allow map to size correctly */
+    height: 100%;
+    overflow: hidden; /* prevent tiny page scroll due to borders */
   }
   #map {
     flex: 1 1 87.5%;
@@ -76,7 +80,7 @@
     border-bottom: 1px solid var(--border-color, #e5e7eb);
   }
   th {
-    background-color: var(--table-header-bg-color, #f3f4f6);
+    background-color: var(--table-header-bg-color, #e2e8f0);
     color: var(--table-header-text-color, #000000);
     position: sticky;  /* sticky header for scroll */
     top: 0;
@@ -215,6 +219,79 @@ function drawMaxSpeedMarkerFromCoord(coord, speed) {
     maxMarker = L.circleMarker([lat, lon], { color: 'orange', radius: 6 }).addTo(map);
     maxMarker.bindPopup(`Max SoG: ${Number(speed).toFixed(1)} kn`).openPopup();
   }
+}
+
+/**
+ * selectVoyage
+ * Purpose: Highlight a voyage, setup interactions and optionally fit bounds.
+ * Input: v (voyage), row (table row), opts: { fit?: boolean }
+ * Output: Updates map layers, table selection, and handlers
+ */
+function selectVoyage(v, row, opts = {}) {
+  const { fit = true } = opts;
+  setSelectedTableRow(row);
+  // reset all polylines to default style and make them voyage-selectable
+  polylines.forEach(pl => {
+    pl.setStyle({ color: 'blue', weight: 2 });
+    if (pl._voySelect) { try { pl.off('click', pl._voySelect); } catch(_) {} pl.on('click', pl._voySelect); }
+  });
+  // remove previous click handlers and overlays
+  detachActiveClickers();
+  clearActivePointMarkers();
+  clearSelectedWindGraphics();
+
+  // highlight selected voyage
+  activePolylines = [];
+  if (v._segments && v._segments.length > 0) {
+    v._segments.forEach(seg => {
+      seg.polyline.setStyle({ color: 'red', weight: 4 });
+      activePolylines.push(seg.polyline);
+    });
+    if (fit && v._segments[0].polyline) {
+      let b = v._segments[0].polyline.getBounds();
+      for (let k = 1; k < v._segments.length; k++) b = b.extend(v._segments[k].polyline.getBounds());
+      map.fitBounds(b);
+    }
+  } else if (v._fallbackPolyline) {
+    v._fallbackPolyline.setStyle({ color: 'red', weight: 4 });
+    activePolylines = [v._fallbackPolyline];
+    if (fit) map.fitBounds(v._fallbackPolyline.getBounds());
+  }
+
+  // update max speed marker
+  drawMaxSpeedMarkerFromCoord(v.maxSpeedCoord, v.maxSpeed);
+
+  // clear previous point selection and handler
+  if (selectedPointMarker) { map.removeLayer(selectedPointMarker); selectedPointMarker = null; }
+  detachActiveClickers();
+
+  // attach click handler to red path to select nearest point
+  const voyagePoints = getVoyagePoints(v);
+  activePolylines.forEach(pl => {
+    // disable voyage-select on active red paths; enable point selection
+    if (pl._voySelect) { try { pl.off('click', pl._voySelect); } catch(_) {} }
+    const onLineClick = (e) => onPolylineClick(e, voyagePoints);
+    pl.on('click', onLineClick);
+    activeLineClickers.push({ pl, onLineClick });
+  });
+
+  // add tiny markers for all points on highlighted track
+  if (Array.isArray(voyagePoints) && voyagePoints.length) {
+    activePointMarkersGroup = L.layerGroup();
+    voyagePoints.forEach((p, idx) => {
+      if (typeof p.lat !== 'number' || typeof p.lon !== 'number') return;
+      const m = L.marker([p.lat, p.lon], { icon: tinySquareIcon });
+      m.on('click', (ev) => {
+        L.DomEvent.stopPropagation(ev);
+        updateSelectedPoint(p, { prev: voyagePoints[idx-1], next: voyagePoints[idx+1] });
+      });
+      m.addTo(activePointMarkersGroup);
+    });
+    activePointMarkersGroup.addTo(map);
+  }
+
+  // initial details hint
+  setDetailsHint('Click on the red path to inspect a point.');
 }
 
 /**
@@ -463,8 +540,8 @@ async function load() {
         polylines.push(pl);
         const b = pl.getBounds();
         voyageBounds = voyageBounds ? voyageBounds.extend(b) : b;
-        // clicking a blue path selects voyage and the table row
-        const voySelect = (ev) => { L.DomEvent.stopPropagation(ev); row.click(); };
+        // clicking a blue path selects voyage and the table row (keep current zoom)
+        const voySelect = (ev) => { L.DomEvent.stopPropagation(ev); selectVoyage(v, row, { fit: false }); };
         pl.on('click', voySelect);
         pl._voySelect = voySelect;
       });
@@ -475,80 +552,14 @@ async function load() {
       polylines.push(line);
       v._fallbackPolyline = line;
       voyageBounds = line.getBounds();
-      const voySelect = (ev) => { L.DomEvent.stopPropagation(ev); row.click(); };
+      const voySelect = (ev) => { L.DomEvent.stopPropagation(ev); selectVoyage(v, row, { fit: false }); };
       line.on('click', voySelect);
       line._voySelect = voySelect;
     }
     if (i === 0 && voyageBounds) map.fitBounds(voyageBounds);
 
-    // click handler to highlight this line
-    row.addEventListener('click', () => {
-      setSelectedTableRow(row);
-      // reset all polylines to default style
-      polylines.forEach(pl => { pl.setStyle({ color: 'blue', weight: 2 }); if (pl._voySelect) { try { pl.off('click', pl._voySelect); } catch(_) {} pl.on('click', pl._voySelect); } });
-      // remove previous click handlers
-      detachActiveClickers();
-      // remove tiny point markers and wind arrow
-      clearActivePointMarkers();
-      clearSelectedWindGraphics();
-
-      // highlight selected voyage (all segments or fallback line)
-      activePolylines = [];
-      if (v._segments && v._segments.length > 0) {
-        v._segments.forEach(seg => {
-          seg.polyline.setStyle({ color: 'red', weight: 4 });
-          activePolylines.push(seg.polyline);
-        });
-        // fit map bounds to selected voyage
-        if (v._segments[0].polyline) {
-          let b = v._segments[0].polyline.getBounds();
-          for (let k = 1; k < v._segments.length; k++) {
-            b = b.extend(v._segments[k].polyline.getBounds());
-          }
-          map.fitBounds(b);
-        }
-      } else if (v._fallbackPolyline) {
-        v._fallbackPolyline.setStyle({ color: 'red', weight: 4 });
-        activePolylines = [v._fallbackPolyline];
-        map.fitBounds(v._fallbackPolyline.getBounds());
-      }
-      // update max speed marker
-      drawMaxSpeedMarkerFromCoord(v.maxSpeedCoord, v.maxSpeed);
-
-      // clear previous point selection and handler
-      if (selectedPointMarker) {
-        map.removeLayer(selectedPointMarker);
-        selectedPointMarker = null;
-      }
-      detachActiveClickers();
-
-      // attach click handler to red path to select nearest point
-      const voyagePoints = getVoyagePoints(v);
-      activePolylines.forEach(pl => {
-        // disable voyage-select on active red paths; enable point selection
-        if (pl._voySelect) { try { pl.off('click', pl._voySelect); } catch(_) {} }
-        const onLineClick = (e) => onPolylineClick(e, voyagePoints);
-        pl.on('click', onLineClick);
-        activeLineClickers.push({ pl, onLineClick });
-      });
-      // add tiny markers for all points on highlighted track
-      if (Array.isArray(voyagePoints) && voyagePoints.length) {
-      activePointMarkersGroup = L.layerGroup();
-      voyagePoints.forEach((p, idx) => {
-        if (typeof p.lat === 'number' && typeof p.lon === 'number') {
-          const m = L.marker([p.lat, p.lon], { icon: tinySquareIcon });
-          m.on('click', (ev) => {
-            L.DomEvent.stopPropagation(ev);
-            updateSelectedPoint(p, { prev: voyagePoints[idx-1], next: voyagePoints[idx+1] });
-          });
-          m.addTo(activePointMarkersGroup);
-        }
-      });
-        activePointMarkersGroup.addTo(map);
-      }
-      // initial details hint
-      setDetailsHint('Click on the red path to inspect a point.');
-    });
+    // click handler to highlight this line (fit bounds on table click)
+    row.addEventListener('click', () => selectVoyage(v, row, { fit: true }));
 
     // if multi-day, add collapsible day rows
     if (isMultiDay) {
