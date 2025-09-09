@@ -138,6 +138,7 @@
     border-radius: 3px;
     white-space: nowrap;
   }
+  .wind-arrow { position: relative; transform-origin: 50% 50%; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -187,7 +188,7 @@ function clearSelectedWindGraphics() {
   if (selectedWindGroup) { map.removeLayer(selectedWindGroup); selectedWindGroup = null; }
 }
 
-function nearestHourLabel(dateStr) {
+function nearestHour(dateStr) {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
   if (Number.isNaN(d)) return '—';
@@ -196,7 +197,47 @@ function nearestHourLabel(dateStr) {
   let h = d.getHours();
   const ampm = h >= 12 ? 'pm' : 'am';
   h = h % 12; if (h === 0) h = 12;
-  return `${h}${ampm}`;
+  return { d, label: `${h}${ampm}` };
+}
+
+function dateHourLabel(dateStr) {
+  const res = nearestHour(dateStr);
+  if (res === '—') return res;
+  const { d, label } = res;
+  const dateTxt = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  return `${dateTxt} ${label}`;
+}
+
+function updateSelectedPoint(sel) {
+  if (!sel || typeof sel.lat !== 'number' || typeof sel.lon !== 'number') return;
+  const lat = sel.lat, lon = sel.lon;
+  if (!selectedPointMarker) {
+    selectedPointMarker = L.marker([lat, lon], { icon: squareIcon, zIndexOffset: 1000 }).addTo(map);
+  } else {
+    selectedPointMarker.setLatLng([lat, lon]);
+  }
+  // Draw wind arrow for this point (constant pixel size, bearing = windDir + 180)
+  clearSelectedWindGraphics();
+  const entry = sel.entry || sel;
+  const windSpd = entry?.wind?.speed;
+  let windDir = entry?.wind?.direction;
+  if (typeof windSpd === 'number' && typeof windDir === 'number') {
+    windDir = (windDir + 180) % 360;
+    const angle = windDir.toFixed(1);
+    const html = `
+      <div class="wind-arrow" style="width:80px;height:80px;transform: rotate(${angle}deg);">
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          <line x1="40" y1="40" x2="40" y2="14" stroke="#111827" stroke-width="2" />
+          <polygon points="40,8 34,18 46,18" fill="#111827" />
+        </svg>
+        <div class="wind-speed-label" style="position:absolute;top:0;left:50%;transform:translate(-50%,-4px);">${windSpd.toFixed(1)} kn</div>
+      </div>`;
+    selectedWindGroup = L.marker([lat, lon], {
+      icon: L.divIcon({ className: '', html, iconSize: [80,80], iconAnchor: [40,40] }),
+      interactive: false
+    }).addTo(map);
+  }
+  renderPointDetails(sel);
 }
 
 async function load() {
@@ -233,8 +274,8 @@ async function load() {
     const expander = isMultiDay ? `<button class="expander-btn" aria-label="Toggle days">▸</button>` : '';
 
     row.innerHTML =
-      `<td class="idx-cell">${expander}${i+1}</td><td>${nearestHourLabel(v.startTime)}</td>
-       <td>${nearestHourLabel(v.endTime)}</td>
+      `<td class="idx-cell">${expander}${i+1}</td><td>${dateHourLabel(v.startTime)}</td>
+       <td>${dateHourLabel(v.endTime)}</td>
        <td>${v.nm.toFixed(1)}</td>
        <td>${v.maxSpeed.toFixed(1)}</td>
        <td>${v.avgSpeed.toFixed(1)}</td>
@@ -325,7 +366,9 @@ async function load() {
         activePointMarkersGroup = L.layerGroup();
         voyagePoints.forEach(p => {
           if (typeof p.lat === 'number' && typeof p.lon === 'number') {
-            L.marker([p.lat, p.lon], { icon: tinySquareIcon }).addTo(activePointMarkersGroup);
+            const m = L.marker([p.lat, p.lon], { icon: tinySquareIcon });
+            m.on('click', (ev) => { L.DomEvent.stopPropagation(ev); updateSelectedPoint(p); });
+            m.addTo(activePointMarkersGroup);
           }
         });
         activePointMarkersGroup.addTo(map);
@@ -345,8 +388,8 @@ async function load() {
         const avgWindDirDay = (seg.avgWindHeading !== undefined && seg.avgWindHeading !== null) ? degToCompass(seg.avgWindHeading) : '';
         dr.innerHTML = `
           <td class="idx-cell">↳ ${i+1}.${idx+1}</td>
-          <td>${nearestHourLabel(seg.startTime)}</td>
-          <td>${nearestHourLabel(seg.endTime)}</td>
+          <td>${dateHourLabel(seg.startTime)}</td>
+          <td>${dateHourLabel(seg.endTime)}</td>
           <td>${seg.nm.toFixed(1)}</td>
           <td>${seg.maxSpeed.toFixed(1)}</td>
           <td>${seg.avgSpeed.toFixed(1)}</td>
@@ -387,7 +430,9 @@ async function load() {
             activePointMarkersGroup = L.layerGroup();
             seg.points.forEach(p => {
               if (typeof p.lat === 'number' && typeof p.lon === 'number') {
-                L.marker([p.lat, p.lon], { icon: tinySquareIcon }).addTo(activePointMarkersGroup);
+                const m = L.marker([p.lat, p.lon], { icon: tinySquareIcon });
+                m.on('click', (ev) => { L.DomEvent.stopPropagation(ev); updateSelectedPoint(p); });
+                m.addTo(activePointMarkersGroup);
               }
             });
             activePointMarkersGroup.addTo(map);
@@ -513,54 +558,10 @@ function onPolylineClick(e, points) {
     if (d < bestDist) { bestDist = d; bestIdx = idx; }
   }
   const sel = points[bestIdx];
-  const lat = sel.lat, lon = sel.lon;
-  if (!selectedPointMarker) {
-    selectedPointMarker = L.marker([lat, lon], { icon: squareIcon, zIndexOffset: 1000 }).addTo(map);
-  } else {
-    selectedPointMarker.setLatLng([lat, lon]);
-  }
-  // Draw wind arrow for this point
-  clearSelectedWindGraphics();
-  const entry = sel.entry || sel;
-  const windSpd = entry?.wind?.speed;
-  const windDir = entry?.wind?.direction;
-  if (typeof windSpd === 'number' && typeof windDir === 'number') {
-    selectedWindGroup = L.layerGroup().addTo(map);
-    const arrowLenM = Math.max(60, Math.min(400, 20 * windSpd)); // scale with speed
-    const end = destinationPoint(lat, lon, windDir, arrowLenM);
-    // shaft
-    const shaft = L.polyline([[lat, lon], [end.lat, end.lon]], { color: '#111827', weight: 2, opacity: 0.9 }).addTo(selectedWindGroup);
-    // arrow head (small triangle)
-    const head = arrowHead(end.lat, end.lon, windDir, 10, 6);
-    L.polygon(head, { color: '#111827', weight: 2, fillColor: '#111827', fillOpacity: 0.9 }).addTo(selectedWindGroup);
-    // speed label near head
-    L.marker([end.lat, end.lon], { icon: L.divIcon({ className: 'wind-speed-label', html: `${windSpd.toFixed(1)} kn`, iconSize: null }) }).addTo(selectedWindGroup);
-  }
-  renderPointDetails(sel);
+  updateSelectedPoint(sel);
 }
 
-// compute destination lat/lon from start, bearing (deg), and distance (m)
-function destinationPoint(lat, lon, bearingDeg, distanceM) {
-  const R = 6371e3; // meters
-  const brng = bearingDeg * Math.PI / 180;
-  const φ1 = lat * Math.PI / 180;
-  const λ1 = lon * Math.PI / 180;
-  const δ = distanceM / R;
-  const sinφ2 = Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(brng);
-  const φ2 = Math.asin(sinφ2);
-  const y = Math.sin(brng) * Math.sin(δ) * Math.cos(φ1);
-  const x = Math.cos(δ) - Math.sin(φ1) * sinφ2;
-  const λ2 = λ1 + Math.atan2(y, x);
-  return { lat: φ2 * 180 / Math.PI, lon: ((λ2 * 180 / Math.PI + 540) % 360) - 180 };
-}
-
-// build a small arrow head polygon at the end point
-function arrowHead(lat, lon, bearingDeg, lengthM, widthM) {
-  const back = destinationPoint(lat, lon, (bearingDeg + 180) % 360, lengthM);
-  const left = destinationPoint(back.lat, back.lon, (bearingDeg + 90) % 360, widthM);
-  const right = destinationPoint(back.lat, back.lon, (bearingDeg + 270) % 360, widthM);
-  return [[lat, lon], [left.lat, left.lon], [right.lat, right.lon]];
-}
+// removed geodesic arrow helpers in favor of fixed-size SVG marker
 
 function computeDaySegments(v) {
   const pts = Array.isArray(v.points) && v.points.length ? v.points : null;
