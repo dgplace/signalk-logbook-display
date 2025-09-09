@@ -407,11 +407,13 @@ function renderPointDetails(point) {
   const windDirTxt = typeof windDir === 'number' ? `${windDir.toFixed(0)}° (${degToCompassLocal(windDir)})` : '—';
   const posStr = formatPosition(point.lat, point.lon);
   const summary = `
-    <div><strong>Time:</strong> ${when}</div>
-    <div><strong>Position:</strong> ${posStr}</div>
-    <div><strong>SOG:</strong> ${typeof sog === 'number' ? sog.toFixed(2) + ' kn' : '—'}</div>
-    <div><strong>STW:</strong> ${typeof stw === 'number' ? stw.toFixed(2) + ' kn' : '—'}</div>
-    <div><strong>Wind:</strong> ${typeof windSpd === 'number' ? windSpd.toFixed(2) + ' kn' : '—'} @ ${windDirTxt}</div>
+    <dl class="point-details">
+      <div class="row"><dt>Time</dt><dd>${when}</dd></div>
+      <div class="row"><dt>Position</dt><dd>${posStr}</dd></div>
+      <div class="row"><dt>SOG</dt><dd>${typeof sog === 'number' ? sog.toFixed(2) + ' kn' : '—'}</dd></div>
+      <div class="row"><dt>STW</dt><dd>${typeof stw === 'number' ? stw.toFixed(2) + ' kn' : '—'}</dd></div>
+      <div class="row"><dt>Wind</dt><dd>${typeof windSpd === 'number' ? windSpd.toFixed(2) + ' kn' : '—'} @ ${windDirTxt}</dd></div>
+    </dl>
   `;
   const raw = `<pre style="white-space: pre-wrap;">${escapeHtml(JSON.stringify(entry, null, 2))}</pre>`;
   panel.innerHTML = `<h3 style="margin:0 0 6px 0;">Point Details</h3>${summary}<details><summary>Raw data</summary>${raw}</details>`;

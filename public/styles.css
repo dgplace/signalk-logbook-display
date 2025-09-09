@@ -96,8 +96,31 @@ tr.selected-row {
   border-radius: 8px;
   background-color: var(--background-input-color, #ffffff);
   height: 100%;
-  overflow: auto;
+  overflow: auto; /* allow horizontal scroll for no-wrap fields */
   box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+
+/* Form-like grid for point details */
+.point-details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 12px;
+  row-gap: 6px;
+  align-items: center;
+}
+.point-details .row {
+  display: contents; /* place dt/dd directly in grid */
+}
+.point-details dt {
+  font-weight: 600;
+  color: var(--text-muted, #374151);
+  white-space: nowrap;  /* avoid label wrap */
+}
+.point-details dd {
+  margin: 0;
+  white-space: nowrap;         /* avoid value wrap */
+  overflow: hidden;            /* clip overflow */
+  text-overflow: ellipsis;     /* show ellipsis when clipped */
 }
 .expander-btn {
   border: none;
