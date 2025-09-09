@@ -34,6 +34,73 @@ function drawMaxSpeedMarkerFromCoord(coord, speed) {
   }
 }
 
+// Select a voyage from table or map and set up interactions
+function selectVoyage(v, row, opts = {}) {
+  const { fit = true } = opts;
+  // highlight table row
+  setSelectedTableRow(row);
+  // reset all polylines to default and re-enable voyage selection on blue lines
+  polylines.forEach(pl => {
+    pl.setStyle({ color: 'blue', weight: 2 });
+    if (pl._voySelect) { try { pl.off('click', pl._voySelect); } catch(_) {} pl.on('click', pl._voySelect); }
+  });
+  // remove previous click handlers and overlays
+  detachActiveClickers();
+  clearActivePointMarkers();
+  clearSelectedWindGraphics();
+
+  // highlight selected voyage
+  activePolylines = [];
+  if (v._segments && v._segments.length > 0) {
+    v._segments.forEach(seg => {
+      seg.polyline.setStyle({ color: 'red', weight: 4 });
+      activePolylines.push(seg.polyline);
+    });
+    if (fit && v._segments[0].polyline) {
+      let b = v._segments[0].polyline.getBounds();
+      for (let k = 1; k < v._segments.length; k++) b = b.extend(v._segments[k].polyline.getBounds());
+      map.fitBounds(b);
+    }
+  } else if (v._fallbackPolyline) {
+    v._fallbackPolyline.setStyle({ color: 'red', weight: 4 });
+    activePolylines = [v._fallbackPolyline];
+    if (fit) map.fitBounds(v._fallbackPolyline.getBounds());
+  }
+
+  // update max speed marker
+  drawMaxSpeedMarkerFromCoord(v.maxSpeedCoord, v.maxSpeed);
+
+  // clear previous point selection
+  if (selectedPointMarker) { map.removeLayer(selectedPointMarker); selectedPointMarker = null; }
+  detachActiveClickers();
+
+  // attach click handler to red path to select nearest point
+  const voyagePoints = getVoyagePoints(v);
+  activePolylines.forEach(pl => {
+    if (pl._voySelect) { try { pl.off('click', pl._voySelect); } catch(_) {} }
+    const onLineClick = (e) => onPolylineClick(e, voyagePoints);
+    pl.on('click', onLineClick);
+    activeLineClickers.push({ pl, onLineClick });
+  });
+
+  // add tiny markers for all points on highlighted track
+  if (Array.isArray(voyagePoints) && voyagePoints.length) {
+    activePointMarkersGroup = L.layerGroup();
+    voyagePoints.forEach((p, idx) => {
+      if (typeof p.lat !== 'number' || typeof p.lon !== 'number') return;
+      const m = L.marker([p.lat, p.lon], { icon: tinySquareIcon });
+      m.on('click', (ev) => {
+        L.DomEvent.stopPropagation(ev);
+        updateSelectedPoint(p, { prev: voyagePoints[idx-1], next: voyagePoints[idx+1] });
+      });
+      m.addTo(activePointMarkersGroup);
+    });
+    activePointMarkersGroup.addTo(map);
+  }
+
+  setDetailsHint('Click on the red path to inspect a point.');
+}
+
 // UI helpers
 function setSelectedTableRow(row) {
   document.querySelectorAll('#voyTable tr.selected-row').forEach(r => r.classList.remove('selected-row'));
