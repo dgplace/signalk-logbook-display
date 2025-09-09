@@ -503,3 +503,72 @@ document.getElementById('regenBtn').addEventListener('click', async () => {
   await fetch('/plugins/voyage-webapp/generate', { method: 'GET', credentials: 'include' });
   await load();
 });
+
+// Splitter initialization (vertical between map and details, horizontal above map)
+(function initSplitters() {
+  const container = document.querySelector('.container');
+  const top = document.querySelector('.top-section');
+  const hDivider = document.getElementById('hDivider');
+  const vDivider = document.getElementById('vDivider');
+  const details = document.getElementById('pointDetails');
+
+  if (!container || !top || !hDivider || !vDivider || !details) return;
+
+  // Horizontal drag to resize top-section height
+  let hDragging = false, hStartY = 0, hStartHeight = 0;
+  hDivider.addEventListener('mousedown', (e) => {
+    hDragging = true;
+    hStartY = e.clientY;
+    hStartHeight = top.getBoundingClientRect().height;
+    document.body.classList.add('resizing');
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!hDragging) return;
+    const dy = e.clientY - hStartY;
+    const containerH = container.getBoundingClientRect().height;
+    let newH = hStartHeight + dy;
+    const minH = 120; // minimum top-section height
+    const maxH = containerH - 140; // keep room for map
+    if (newH < minH) newH = minH;
+    if (newH > maxH) newH = maxH;
+    container.style.setProperty('--top-height', `${newH}px`);
+    if (typeof map !== 'undefined' && map) map.invalidateSize();
+  });
+  window.addEventListener('mouseup', () => {
+    if (hDragging) {
+      hDragging = false;
+      document.body.classList.remove('resizing');
+      if (typeof map !== 'undefined' && map) map.invalidateSize();
+    }
+  });
+
+  // Vertical drag to resize details panel width
+  let vDragging = false, vStartX = 0, vStartWidth = 0;
+  vDivider.addEventListener('mousedown', (e) => {
+    vDragging = true;
+    vStartX = e.clientX;
+    vStartWidth = details.getBoundingClientRect().width;
+    document.body.classList.add('resizing');
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!vDragging) return;
+    const dx = vStartX - e.clientX; // moving left increases width
+    const containerW = container.getBoundingClientRect().width;
+    let newW = vStartWidth + dx;
+    const minW = 180;
+    const maxW = Math.min(520, Math.round(containerW * 0.6));
+    if (newW < minW) newW = minW;
+    if (newW > maxW) newW = maxW;
+    details.style.flex = `0 0 ${newW}px`;
+    if (typeof map !== 'undefined' && map) map.invalidateSize();
+  });
+  window.addEventListener('mouseup', () => {
+    if (vDragging) {
+      vDragging = false;
+      document.body.classList.remove('resizing');
+      if (typeof map !== 'undefined' && map) map.invalidateSize();
+    }
+  });
+})();

@@ -9,12 +9,18 @@ body, html {
   color: var(--text-color, #000000);
   font-family: var(--font-family, sans-serif);
 }
+/* Subtle page background gradient */
+html, body { height: 100%; }
+body {
+  background: linear-gradient(180deg, var(--bg-grad-start, #f8fafc), var(--bg-grad-end, #eef2f7));
+}
+
 .container {
   width: 95%;
   margin: 0 auto;
   height: 95vh;            /* slightly shorter to avoid vertical scrollbar */
   display: grid;
-  grid-template-rows: 25% 75%; /* 25% header/table, 75% map/panel */
+  grid-template-rows: var(--top-height, 25%) 6px 1fr; /* header/table, divider, map/panel */
   gap: 12px;
 }
 .top-section {
@@ -22,6 +28,15 @@ body, html {
   flex-direction: column;
   min-height: 0; /* allow inner scroll */
 }
+.h-divider {
+  grid-row: 2;
+  align-self: stretch;
+  background: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.08));
+  border-radius: 4px;
+  cursor: row-resize;
+}
+.h-divider:hover { background: rgba(0,0,0,0.12); }
+
 .header-bar {
   display: flex;
   justify-content: space-between;
@@ -44,6 +59,14 @@ body, html {
   height: 100%;
   overflow: hidden; /* prevent tiny page scroll due to borders */
 }
+#vDivider.v-divider {
+  flex: 0 0 6px;
+  background: linear-gradient(90deg, rgba(0,0,0,0.04), rgba(0,0,0,0.08));
+  border-radius: 4px;
+  cursor: col-resize;
+}
+#vDivider.v-divider:hover { background: rgba(0,0,0,0.12); }
+
 #map {
   flex: 1 1 auto; /* fill remaining space next to details panel */
   height: 100%;
@@ -88,9 +111,9 @@ tr.selected-row {
   background-color: #dbeafe; /* highlight selected voyage */
 }
 .details-panel {
-  flex: 0 0 20%; /* wider: 20% of row */
+  flex: 0 0 var(--details-width, 20%); /* default width, adjustable via JS */
   min-width: 180px;
-  max-width: 420px;
+  max-width: 800px;
   padding: 10px;
   border: 1px solid var(--border-color, #e2e8f0);
   border-radius: 8px;
@@ -121,6 +144,11 @@ tr.selected-row {
   white-space: nowrap;         /* avoid value wrap */
   overflow: hidden;            /* clip overflow */
   text-overflow: ellipsis;     /* show ellipsis when clipped */
+}
+
+/* Disable text selection during resize for smoother UX */
+body.resizing {
+  user-select: none;
 }
 .expander-btn {
   border: none;
