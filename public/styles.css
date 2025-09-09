@@ -12,7 +12,7 @@ body, html {
 .container {
   width: 95%;
   margin: 0 auto;
-  height: 100vh;            /* fill full viewport */
+  height: 95vh;            /* slightly shorter to avoid vertical scrollbar */
   display: grid;
   grid-template-rows: 25% 75%; /* 25% header/table, 75% map/panel */
   gap: 12px;
@@ -45,7 +45,7 @@ body, html {
   overflow: hidden; /* prevent tiny page scroll due to borders */
 }
 #map {
-  flex: 1 1 87.5%;
+  flex: 1 1 auto; /* fill remaining space next to details panel */
   height: 100%;
   min-height: 200px;
 }
@@ -88,7 +88,7 @@ tr.selected-row {
   background-color: #dbeafe; /* highlight selected voyage */
 }
 .details-panel {
-  flex: 0 0 12.5%;
+  flex: 0 0 20%; /* wider: 20% of row */
   min-width: 180px;
   max-width: 420px;
   padding: 10px;
@@ -138,4 +138,3 @@ tr.selected-row {
   white-space: nowrap;
 }
 .wind-arrow { position: relative; transform-origin: 50% 50%; pointer-events: none; }
-

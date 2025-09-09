@@ -226,7 +226,11 @@ async function load() {
     }
     if (i === 0 && voyageBounds) map.fitBounds(voyageBounds);
 
-    row.addEventListener('click', () => selectVoyage(v, row, { fit: true }));
+    row.addEventListener('click', (ev) => {
+      // Ignore clicks on the expander button; those toggle day rows only
+      if (ev.target && ev.target.classList && ev.target.classList.contains('expander-btn')) return;
+      selectVoyage(v, row, { fit: true });
+    });
 
     if (isMultiDay) {
       const dayRows = [];
@@ -430,4 +434,3 @@ document.getElementById('regenBtn').addEventListener('click', async () => {
   await fetch('/plugins/voyage-webapp/generate', { method: 'GET', credentials: 'include' });
   await load();
 });
-
