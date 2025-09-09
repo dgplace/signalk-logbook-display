@@ -17,22 +17,38 @@
   .container {
     width: 95%;
     margin: 0 auto;
+    height: 100vh;            /* fill full viewport */
+    display: grid;
+    grid-template-rows: 25% 75%; /* 25% header/table, 75% map/panel */
+    gap: 12px;
+  }
+  .top-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0; /* allow inner scroll */
   }
   .header-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
   }
+  .table-wrapper {
+    flex: 1 1 auto;
+    min-height: 0;           /* important for flex children to allow overflow */
+    overflow: auto;          /* scrollable table body */
+    border: 1px solid var(--border-color, #334155);
+    border-radius: 4px;
+  }
   .map-row {
     display: flex;
     gap: 12px;
     align-items: stretch;
-    margin-top: 1em;
+    min-height: 0; /* allow map to size correctly */
   }
   #map {
     flex: 1 1 87.5%;
-    height: 60vh;  /* responsive height: 60% of viewport */
-    min-height: 300px;
+    height: 100%;
+    min-height: 200px;
   }
   /* style the regeneration button to match SK buttons */
   button#regenBtn {
@@ -50,9 +66,7 @@
   table {
     width: 100%;
     border-collapse: collapse;
-    border: 1px solid var(--border-color, #334155);
-    border-radius: 4px;
-    overflow: hidden;
+    background: var(--background-table-color, #ffffff);
   }
   th, td {
     padding: 8px;
@@ -61,6 +75,9 @@
   th {
     background-color: var(--table-header-bg-color, #e2e8f0);
     color: var(--table-header-text-color, #000000);
+    position: sticky;  /* sticky header for scroll */
+    top: 0;
+    z-index: 1;
   }
   tbody tr:nth-child(odd) {
     background-color: var(--table-row-bg-alt-color, rgba(0,0,0,0.03));
@@ -77,6 +94,8 @@
     border: 1px solid var(--border-color, #334155);
     border-radius: 4px;
     background-color: var(--background-input-color, #f8fafc);
+    height: 100%;
+    overflow: auto;
   }
   .expander-btn {
     border: none;
@@ -90,18 +109,31 @@
   }
   .day-row.hidden { display: none; }
   .idx-cell { white-space: nowrap; }
+
+  /* Small square marker for selected point */
+  .square-marker {
+    width: 10px;
+    height: 10px;
+    background: var(--accent-color, #ef4444);
+    border: 2px solid #ffffff;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
+  }
 </style>
 </head>
 <body>
 <div class="container">
-  <div class="header-bar">
-    <h2>Logbook</h2>
-    <button id="regenBtn">Regenerate voyages</button>
+  <div class="top-section">
+    <div class="header-bar">
+      <h2 style="margin: 8px 0;">Logbook</h2>
+      <button id="regenBtn">Regenerate voyages</button>
+    </div>
+    <div class="table-wrapper">
+      <table id="voyTable">
+        <thead><tr><th>#</th><th>Start</th><th>End</th><th>NM</th><th>Max Speed</th><th>Avg Speed</th><th>Max Wind</th><th>Avg Wind</th><th>Avg Wind Dir</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </div>
-  <table id="voyTable">
-    <thead><tr><th>#</th><th>Start</th><th>End</th><th>NM</th><th>Max Speed</th><th>Avg Speed</th><th>Max Wind</th><th>Avg Wind</th><th>Avg Wind Dir</th></tr></thead>
-    <tbody></tbody>
-  </table>
   <div class="map-row">
     <div id="map"></div>
     <div id="pointDetails" class="details-panel" aria-live="polite"></div>
@@ -122,6 +154,7 @@ let map, polylines = [], maxMarker;
 let activePolylines = [];        // currently highlighted red polylines
 let activeLineClickers = [];     // stored click handlers for active polylines
 let selectedPointMarker = null;  // marker for selected point
+let squareIcon = L.divIcon({ className: 'square-marker', iconSize: [10,10] });
 
 async function load() {
   // fetch the data
@@ -416,7 +449,7 @@ function onPolylineClick(e, points) {
   const sel = points[bestIdx];
   const lat = sel.lat, lon = sel.lon;
   if (!selectedPointMarker) {
-    selectedPointMarker = L.circleMarker([lat, lon], { color: 'red', radius: 6, weight: 2, fillOpacity: 0.7 }).addTo(map);
+    selectedPointMarker = L.marker([lat, lon], { icon: squareIcon, zIndexOffset: 1000 }).addTo(map);
   } else {
     selectedPointMarker.setLatLng([lat, lon]);
   }
