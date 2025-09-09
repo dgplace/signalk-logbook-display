@@ -88,6 +88,9 @@
   tbody tr:hover {
     background-color: var(--table-row-hover-bg-color, #e5e7eb);
   }
+  tr.selected-row {
+    background-color: #dbeafe; /* highlight selected voyage */
+  }
   .details-panel {
     flex: 0 0 12.5%;
     min-width: 180px;
@@ -162,6 +165,12 @@
 </div>
 
 <script>
+/**
+ * degToCompass
+ * Purpose: Convert degrees [0,360) to 8-point compass string.
+ * Input: deg: number
+ * Output: 'N','NE','E','SE','S','SW','W','NW'
+ */
 function degToCompass(deg) {
   const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   return dirs[Math.round(deg / 45) % 8];
@@ -174,20 +183,77 @@ function degToCompass(deg) {
 let map, polylines = [], maxMarker;
 let activePolylines = [];        // currently highlighted red polylines
 let activeLineClickers = [];     // stored click handlers for active polylines
-let selectedPointMarker = null;  // marker for selected point
+let selectedPointMarker = null;  // marker for selected point (boat triangle)
 let squareIcon = L.divIcon({ className: 'square-marker', iconSize: [10,10] });
 let tinySquareIcon = L.divIcon({ className: 'tiny-square-marker', iconSize: [6,6] });
 let activePointMarkersGroup = null; // group of tiny markers for highlighted track
 let selectedWindGroup = null;       // group for wind arrow + label
 
+/**
+ * getVoyagePoints
+ * Purpose: Normalize voyage data to a list of {lat, lon, entry?} points.
+ * Input: v (voyage object)
+ * Output: Array of point-like objects with lat/lon
+ */
+function getVoyagePoints(v) {
+  if (Array.isArray(v.points) && v.points.length) return v.points;
+  if (Array.isArray(v.entries) && v.entries.length) return v.entries;
+  if (Array.isArray(v.coords) && v.coords.length) return v.coords.map(([lon, lat]) => ({ lon, lat }));
+  return [];
+}
+
+/**
+ * drawMaxSpeedMarkerFromCoord
+ * Purpose: Show orange circle at max speed coordinate with popup.
+ * Input: coord: [lon,lat] or null, speed: number
+ * Output: Places/updates global maxMarker on map
+ */
+function drawMaxSpeedMarkerFromCoord(coord, speed) {
+  if (maxMarker) { map.removeLayer(maxMarker); maxMarker = null; }
+  if (coord && coord.length === 2) {
+    const [lon, lat] = coord;
+    maxMarker = L.circleMarker([lat, lon], { color: 'orange', radius: 6 }).addTo(map);
+    maxMarker.bindPopup(`Max SoG: ${Number(speed).toFixed(1)} kn`).openPopup();
+  }
+}
+
+/**
+ * setSelectedTableRow
+ * Purpose: Visually highlight the selected voyage/day in the table.
+ * Input: row: HTMLTableRowElement
+ * Output: Applies CSS class to row and removes from others
+ */
+function setSelectedTableRow(row) {
+  document.querySelectorAll('#voyTable tr.selected-row').forEach(r => r.classList.remove('selected-row'));
+  if (row) row.classList.add('selected-row');
+}
+
+/**
+ * clearActivePointMarkers
+ * Purpose: Remove tiny point markers for the active track.
+ * Input: none
+ * Output: Clears layer group from map
+ */
 function clearActivePointMarkers() {
   if (activePointMarkersGroup) { map.removeLayer(activePointMarkersGroup); activePointMarkersGroup = null; }
 }
 
+/**
+ * clearSelectedWindGraphics
+ * Purpose: Remove wind arrow overlay tied to selected point.
+ * Input: none
+ * Output: Clears layer from map
+ */
 function clearSelectedWindGraphics() {
   if (selectedWindGroup) { map.removeLayer(selectedWindGroup); selectedWindGroup = null; }
 }
 
+/**
+ * nearestHour
+ * Purpose: Round a Date to nearest hour and format to 12h am/pm label.
+ * Input: dateStr: string|number|Date
+ * Output: { d: Date, label: string } or '—'
+ */
 function nearestHour(dateStr) {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
@@ -200,6 +266,12 @@ function nearestHour(dateStr) {
   return { d, label: `${h}${ampm}` };
 }
 
+/**
+ * dateHourLabel
+ * Purpose: Return compact date plus nearest hour (e.g., "Sep 8, 2pm").
+ * Input: dateStr
+ * Output: string
+ */
 function dateHourLabel(dateStr) {
   const res = nearestHour(dateStr);
   if (res === '—') return res;
@@ -208,13 +280,81 @@ function dateHourLabel(dateStr) {
   return `${dateTxt} ${label}`;
 }
 
-function updateSelectedPoint(sel) {
+function arrowSizeFromSpeed(kn) {
+  const small = 60;   // ~= 5 kn
+  const mid   = 180;  // ~= 25 kn
+  const large = 240;  // > 25 kn (emphasized)
+  if (!(typeof kn === 'number') || Number.isNaN(kn)) return small;
+  if (kn <= 5) return small;
+  if (kn >= 25) return large;
+  const t = (kn - 5) / 20; // 0..1 across 5..25
+  return Math.round(small + t * (mid - small));
+}
+
+/**
+ * makeBoatIcon
+ * Purpose: Create a long-triangle boat icon rotated to bearing.
+ * Input: bearingDeg: number (0..360)
+ * Output: Leaflet DivIcon
+ */
+function makeBoatIcon(bearingDeg) {
+  const w = 18, h = 36; // long triangle
+  const html = `
+    <div class="boat-icon" style="width:${w}px;height:${h}px;transform: rotate(${bearingDeg.toFixed(1)}deg);">
+      <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+        <polygon points="${w/2},2 2,${h-2} ${w-2},${h-2}" fill="var(--accent-color, #ef4444)" stroke="#ffffff" stroke-width="1.5" />
+      </svg>
+    </div>`;
+  return L.divIcon({ className: '', html, iconSize: [w, h], iconAnchor: [w/2, h/2] });
+}
+
+/**
+ * bearingBetween
+ * Purpose: Initial bearing from A(lat1,lon1) to B(lat2,lon2).
+ * Input: numbers in degrees
+ * Output: bearing degrees (0..360), 0=N
+ */
+function bearingBetween(lat1, lon1, lat2, lon2) {
+  const toRad = (d) => d * Math.PI / 180;
+  const toDeg = (r) => r * 180 / Math.PI;
+  const φ1 = toRad(lat1), φ2 = toRad(lat2);
+  const Δλ = toRad(lon2 - lon1);
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1)*Math.sin(φ2) - Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+  let θ = Math.atan2(y, x);
+  θ = (toDeg(θ) + 360) % 360; // 0..360, 0=N
+  return θ;
+}
+
+/**
+ * courseFromNeighbors
+ * Purpose: Estimate course at selected point using neighbors.
+ * Input: prev, sel, next points (may be undefined)
+ * Output: bearing degrees
+ */
+function courseFromNeighbors(prev, sel, next) {
+  if (prev && typeof prev.lat === 'number' && typeof prev.lon === 'number' &&
+      next && typeof next.lat === 'number' && typeof next.lon === 'number') {
+    return bearingBetween(prev.lat, prev.lon, next.lat, next.lon);
+  }
+  if (prev && typeof prev.lat === 'number' && typeof prev.lon === 'number') {
+    return bearingBetween(prev.lat, prev.lon, sel.lat, sel.lon);
+  }
+  if (next && typeof next.lat === 'number' && typeof next.lon === 'number') {
+    return bearingBetween(sel.lat, sel.lon, next.lat, next.lon);
+  }
+  return 0;
+}
+
+function updateSelectedPoint(sel, neighbors = {}) {
   if (!sel || typeof sel.lat !== 'number' || typeof sel.lon !== 'number') return;
   const lat = sel.lat, lon = sel.lon;
+  const bearing = courseFromNeighbors(neighbors.prev, sel, neighbors.next);
   if (!selectedPointMarker) {
-    selectedPointMarker = L.marker([lat, lon], { icon: squareIcon, zIndexOffset: 1000 }).addTo(map);
+    selectedPointMarker = L.marker([lat, lon], { icon: makeBoatIcon(bearing), zIndexOffset: 1000 }).addTo(map);
   } else {
     selectedPointMarker.setLatLng([lat, lon]);
+    selectedPointMarker.setIcon(makeBoatIcon(bearing));
   }
   // Draw wind arrow for this point (constant pixel size, bearing = windDir + 180)
   clearSelectedWindGraphics();
@@ -224,15 +364,13 @@ function updateSelectedPoint(sel) {
   if (typeof windSpd === 'number' && typeof windDir === 'number') {
     windDir = (windDir + 180) % 360;
     const angle = windDir.toFixed(1);
-    const base = 80; // small size
-    const factor = windSpd > 25 ? 3 : 1; // below 5kn -> small; 5-25kn -> small; >25kn -> large (3x)
-    const size = base * factor;
+    const size = arrowSizeFromSpeed(windSpd);
     const c = size / 2;                 // center
     const tipY = size * 0.10;           // tip of arrow
     const headBaseY = tipY + size * 0.125; // base of triangle head
     const halfHead = size * 0.075;      // half width of head
     const shaftTopY = tipY + size * 0.075; // shaft end just before head
-    const strokeW = Math.max(2, 2 * factor);
+    const strokeW = Math.max(2, Math.round(size / 40));
     const html = `
       <div class="wind-arrow" style="width:${size}px;height:${size}px;transform: rotate(${angle}deg);">
         <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
@@ -249,6 +387,12 @@ function updateSelectedPoint(sel) {
   renderPointDetails(sel);
 }
 
+/**
+ * load
+ * Purpose: Initialize/refresh map, build table, and wire interactions from voyages.json.
+ * Input: none
+ * Output: fully rendered UI
+ */
 async function load() {
   // fetch the data
   const res  = await fetch('voyages.json');
@@ -302,6 +446,10 @@ async function load() {
         polylines.push(pl);
         const b = pl.getBounds();
         voyageBounds = voyageBounds ? voyageBounds.extend(b) : b;
+        // clicking a blue path selects voyage and the table row
+        const voySelect = (ev) => { L.DomEvent.stopPropagation(ev); row.click(); };
+        pl.on('click', voySelect);
+        pl._voySelect = voySelect;
       });
     } else {
       // fallback: draw entire voyage as a single line from coords
@@ -310,13 +458,17 @@ async function load() {
       polylines.push(line);
       v._fallbackPolyline = line;
       voyageBounds = line.getBounds();
+      const voySelect = (ev) => { L.DomEvent.stopPropagation(ev); row.click(); };
+      line.on('click', voySelect);
+      line._voySelect = voySelect;
     }
     if (i === 0 && voyageBounds) map.fitBounds(voyageBounds);
 
     // click handler to highlight this line
     row.addEventListener('click', () => {
+      setSelectedTableRow(row);
       // reset all polylines to default style
-      polylines.forEach(pl => pl.setStyle({ color: 'blue', weight: 2 }));
+      polylines.forEach(pl => { pl.setStyle({ color: 'blue', weight: 2 }); if (pl._voySelect) { try { pl.off('click', pl._voySelect); } catch(_) {} pl.on('click', pl._voySelect); } });
       // remove previous click handlers
       detachActiveClickers();
       // remove tiny point markers and wind arrow
@@ -343,16 +495,8 @@ async function load() {
         activePolylines = [v._fallbackPolyline];
         map.fitBounds(v._fallbackPolyline.getBounds());
       }
-      // remove existing marker
-      if (maxMarker) {
-        map.removeLayer(maxMarker);
-        maxMarker = null;
-      }
-      if (v.maxSpeedCoord && v.maxSpeedCoord.length === 2) {
-        const [lon, lat] = v.maxSpeedCoord;
-        maxMarker = L.circleMarker([lat, lon], { color: 'orange', radius: 6 }).addTo(map);
-        maxMarker.bindPopup(`Max SoG: ${v.maxSpeed.toFixed(1)} kn`).openPopup();
-      }
+      // update max speed marker
+      drawMaxSpeedMarkerFromCoord(v.maxSpeedCoord, v.maxSpeed);
 
       // clear previous point selection and handler
       if (selectedPointMarker) {
@@ -362,24 +506,27 @@ async function load() {
       detachActiveClickers();
 
       // attach click handler to red path to select nearest point
-      const voyagePoints = Array.isArray(v.points) && v.points.length ? v.points :
-                           (Array.isArray(v.entries) && v.entries.length ? v.entries :
-                             v.coords.map(([lon, lat]) => ({ lon, lat })));
+      const voyagePoints = getVoyagePoints(v);
       activePolylines.forEach(pl => {
+        // disable voyage-select on active red paths; enable point selection
+        if (pl._voySelect) { try { pl.off('click', pl._voySelect); } catch(_) {} }
         const onLineClick = (e) => onPolylineClick(e, voyagePoints);
         pl.on('click', onLineClick);
         activeLineClickers.push({ pl, onLineClick });
       });
       // add tiny markers for all points on highlighted track
       if (Array.isArray(voyagePoints) && voyagePoints.length) {
-        activePointMarkersGroup = L.layerGroup();
-        voyagePoints.forEach(p => {
-          if (typeof p.lat === 'number' && typeof p.lon === 'number') {
-            const m = L.marker([p.lat, p.lon], { icon: tinySquareIcon });
-            m.on('click', (ev) => { L.DomEvent.stopPropagation(ev); updateSelectedPoint(p); });
-            m.addTo(activePointMarkersGroup);
-          }
-        });
+      activePointMarkersGroup = L.layerGroup();
+      voyagePoints.forEach((p, idx) => {
+        if (typeof p.lat === 'number' && typeof p.lon === 'number') {
+          const m = L.marker([p.lat, p.lon], { icon: tinySquareIcon });
+          m.on('click', (ev) => {
+            L.DomEvent.stopPropagation(ev);
+            updateSelectedPoint(p, { prev: voyagePoints[idx-1], next: voyagePoints[idx+1] });
+          });
+          m.addTo(activePointMarkersGroup);
+        }
+      });
         activePointMarkersGroup.addTo(map);
       }
       // initial details hint
@@ -421,13 +568,8 @@ async function load() {
             activePolylines = [seg.polyline];
             map.fitBounds(seg.polyline.getBounds());
           }
-          // remove existing marker
-          if (maxMarker) { map.removeLayer(maxMarker); maxMarker = null; }
-          if (seg.maxSpeedCoord) {
-            const [lon, lat] = seg.maxSpeedCoord;
-            maxMarker = L.circleMarker([lat, lon], { color: 'orange', radius: 6 }).addTo(map);
-            maxMarker.bindPopup(`Max SoG: ${seg.maxSpeed.toFixed(1)} kn`).openPopup();
-          }
+          // update max speed marker for this day
+          drawMaxSpeedMarkerFromCoord(seg.maxSpeedCoord, seg.maxSpeed);
           // clear previous point selection
           if (selectedPointMarker) { map.removeLayer(selectedPointMarker); selectedPointMarker = null; }
           // attach click for this segment
@@ -437,10 +579,13 @@ async function load() {
             activeLineClickers.push({ pl: seg.polyline, onLineClick });
             // add tiny markers for this segment's points
             activePointMarkersGroup = L.layerGroup();
-            seg.points.forEach(p => {
+            seg.points.forEach((p, idx) => {
               if (typeof p.lat === 'number' && typeof p.lon === 'number') {
                 const m = L.marker([p.lat, p.lon], { icon: tinySquareIcon });
-                m.on('click', (ev) => { L.DomEvent.stopPropagation(ev); updateSelectedPoint(p); });
+                m.on('click', (ev) => {
+                  L.DomEvent.stopPropagation(ev);
+                  updateSelectedPoint(p, { prev: seg.points[idx-1], next: seg.points[idx+1] });
+                });
                 m.addTo(activePointMarkersGroup);
               }
             });
@@ -482,16 +627,34 @@ document.getElementById('regenBtn').addEventListener('click', async () => {
 
 <script>
 // Simple details panel rendering
+/**
+ * setDetailsHint
+ * Purpose: Show guidance text in the details panel.
+ * Input: msg: string
+ * Output: panel content updated
+ */
 function setDetailsHint(msg) {
   const panel = document.getElementById('pointDetails');
   panel.innerHTML = `<em>${msg}</em>`;
 }
 
+/**
+ * degToCompassLocal
+ * Purpose: Local copy used in details panel for wind direction.
+ * Input: deg: number
+ * Output: compass string
+ */
 function degToCompassLocal(deg) {
   const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   return dirs[Math.round(deg / 45) % 8];
 }
 
+/**
+ * toDMS
+ * Purpose: Convert decimal degrees to DMS string with hemisphere.
+ * Input: value: number, isLat: boolean
+ * Output: string like "48°07′30″N"
+ */
 function toDMS(value, isLat) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '—';
   const abs = Math.abs(value);
@@ -507,11 +670,23 @@ function toDMS(value, isLat) {
   return `${deg}°${mm}′${ss}″${dir}`;
 }
 
+/**
+ * formatPosition
+ * Purpose: Human-readable combined DMS position string.
+ * Input: lat, lon: numbers
+ * Output: string or '—'
+ */
 function formatPosition(lat, lon) {
   if (typeof lat !== 'number' || typeof lon !== 'number') return '—';
   return `${toDMS(lat, true)} ${toDMS(lon, false)}`;
 }
 
+/**
+ * renderPointDetails
+ * Purpose: Render compact point summary and raw JSON in details panel.
+ * Input: point: {lat,lon,entry?}
+ * Output: updates panel HTML
+ */
 function renderPointDetails(point) {
   const panel = document.getElementById('pointDetails');
   const entry = point.entry || point; // fall back if only lon/lat exist
@@ -537,6 +712,12 @@ function renderPointDetails(point) {
   panel.innerHTML = `<h3 style="margin:0 0 6px 0;">Point Details</h3>${summary}<details><summary>Raw data</summary>${raw}</details>`;
 }
 
+/**
+ * escapeHtml
+ * Purpose: Basic HTML escaping for safe <pre> rendering.
+ * Input: str: string
+ * Output: escaped string
+ */
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -545,6 +726,12 @@ function escapeHtml(str) {
 }
 
 // Utilities for per-day segmentation and interaction
+/**
+ * detachActiveClickers
+ * Purpose: Remove point-select click handlers from currently active polylines.
+ * Input: none
+ * Output: clears activeLineClickers list
+ */
 function detachActiveClickers() {
   if (Array.isArray(activeLineClickers)) {
     activeLineClickers.forEach(({ pl, onLineClick }) => {
@@ -554,6 +741,12 @@ function detachActiveClickers() {
   activeLineClickers = [];
 }
 
+/**
+ * onPolylineClick
+ * Purpose: When clicking a red path, choose nearest point and select it.
+ * Input: e: Leaflet mouse event, points: Array<{lat,lon,...}>
+ * Output: updates selection and details
+ */
 function onPolylineClick(e, points) {
   if (!points || points.length === 0) return;
   const clickLL = e.latlng;
@@ -567,11 +760,17 @@ function onPolylineClick(e, points) {
     if (d < bestDist) { bestDist = d; bestIdx = idx; }
   }
   const sel = points[bestIdx];
-  updateSelectedPoint(sel);
+  updateSelectedPoint(sel, { prev: points[bestIdx-1], next: points[bestIdx+1] });
 }
 
 // removed geodesic arrow helpers in favor of fixed-size SVG marker
 
+/**
+ * computeDaySegments
+ * Purpose: Split a voyage's timestamped points into per-day segments and compute stats.
+ * Input: v: voyage object { points: [{lat,lon,entry{datetime,...}}, ...] }
+ * Output: Array of segments { dateKey, startTime, endTime, points, nm, maxSpeed, ... }
+ */
 function computeDaySegments(v) {
   const pts = Array.isArray(v.points) && v.points.length ? v.points : null;
   if (!pts) return [];
@@ -635,6 +834,12 @@ function computeDaySegments(v) {
   return segments;
 }
 
+/**
+ * circularMean
+ * Purpose: Mean direction for angles in degrees.
+ * Input: degrees: number[] (0..360)
+ * Output: number degrees (0..360)
+ */
 function circularMean(degrees) {
   // degrees: array of angles in degrees [0,360)
   let sumSin = 0, sumCos = 0;
