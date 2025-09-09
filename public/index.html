@@ -346,10 +346,28 @@ function courseFromNeighbors(prev, sel, next) {
   return 0;
 }
 
+/**
+ * extractHeadingDegrees
+ * Purpose: Return heading in degrees from entry.heading (0=N), if present.
+ * Input: entry: object with numeric heading in degrees
+ * Output: number in [0,360) or undefined
+ */
+function extractHeadingDegrees(entry) {
+  if (!entry || typeof entry !== 'object') return undefined;
+  const v = entry.heading;
+  if (typeof v !== 'number' || Number.isNaN(v)) return undefined;
+  return ((v % 360) + 360) % 360;
+}
+
 function updateSelectedPoint(sel, neighbors = {}) {
   if (!sel || typeof sel.lat !== 'number' || typeof sel.lon !== 'number') return;
   const lat = sel.lat, lon = sel.lon;
-  const bearing = courseFromNeighbors(neighbors.prev, sel, neighbors.next);
+  const entry = sel.entry || sel;
+  // Prefer stored heading; fall back to course estimated from neighbors
+  const storedHeading = extractHeadingDegrees(entry);
+  const bearing = (typeof storedHeading === 'number')
+    ? storedHeading
+    : courseFromNeighbors(neighbors.prev, sel, neighbors.next);
   if (!selectedPointMarker) {
     selectedPointMarker = L.marker([lat, lon], { icon: makeBoatIcon(bearing), zIndexOffset: 1000 }).addTo(map);
   } else {
@@ -358,7 +376,6 @@ function updateSelectedPoint(sel, neighbors = {}) {
   }
   // Draw wind arrow for this point (constant pixel size, bearing = windDir + 180)
   clearSelectedWindGraphics();
-  const entry = sel.entry || sel;
   const windSpd = entry?.wind?.speed;
   let windDir = entry?.wind?.direction;
   if (typeof windSpd === 'number' && typeof windDir === 'number') {
