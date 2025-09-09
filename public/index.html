@@ -224,16 +224,25 @@ function updateSelectedPoint(sel) {
   if (typeof windSpd === 'number' && typeof windDir === 'number') {
     windDir = (windDir + 180) % 360;
     const angle = windDir.toFixed(1);
+    const base = 80; // small size
+    const factor = windSpd > 25 ? 3 : 1; // below 5kn -> small; 5-25kn -> small; >25kn -> large (3x)
+    const size = base * factor;
+    const c = size / 2;                 // center
+    const tipY = size * 0.10;           // tip of arrow
+    const headBaseY = tipY + size * 0.125; // base of triangle head
+    const halfHead = size * 0.075;      // half width of head
+    const shaftTopY = tipY + size * 0.075; // shaft end just before head
+    const strokeW = Math.max(2, 2 * factor);
     const html = `
-      <div class="wind-arrow" style="width:80px;height:80px;transform: rotate(${angle}deg);">
-        <svg width="80" height="80" viewBox="0 0 80 80">
-          <line x1="40" y1="40" x2="40" y2="14" stroke="#111827" stroke-width="2" />
-          <polygon points="40,8 34,18 46,18" fill="#111827" />
+      <div class="wind-arrow" style="width:${size}px;height:${size}px;transform: rotate(${angle}deg);">
+        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+          <line x1="${c}" y1="${c}" x2="${c}" y2="${shaftTopY}" stroke="#111827" stroke-width="${strokeW}" />
+          <polygon points="${c},${tipY} ${c - halfHead},${headBaseY} ${c + halfHead},${headBaseY}" fill="#111827" />
         </svg>
         <div class="wind-speed-label" style="position:absolute;top:0;left:50%;transform:translate(-50%,-4px);">${windSpd.toFixed(1)} kn</div>
       </div>`;
     selectedWindGroup = L.marker([lat, lon], {
-      icon: L.divIcon({ className: '', html, iconSize: [80,80], iconAnchor: [40,40] }),
+      icon: L.divIcon({ className: '', html, iconSize: [size,size], iconAnchor: [c,c] }),
       interactive: false
     }).addTo(map);
   }
