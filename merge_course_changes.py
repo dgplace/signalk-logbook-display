@@ -159,15 +159,22 @@ def _is_good_position_value(pos: Any) -> bool:
 
 
 def _is_maxima_entry(entry: Dict[str, Any]) -> bool:
-    # Check explicit fields first
-    maxima_fields = ("maxWind", "maxHeel", "maxSpeed")
-    if any(k in entry and entry.get(k) is not None for k in maxima_fields):
-        return True
-    # Fallback to text matching if present
+    """Return True if entry text indicates a maxima/record event.
+
+    Detection uses only the "text" field and matches patterns observed in
+    the data such as:
+      - "New speed record: X kt"
+      - "New wind speed record: X kt"
+      - "Max speed", "Maximum wind", "Max heel" (case-insensitive)
+    """
     text = entry.get("text")
-    if isinstance(text, str):
-        return re.search(r"\bmax(?:imum)?\s+(wind|heel|speed)\b", text, re.IGNORECASE) is not None
-    return False
+    if not isinstance(text, str) or not text:
+        return False
+    pattern = re.compile(
+        r"\b(?:new\s+(?:wind\s+speed|speed|heel)\s+record|max(?:imum)?\s+(?:wind\s+speed|wind|speed|heel))\b",
+        re.IGNORECASE,
+    )
+    return pattern.search(text) is not None
 
 
 def fix_maxima_positions(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
