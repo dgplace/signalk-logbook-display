@@ -16,6 +16,7 @@ let squareIcon = L.divIcon({ className: 'square-marker', iconSize: [10,10] });
 let tinySquareIcon = L.divIcon({ className: 'tiny-square-marker', iconSize: [6,6] });
 let activePointMarkersGroup = null;
 let selectedWindGroup = null;
+let currentVoyagePoints = [];
 
 // Data helpers
 function getVoyagePoints(v) {
@@ -31,6 +32,24 @@ function drawMaxSpeedMarkerFromCoord(coord, speed) {
     const [lon, lat] = coord;
     maxMarker = L.circleMarker([lat, lon], { color: 'orange', radius: 6 }).addTo(map);
     maxMarker.bindPopup(`Max SoG: ${Number(speed).toFixed(1)} kn`).openPopup();
+    const onMaxSelect = (e) => {
+      const clickLL = e.latlng || (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches[0]
+        ? map.mouseEventToLatLng(e.originalEvent.touches[0])
+        : null);
+      if (!clickLL || !Array.isArray(currentVoyagePoints) || currentVoyagePoints.length === 0) return;
+      let bestIdx = 0; let bestDist = Infinity;
+      for (let i = 0; i < currentVoyagePoints.length; i++) {
+        const p = currentVoyagePoints[i];
+        if (typeof p.lat !== 'number' || typeof p.lon !== 'number') continue;
+        const pll = L.latLng(p.lat, p.lon);
+        const d = clickLL.distanceTo(pll);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+      const sel = currentVoyagePoints[bestIdx];
+      updateSelectedPoint(sel, { prev: currentVoyagePoints[bestIdx-1], next: currentVoyagePoints[bestIdx+1] });
+    };
+    maxMarker.on('click', onMaxSelect);
+    maxMarker.on('tap', onMaxSelect);
   }
 }
 
@@ -76,10 +95,12 @@ function selectVoyage(v, row, opts = {}) {
 
   // attach click handler to red path to select nearest point
   const voyagePoints = getVoyagePoints(v);
+  currentVoyagePoints = voyagePoints;
   activePolylines.forEach(pl => {
     if (pl._voySelect) { try { pl.off('click', pl._voySelect); } catch(_) {} }
     const onLineClick = (e) => onPolylineClick(e, voyagePoints);
     pl.on('click', onLineClick);
+    pl.on('tap', onLineClick);
     activeLineClickers.push({ pl, onLineClick });
   });
 
@@ -334,6 +355,7 @@ async function load() {
           if (seg.points && seg.points.length) {
             const onLineClick = (e) => onPolylineClick(e, seg.points);
             seg.polyline.on('click', onLineClick);
+            seg.polyline.on('tap', onLineClick);
             activeLineClickers.push({ pl: seg.polyline, onLineClick });
             activePointMarkersGroup = L.layerGroup();
             seg.points.forEach((p, idx) => {
@@ -348,6 +370,7 @@ async function load() {
             });
             activePointMarkersGroup.addTo(map);
           }
+          currentVoyagePoints = seg.points || [];
           setDetailsHint('Click on the red path to inspect a point.');
         });
 
@@ -367,6 +390,12 @@ async function load() {
       }
     }
   });
+
+  // Scroll table to bottom on initial load
+  const tableWrapper = document.querySelector('.table-wrapper');
+  if (tableWrapper) {
+    tableWrapper.scrollTop = tableWrapper.scrollHeight;
+  }
 }
 
 // Details panel helpers
@@ -509,10 +538,7 @@ document.getElementById('regenBtn').addEventListener('click', async () => {
   const container = document.querySelector('.container');
   const top = document.querySelector('.top-section');
   const hDivider = document.getElementById('hDivider');
-  const vDivider = document.getElementById('vDivider');
-  const details = document.getElementById('pointDetails');
-
-  if (!container || !top || !hDivider || !vDivider || !details) return;
+  if (!container || !top || !hDivider) return;
 
   // Horizontal drag to resize top-section height
   let hDragging = false, hStartY = 0, hStartHeight = 0;
@@ -523,9 +549,8 @@ document.getElementById('regenBtn').addEventListener('click', async () => {
     document.body.classList.add('resizing');
     e.preventDefault();
   });
-  window.addEventListener('mousemove', (e) => {
-    if (!hDragging) return;
-    const dy = e.clientY - hStartY;
+  const onHMove = (clientY) => {
+    const dy = clientY - hStartY;
     const containerH = container.getBoundingClientRect().height;
     let newH = hStartHeight + dy;
     const minH = 120; // minimum top-section height
@@ -534,6 +559,10 @@ document.getElementById('regenBtn').addEventListener('click', async () => {
     if (newH > maxH) newH = maxH;
     container.style.setProperty('--top-height', `${newH}px`);
     if (typeof map !== 'undefined' && map) map.invalidateSize();
+  };
+  window.addEventListener('mousemove', (e) => {
+    if (!hDragging) return;
+    onHMove(e.clientY);
   });
   window.addEventListener('mouseup', () => {
     if (hDragging) {
@@ -543,32 +572,51 @@ document.getElementById('regenBtn').addEventListener('click', async () => {
     }
   });
 
-  // Vertical drag to resize details panel width
-  let vDragging = false, vStartX = 0, vStartWidth = 0;
-  vDivider.addEventListener('mousedown', (e) => {
-    vDragging = true;
-    vStartX = e.clientX;
-    vStartWidth = details.getBoundingClientRect().width;
+  // Touch support for horizontal divider
+  hDivider.addEventListener('touchstart', (e) => {
+    if (!e.touches || e.touches.length === 0) return;
+    hDragging = true;
+    hStartY = e.touches[0].clientY;
+    hStartHeight = top.getBoundingClientRect().height;
     document.body.classList.add('resizing');
     e.preventDefault();
-  });
-  window.addEventListener('mousemove', (e) => {
-    if (!vDragging) return;
-    const dx = vStartX - e.clientX; // moving left increases width
-    const containerW = container.getBoundingClientRect().width;
-    let newW = vStartWidth + dx;
-    const minW = 180;
-    const maxW = Math.min(520, Math.round(containerW * 0.6));
-    if (newW < minW) newW = minW;
-    if (newW > maxW) newW = maxW;
-    details.style.flex = `0 0 ${newW}px`;
-    if (typeof map !== 'undefined' && map) map.invalidateSize();
-  });
-  window.addEventListener('mouseup', () => {
-    if (vDragging) {
-      vDragging = false;
+  }, { passive: false });
+  window.addEventListener('touchmove', (e) => {
+    if (!hDragging) return;
+    if (!e.touches || e.touches.length === 0) return;
+    onHMove(e.touches[0].clientY);
+    e.preventDefault();
+  }, { passive: false });
+  window.addEventListener('touchend', () => {
+    if (hDragging) {
+      hDragging = false;
       document.body.classList.remove('resizing');
       if (typeof map !== 'undefined' && map) map.invalidateSize();
     }
   });
+})();
+
+// Maximize/restore table height
+(function initMaxButton() {
+  const btn = document.getElementById('toggleMaxBtn');
+  const container = document.querySelector('.container');
+  if (!btn || !container) return;
+  let maximized = false;
+  const update = () => {
+    if (maximized) {
+      container.style.setProperty('--top-height', '70%');
+      btn.textContent = 'Restore';
+      btn.setAttribute('aria-pressed', 'true');
+    } else {
+      container.style.setProperty('--top-height', '25%');
+      btn.textContent = 'Maximize';
+      btn.setAttribute('aria-pressed', 'false');
+    }
+    if (typeof map !== 'undefined' && map) map.invalidateSize();
+  };
+  btn.addEventListener('click', () => {
+    maximized = !maximized;
+    update();
+  });
+  update();
 })();

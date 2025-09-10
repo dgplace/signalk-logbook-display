@@ -34,6 +34,7 @@ body {
   background: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.08));
   border-radius: 4px;
   cursor: row-resize;
+  touch-action: none; /* allow custom touch resize */
 }
 .h-divider:hover { background: rgba(0,0,0,0.12); }
 
@@ -42,6 +43,7 @@ body {
   justify-content: space-between;
   align-items: center;
 }
+.header-actions { display: flex; gap: 8px; align-items: center; }
 .table-wrapper {
   flex: 1 1 auto;
   min-height: 0;           /* important for flex children to allow overflow */
@@ -58,14 +60,8 @@ body {
   min-height: 0; /* allow map to size correctly */
   height: 100%;
   overflow: hidden; /* prevent tiny page scroll due to borders */
+  position: relative; /* anchor floating details panel */
 }
-#vDivider.v-divider {
-  flex: 0 0 6px;
-  background: linear-gradient(90deg, rgba(0,0,0,0.04), rgba(0,0,0,0.08));
-  border-radius: 4px;
-  cursor: col-resize;
-}
-#vDivider.v-divider:hover { background: rgba(0,0,0,0.12); }
 
 #map {
   flex: 1 1 auto; /* fill remaining space next to details panel */
@@ -73,7 +69,7 @@ body {
   min-height: 200px;
 }
 /* style the regeneration button to match SK buttons */
-button#regenBtn {
+.header-actions button, button#regenBtn {
   background-color: var(--button-primary-bg-color, #2563eb);
   color: var(--button-primary-text-color, #ffffff);
   border: none;
@@ -81,7 +77,7 @@ button#regenBtn {
   border-radius: 4px;
   cursor: pointer;
 }
-button#regenBtn:hover {
+.header-actions button:hover, button#regenBtn:hover {
   background-color: var(--button-primary-bg-hover-color, #1e40af);
 }
 /* give the table Signal K‑style borders and zebra stripes */
@@ -111,16 +107,19 @@ tr.selected-row {
   background-color: #dbeafe; /* highlight selected voyage */
 }
 .details-panel {
-  flex: 0 0 var(--details-width, 20%); /* default width, adjustable via JS */
-  min-width: 180px;
-  max-width: 800px;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: min(420px, 45%);
+  min-width: 260px;
+  max-height: calc(100% - 24px);
   padding: 10px;
   border: 1px solid var(--border-color, #e2e8f0);
   border-radius: 8px;
   background-color: var(--background-input-color, #ffffff);
-  height: 100%;
   overflow: auto; /* allow horizontal scroll for no-wrap fields */
-  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+  z-index: 500;
 }
 
 /* Form-like grid for point details */

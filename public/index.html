@@ -12,7 +12,10 @@
     <div class="top-section">
       <div class="header-bar">
         <h2 style="margin: 16px 0;">Logbook</h2>
-        <button id="regenBtn">Regenerate voyages</button>
+        <div class="header-actions">
+          <button id="toggleMaxBtn" aria-pressed="false">Maximize</button>
+          <button id="regenBtn">Regenerate voyages</button>
+        </div>
       </div>
       <div class="table-wrapper">
         <table id="voyTable">
@@ -36,7 +39,6 @@
     <div id="hDivider" class="h-divider" role="separator" aria-orientation="horizontal" aria-label="Resize panels"></div>
     <div class="map-row">
       <div id="map"></div>
-      <div id="vDivider" class="v-divider" role="separator" aria-orientation="vertical" aria-label="Resize panels"></div>
       <div id="pointDetails" class="details-panel" aria-live="polite"></div>
     </div>
   </div>
