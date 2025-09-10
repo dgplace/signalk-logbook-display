@@ -47,7 +47,8 @@ body {
 .table-wrapper {
   flex: 1 1 auto;
   min-height: 0;           /* important for flex children to allow overflow */
-  overflow: auto;          /* scrollable table body */
+  overflow-y: scroll;      /* always show scroll bar */
+  overflow-x: hidden;
   border: 1px solid var(--border-color, #d1d5db);
   border-radius: 8px;
   background: var(--background-panel-color, #ffffff);
@@ -121,6 +122,19 @@ tr.selected-row {
   box-shadow: 0 6px 16px rgba(0,0,0,0.18);
   z-index: 500;
 }
+.details-panel .floating-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 6px 0;
+  cursor: move; /* drag handle */
+}
+.details-panel .floating-title { font-weight: 600; }
+.details-panel .drag-handle { cursor: move; opacity: 0.6; user-select: none; }
+.details-panel .close-details {
+  border: none; background: transparent; cursor: pointer; font-size: 16px; line-height: 1;
+}
 
 /* Form-like grid for point details */
 .point-details {
@@ -156,6 +170,7 @@ body.resizing {
   font-size: 0.9em;
   margin-right: 6px;
 }
+.exp-cell { text-align: center; white-space: nowrap; }
 .day-row {
   background-color: var(--table-row-bg-alt-color, rgba(0,0,0,0.03));
 }

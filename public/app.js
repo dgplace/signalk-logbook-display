@@ -277,17 +277,17 @@ async function load() {
     const segments = computeDaySegments(v);
     v._segments = segments;
     const isMultiDay = segments.length > 1;
-    const expander = isMultiDay ? `<button class="expander-btn" aria-label="Toggle days">▸</button>` : '';
+    const expander = isMultiDay ? `<button class="expander-btn" aria-label="Toggle days">[+]</button>` : '';
 
     row.innerHTML =
-      `<td class="idx-cell">${expander}${i+1}</td><td>${dateHourLabel(v.startTime)}</td>
-       <td>${dateHourLabel(v.endTime)}</td>
-       <td>${v.nm.toFixed(1)}</td>
-       <td>${v.maxSpeed.toFixed(1)}</td>
-       <td>${v.avgSpeed.toFixed(1)}</td>
-       <td>${v.maxWind.toFixed(1)}</td>
-       <td>${v.avgWindSpeed.toFixed(1)}</td>
-       <td>${avgWindDir}</td>`;
+      `<td class="exp-cell">${expander}</td><td class="idx-cell">${i+1}</td><td>${dateHourLabel(v.startTime)}</td>
+        <td>${dateHourLabel(v.endTime)}</td>
+        <td>${v.nm.toFixed(1)}</td>
+        <td>${v.maxSpeed.toFixed(1)} kn</td>
+        <td>${v.avgSpeed.toFixed(1)} kn</td>
+        <td>${v.maxWind.toFixed(1)} kn</td>
+        <td>${v.avgWindSpeed.toFixed(1)} kn</td>
+        <td>${avgWindDir}</td>`;
 
     let voyageBounds = null;
     if (segments.length > 0) {
@@ -326,18 +326,19 @@ async function load() {
       segments.forEach((seg, idx) => {
         const dr = tbody.insertRow(insertIndex);
         dr.classList.add('day-row', 'hidden');
-        const avgWindDirDay = (seg.avgWindHeading !== undefined && seg.avgWindHeading !== null) ? degToCompass(seg.avgWindHeading) : '';
-        dr.innerHTML = `
+          const avgWindDirDay = (seg.avgWindHeading !== undefined && seg.avgWindHeading !== null) ? degToCompass(seg.avgWindHeading) : '';
+          dr.innerHTML = `
+          <td class="exp-cell"></td>
           <td class="idx-cell">↳ ${i+1}.${idx+1}</td>
           <td>${dateHourLabel(seg.startTime)}</td>
           <td>${dateHourLabel(seg.endTime)}</td>
           <td>${seg.nm.toFixed(1)}</td>
-          <td>${seg.maxSpeed.toFixed(1)}</td>
-          <td>${seg.avgSpeed.toFixed(1)}</td>
-          <td>${seg.maxWind.toFixed(1)}</td>
-          <td>${seg.avgWindSpeed.toFixed(1)}</td>
+          <td>${seg.maxSpeed.toFixed(1)} kn</td>
+          <td>${seg.avgSpeed.toFixed(1)} kn</td>
+          <td>${seg.maxWind.toFixed(1)} kn</td>
+          <td>${seg.avgWindSpeed.toFixed(1)} kn</td>
           <td>${avgWindDirDay}</td>
-        `;
+          `;
 
         dr.addEventListener('click', () => {
           polylines.forEach(pl => pl.setStyle({ color: 'blue', weight: 2 }));
@@ -384,7 +385,7 @@ async function load() {
         btn.addEventListener('click', (ev) => {
           ev.stopPropagation();
           expanded = !expanded;
-          btn.textContent = expanded ? '▾' : '▸';
+          btn.textContent = expanded ? '[-]' : '[+]';
           dayRows.forEach(r => r.classList.toggle('hidden', !expanded));
         });
       }
@@ -401,7 +402,11 @@ async function load() {
 // Details panel helpers
 function setDetailsHint(msg) {
   const panel = document.getElementById('pointDetails');
-  panel.innerHTML = `<em>${msg}</em>`;
+  panel.style.display = '';
+  panel.innerHTML = `
+    <div class="floating-header"><span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="floating-title">Point Details</span><button class="close-details" aria-label="Close">×</button></div>
+    <div class="details-body"><em>${msg}</em></div>`;
+  wireDetailsControls(panel);
 }
 function degToCompassLocal(deg) {
   const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
@@ -445,7 +450,51 @@ function renderPointDetails(point) {
     </dl>
   `;
   const raw = `<pre style="white-space: pre-wrap;">${escapeHtml(JSON.stringify(entry, null, 2))}</pre>`;
-  panel.innerHTML = `<h3 style="margin:0 0 6px 0;">Point Details</h3>${summary}<details><summary>Raw data</summary>${raw}</details>`;
+  panel.style.display = '';
+  panel.innerHTML = `
+    <div class="floating-header"><span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="floating-title">Point Details</span><button class="close-details" aria-label="Close">×</button></div>
+    <div class="details-body">${summary}<details><summary>Raw data</summary>${raw}</details></div>`;
+  wireDetailsControls(panel);
+}
+function wireDetailsControls(panel) {
+  if (!panel || panel.dataset.wired === '1') return;
+  const closeBtn = panel.querySelector('.close-details');
+  if (closeBtn) closeBtn.addEventListener('click', () => { panel.style.display = 'none'; });
+  const header = panel.querySelector('.floating-header');
+  const container = document.querySelector('.map-row');
+  if (!header || !container) return;
+  let dragging = false; let startX = 0, startY = 0; let startLeft = 0, startTop = 0;
+  const begin = (clientX, clientY) => {
+    dragging = true;
+    startX = clientX; startY = clientY;
+    const rect = panel.getBoundingClientRect();
+    const contRect = container.getBoundingClientRect();
+    startLeft = rect.left - contRect.left;
+    startTop = rect.top - contRect.top;
+    panel.style.right = 'auto';
+    panel.style.left = `${startLeft}px`;
+    document.body.classList.add('resizing');
+  };
+  const move = (clientX, clientY) => {
+    if (!dragging) return;
+    const contRect = container.getBoundingClientRect();
+    let newLeft = startLeft + (clientX - startX);
+    let newTop = startTop + (clientY - startY);
+    const maxLeft = contRect.width - panel.offsetWidth - 4;
+    const maxTop = contRect.height - panel.offsetHeight - 4;
+    if (newLeft < 4) newLeft = 4; if (newLeft > maxLeft) newLeft = maxLeft;
+    if (newTop < 4) newTop = 4; if (newTop > maxTop) newTop = maxTop;
+    panel.style.left = `${newLeft}px`;
+    panel.style.top = `${newTop}px`;
+  };
+  const end = () => { if (!dragging) return; dragging = false; document.body.classList.remove('resizing'); };
+  header.addEventListener('mousedown', (e) => { begin(e.clientX, e.clientY); e.preventDefault(); });
+  window.addEventListener('mousemove', (e) => { move(e.clientX, e.clientY); });
+  window.addEventListener('mouseup', end);
+  header.addEventListener('touchstart', (e) => { if (!e.touches || e.touches.length === 0) return; begin(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, { passive: false });
+  window.addEventListener('touchmove', (e) => { if (!e.touches || e.touches.length === 0) return; move(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, { passive: false });
+  window.addEventListener('touchend', end);
+  panel.dataset.wired = '1';
 }
 function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -600,11 +649,30 @@ document.getElementById('regenBtn').addEventListener('click', async () => {
 (function initMaxButton() {
   const btn = document.getElementById('toggleMaxBtn');
   const container = document.querySelector('.container');
+  const top = document.querySelector('.top-section');
+  const wrapper = document.querySelector('.table-wrapper');
+  const headerBar = document.querySelector('.header-bar');
+  const hDivider = document.getElementById('hDivider');
   if (!btn || !container) return;
   let maximized = false;
   const update = () => {
     if (maximized) {
-      container.style.setProperty('--top-height', '70%');
+      // Compute required height to show all rows without inner scroll
+      const thead = document.querySelector('#voyTable thead');
+      const tbody = document.querySelector('#voyTable tbody');
+      const wrapCS = wrapper ? getComputedStyle(wrapper) : null;
+      const borders = wrapCS ? (parseFloat(wrapCS.borderTopWidth||'0') + parseFloat(wrapCS.borderBottomWidth||'0')) : 0;
+      const paddings = wrapCS ? (parseFloat(wrapCS.paddingTop||'0') + parseFloat(wrapCS.paddingBottom||'0')) : 0;
+      const headerH = headerBar ? headerBar.getBoundingClientRect().height : 0;
+      const headH = thead ? thead.getBoundingClientRect().height : 0;
+      const bodyH = tbody ? tbody.scrollHeight : 0;
+      const requiredTop = Math.ceil(headerH + headH + bodyH + borders + paddings + 2);
+      const containerH = container.getBoundingClientRect().height;
+      const dividerH = hDivider ? hDivider.getBoundingClientRect().height : 6;
+      const minMapH = 140;
+      const maxTop = containerH - dividerH - minMapH;
+      const finalTop = Math.min(requiredTop, maxTop);
+      container.style.setProperty('--top-height', `${finalTop}px`);
       btn.textContent = 'Restore';
       btn.setAttribute('aria-pressed', 'true');
     } else {
