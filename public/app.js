@@ -31,7 +31,8 @@ function drawMaxSpeedMarkerFromCoord(coord, speed) {
   if (coord && coord.length === 2) {
     const [lon, lat] = coord;
     maxMarker = L.circleMarker([lat, lon], { color: 'orange', radius: 6 }).addTo(map);
-    maxMarker.bindPopup(`Max SoG: ${Number(speed).toFixed(1)} kn`).openPopup();
+    // Disable autoPan so opening this popup does not move the map
+    maxMarker.bindPopup(`Max SoG: ${Number(speed).toFixed(1)} kn`, { autoPan: false, autoClose: false, closeOnClick: false }).openPopup();
     const onMaxSelect = (e) => {
       const clickLL = e.latlng || (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches[0]
         ? map.mouseEventToLatLng(e.originalEvent.touches[0])
