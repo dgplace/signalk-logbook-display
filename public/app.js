@@ -156,6 +156,13 @@ function dateHourLabel(dateStr) {
   return `${dateTxt} ${label}`;
 }
 
+function weekdayShort(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (Number.isNaN(d)) return '';
+  return d.toLocaleDateString(undefined, { weekday: 'short' });
+}
+
 function arrowSizeFromSpeed(kn) {
   const small = 60;   // ~= 5 kn
   const mid   = 180;  // ~= 25 kn
@@ -327,9 +334,10 @@ async function load() {
         const dr = tbody.insertRow(insertIndex);
         dr.classList.add('day-row', 'hidden');
           const avgWindDirDay = (seg.avgWindHeading !== undefined && seg.avgWindHeading !== null) ? degToCompass(seg.avgWindHeading) : '';
+          const dayLbl = weekdayShort(seg.startTime);
           dr.innerHTML = `
           <td class="exp-cell"></td>
-          <td class="idx-cell">↳ ${i+1}.${idx+1}</td>
+          <td class="idx-cell">${dayLbl}</td>
           <td>${dateHourLabel(seg.startTime)}</td>
           <td>${dateHourLabel(seg.endTime)}</td>
           <td>${seg.nm.toFixed(1)}</td>
@@ -457,15 +465,23 @@ function renderPointDetails(point) {
   wireDetailsControls(panel);
 }
 function wireDetailsControls(panel) {
-  if (!panel || panel.dataset.wired === '1') return;
+  if (!panel) return;
   const closeBtn = panel.querySelector('.close-details');
-  if (closeBtn) closeBtn.addEventListener('click', () => { panel.style.display = 'none'; });
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => { e.stopPropagation(); panel.style.display = 'none'; });
+    closeBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+    closeBtn.addEventListener('touchstart', (e) => { e.stopPropagation(); }, { passive: true });
+  }
   const header = panel.querySelector('.floating-header');
+  const handleEl = panel.querySelector('.drag-handle') || header;
   const container = document.querySelector('.map-row');
   if (!header || !container) return;
-  let dragging = false; let startX = 0, startY = 0; let startLeft = 0, startTop = 0;
-  const begin = (clientX, clientY) => {
-    dragging = true;
+  let startX = 0, startY = 0; let startLeft = 0, startTop = 0;
+  const onMouseMove = (e) => doMove(e.clientX, e.clientY);
+  const onMouseUp = () => endDrag();
+  const onTouchMove = (e) => { if (!e.touches || e.touches.length === 0) return; doMove(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); };
+  const onTouchEnd = () => endDrag();
+  const beginDrag = (clientX, clientY) => {
     startX = clientX; startY = clientY;
     const rect = panel.getBoundingClientRect();
     const contRect = container.getBoundingClientRect();
@@ -474,9 +490,12 @@ function wireDetailsControls(panel) {
     panel.style.right = 'auto';
     panel.style.left = `${startLeft}px`;
     document.body.classList.add('resizing');
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp, { once: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd, { once: true });
   };
-  const move = (clientX, clientY) => {
-    if (!dragging) return;
+  const doMove = (clientX, clientY) => {
     const contRect = container.getBoundingClientRect();
     let newLeft = startLeft + (clientX - startX);
     let newTop = startTop + (clientY - startY);
@@ -487,14 +506,13 @@ function wireDetailsControls(panel) {
     panel.style.left = `${newLeft}px`;
     panel.style.top = `${newTop}px`;
   };
-  const end = () => { if (!dragging) return; dragging = false; document.body.classList.remove('resizing'); };
-  header.addEventListener('mousedown', (e) => { begin(e.clientX, e.clientY); e.preventDefault(); });
-  window.addEventListener('mousemove', (e) => { move(e.clientX, e.clientY); });
-  window.addEventListener('mouseup', end);
-  header.addEventListener('touchstart', (e) => { if (!e.touches || e.touches.length === 0) return; begin(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, { passive: false });
-  window.addEventListener('touchmove', (e) => { if (!e.touches || e.touches.length === 0) return; move(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }, { passive: false });
-  window.addEventListener('touchend', end);
-  panel.dataset.wired = '1';
+  const endDrag = () => {
+    document.body.classList.remove('resizing');
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('touchmove', onTouchMove);
+  };
+  handleEl.addEventListener('mousedown', (e) => { beginDrag(e.clientX, e.clientY); e.preventDefault(); e.stopPropagation(); });
+  handleEl.addEventListener('touchstart', (e) => { if (!e.touches || e.touches.length === 0) return; beginDrag(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); e.stopPropagation(); }, { passive: false });
 }
 function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -667,15 +685,16 @@ document.getElementById('regenBtn').addEventListener('click', async () => {
       const headH = thead ? thead.getBoundingClientRect().height : 0;
       const bodyH = tbody ? tbody.scrollHeight : 0;
       const requiredTop = Math.ceil(headerH + headH + bodyH + borders + paddings + 2);
-      const containerH = container.getBoundingClientRect().height;
-      const dividerH = hDivider ? hDivider.getBoundingClientRect().height : 6;
-      const minMapH = 140;
-      const maxTop = containerH - dividerH - minMapH;
-      const finalTop = Math.min(requiredTop, maxTop);
-      container.style.setProperty('--top-height', `${finalTop}px`);
+      const containerRect = container.getBoundingClientRect();
+      const currentTop = top.getBoundingClientRect().height;
+      const delta = Math.max(0, requiredTop - currentTop);
+      // Increase overall container height so map height stays the same
+      container.style.height = `${Math.ceil(containerRect.height + delta)}px`;
+      container.style.setProperty('--top-height', `${requiredTop}px`);
       btn.textContent = 'Restore';
       btn.setAttribute('aria-pressed', 'true');
     } else {
+      container.style.height = ''; // back to CSS (95vh)
       container.style.setProperty('--top-height', '25%');
       btn.textContent = 'Maximize';
       btn.setAttribute('aria-pressed', 'false');
