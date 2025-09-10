@@ -12,13 +12,15 @@ the form ``"Course change: X° → Y°"``. The resulting entry uses the last
 ``to`` value and position, the maximum of ``maxSpeed`` and ``maxWind`` values,
 and averages the wind speed and direction.
 
-Additionally, after merging, any "Course change" entries with a speed over ground
-("sog") less than 0.6 knots are removed from the output.
+Additionally, after merging, any "Course change" entries with speed less than
+0.6 knots are removed from the output (prefers `speed.sog`, falls back to
+`speed.stw`).
 
 Optionally, with ``--fix-maxima-pos``, entries indicating maximums (e.g.,
-"max wind", "max heel", or "max speed") that have a missing or invalid
-position will have their position backfilled with the last known good position
-from earlier entries.
+"max wind", "max heel", or "max speed") will have their position replaced
+with the last known good position from earlier non-maxima entries. Positions
+in maxima entries are treated as untrusted and always overwritten when a last
+good position exists.
 """
 import sys
 import argparse
@@ -49,13 +51,18 @@ def parse_course_change(entry: Dict[str, Any]) -> Optional[Tuple[float, float]]:
         return None
     return float(match.group(1)), float(match.group(2))
 
-def get_sog(entry: Dict[str, Any]) -> Optional[float]:
-    """Return sog (knots) from entry if available and numeric, else None."""
+def get_speed_knots(entry: Dict[str, Any]) -> Optional[float]:
+    """Return speed in knots from entry, preferring sog, then stw, else None."""
     spd = entry.get("speed")
+    # speed may be a dict with sog/stw or a direct number
     if isinstance(spd, dict):
-        sog = spd.get("sog")
-        if isinstance(sog, (int, float)):
-            return float(sog)
+        val = spd.get("sog")
+        if not isinstance(val, (int, float)):
+            val = spd.get("stw")
+        if isinstance(val, (int, float)):
+            return float(val)
+    elif isinstance(spd, (int, float)):
+        return float(spd)
     return None
 
 def merge_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -125,12 +132,12 @@ def merge_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         else:
             merged.append(entry)
             i += 1
-    # After merging, drop course change entries with sog < 0.6 kt
+    # After merging, drop course change entries with speed < 0.6 kt
     filtered: List[Dict[str, Any]] = []
     for e in merged:
         is_course_change = parse_course_change(e) is not None if isinstance(e, dict) else False
-        sog = get_sog(e) if isinstance(e, dict) else None
-        if is_course_change and sog is not None and sog < 0.6:
+        spd = get_speed_knots(e) if isinstance(e, dict) else None
+        if is_course_change and spd is not None and spd < 0.6:
             continue  # skip low-speed course change entries
         filtered.append(e)
     return filtered
@@ -182,8 +189,9 @@ def fix_maxima_positions(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "latitude": float(pos["latitude"])    # type: ignore[index]
             }
             continue
-        # For maxima entries, backfill if position is missing/invalid and we have a prior good one
-        if is_max and last_good_pos is not None and not _is_good_position_value(pos):
+        # For maxima entries, ALWAYS override position with last known good non-maxima position
+        # if available, regardless of the current value.
+        if is_max and last_good_pos is not None:
             e["position"] = last_good_pos.copy()
     return entries
 
