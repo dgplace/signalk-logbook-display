@@ -111,8 +111,11 @@ tr.selected-row {
   position: absolute;
   top: 12px;
   right: 12px;
-  width: min(420px, 45%);
-  min-width: 260px;
+  /* shrink-wrap to content width, but cap so it never gets too wide */
+  display: inline-block;
+  width: max-content;
+  max-width: 420px;
+  min-width: 0;
   max-height: calc(100% - 24px);
   padding: 10px;
   border: 1px solid var(--border-color, #e2e8f0);

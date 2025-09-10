@@ -395,6 +395,25 @@ async function load() {
           expanded = !expanded;
           btn.textContent = expanded ? '[-]' : '[+]';
           dayRows.forEach(r => r.classList.toggle('hidden', !expanded));
+          if (expanded && dayRows.length) {
+            const wrapper = row.closest('.table-wrapper');
+            if (wrapper) {
+              // Scroll just enough so the day rows are visible
+              requestAnimationFrame(() => {
+                const first = dayRows[0];
+                const last = dayRows[dayRows.length - 1];
+                const wr = wrapper.getBoundingClientRect();
+                const fr = first.getBoundingClientRect();
+                const lr = last.getBoundingClientRect();
+                const pad = 8;
+                if (fr.top < wr.top) {
+                  wrapper.scrollTop += (fr.top - wr.top) - pad;
+                } else if (lr.bottom > wr.bottom) {
+                  wrapper.scrollTop += (lr.bottom - wr.bottom) + pad;
+                }
+              });
+            }
+          }
         });
       }
     }
