@@ -278,6 +278,9 @@ async function load() {
   const tbody = document.querySelector('#voyTable tbody');
   tbody.innerHTML = '';
 
+  // Track overall bounds to fit all voyages when nothing is selected
+  let allBounds = null;
+
   data.voyages.forEach((v, i) => {
     const avgWindDir = (v.avgWindHeading !== undefined && v.avgWindHeading !== null) ? degToCompass(v.avgWindHeading) : '';
     const row = tbody.insertRow();
@@ -320,7 +323,8 @@ async function load() {
       line.on('click', voySelect);
       line._voySelect = voySelect;
     }
-    if (i === 0 && voyageBounds) map.fitBounds(voyageBounds);
+    // Accumulate global bounds
+    if (voyageBounds) allBounds = allBounds ? allBounds.extend(voyageBounds) : voyageBounds;
 
     row.addEventListener('click', (ev) => {
       // Ignore clicks on the expander button; those toggle day rows only
@@ -419,6 +423,9 @@ async function load() {
       }
     }
   });
+
+  // On initial load/refresh with no selection, fit all voyages
+  if (allBounds) map.fitBounds(allBounds);
 
   // Scroll table to bottom on initial load
   const tableWrapper = document.querySelector('.table-wrapper');
