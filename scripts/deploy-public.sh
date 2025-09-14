@@ -20,15 +20,14 @@ mkdir -p "$DEST_DIR"
 echo "Deploying public/ to $DEST_DIR (excluding voyages.json)..."
 
 if command -v rsync >/dev/null 2>&1; then
-  rsync -av --delete-excluded \
+  rsync -av \
     --exclude 'voyages.json' \
-    --exclude 'voyage.json' \
     "$SRC_DIR/" "$DEST_DIR/"
 else
   echo "rsync not found; using fallback copy (no deletes)." >&2
   # Copy all files except voyages.json while preserving structure
   (cd "$SRC_DIR" && \
-    find . -type f \( ! -name 'voyages.json' -a ! -name 'voyage.json' \) -print0 |
+    find . -type f \( ! -name 'voyages.json' \) -print0 |
     while IFS= read -r -d '' f; do
       dest_path="$DEST_DIR/${f#./}"
       mkdir -p "$(dirname "$dest_path")"
