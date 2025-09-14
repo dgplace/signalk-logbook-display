@@ -1,2 +1,6 @@
 # Ignore Python bytecode cache directories
 __pycache__/
+__pycache__/**
+
+# Ignore packaged voyage webapp tarball
+voyage-webapp-1.0.0.tgz
