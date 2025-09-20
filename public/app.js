@@ -21,6 +21,9 @@ let voyageRows = [];
 let voyageData = [];
 let suppressHistoryUpdate = false;
 
+// Allow a bit of tolerance when selecting voyages by clicking the map background
+const MAP_CLICK_SELECT_THRESHOLD_METERS = 1500;
+
 const basePathname = (() => {
   let path = window.location.pathname || '/';
   if (/\/index\.html?$/i.test(path)) path = path.replace(/\/index\.html?$/i, '/');
@@ -189,6 +192,42 @@ function selectVoyage(v, row, opts = {}) {
   setDetailsHint('Click on the red path to inspect a point.');
 }
 
+function findNearestVoyageSelection(latLng) {
+  if (!latLng || !Array.isArray(voyageData) || voyageData.length === 0) return null;
+  let best = null;
+  for (let i = 0; i < voyageData.length; i++) {
+    const voyage = voyageData[i];
+    const points = getVoyagePoints(voyage);
+    if (!Array.isArray(points) || points.length === 0) continue;
+    for (let idx = 0; idx < points.length; idx++) {
+      const p = points[idx];
+      if (typeof p.lat !== 'number' || typeof p.lon !== 'number') continue;
+      const dist = latLng.distanceTo(L.latLng(p.lat, p.lon));
+      if (Number.isNaN(dist)) continue;
+      if (!best || dist < best.distance) {
+        best = { voyage, row: voyageRows[i], points, index: idx, point: p, distance: dist };
+      }
+    }
+  }
+  return best;
+}
+
+function onMapBackgroundClick(ev) {
+  const latLng = ev?.latlng;
+  if (!latLng) return;
+  const nearest = findNearestVoyageSelection(latLng);
+  if (!nearest || !nearest.row) return;
+  if (nearest.distance > MAP_CLICK_SELECT_THRESHOLD_METERS) return;
+  const alreadySelected = nearest.row.classList.contains('selected-row');
+  selectVoyage(nearest.voyage, nearest.row, {
+    fit: !alreadySelected,
+    scrollIntoView: !alreadySelected
+  });
+  const prev = nearest.points[nearest.index - 1];
+  const next = nearest.points[nearest.index + 1];
+  if (nearest.point) updateSelectedPoint(nearest.point, { prev, next });
+}
+
 // UI helpers
 function setSelectedTableRow(row) {
   document.querySelectorAll('#voyTable tr.selected-row').forEach(r => r.classList.remove('selected-row'));
@@ -340,6 +379,8 @@ async function load() {
 
   map = L.map('map').setView([0, 0], 2);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+  map.on('click', onMapBackgroundClick);
+  map.on('tap', onMapBackgroundClick);
 
   const tbody = document.querySelector('#voyTable tbody');
   tbody.innerHTML = '';

@@ -104,8 +104,13 @@ tbody tr:nth-child(odd) {
 tbody tr:hover {
   background-color: var(--table-row-hover-bg-color, #e5e7eb);
 }
-tr.selected-row {
-  background-color: #dbeafe; /* highlight selected voyage */
+tbody tr.selected-row,
+tbody tr.selected-row td {
+  background-color: #dbeafe; /* highlight selected voyage even on zebra rows */
+}
+tbody tr.selected-row:hover,
+tbody tr.selected-row:hover td {
+  background-color: #bfdbfe; /* subtle hover feedback while keeping highlight */
 }
 .details-panel {
   position: absolute;
