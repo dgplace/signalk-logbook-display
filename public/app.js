@@ -17,6 +17,65 @@ let tinySquareIcon = L.divIcon({ className: 'tiny-square-marker', iconSize: [6,6
 let activePointMarkersGroup = null;
 let selectedWindGroup = null;
 let currentVoyagePoints = [];
+let voyageRows = [];
+let voyageData = [];
+let suppressHistoryUpdate = false;
+
+const basePathname = (() => {
+  let path = window.location.pathname || '/';
+  if (/\/index\.html?$/i.test(path)) path = path.replace(/\/index\.html?$/i, '/');
+  if (/\/[0-9]+\/?$/.test(path)) path = path.replace(/\/[0-9]+\/?$/, '/');
+  path = path.replace(/\/+$/, '/');
+  if (!path.endsWith('/')) path += '/';
+  return path;
+})();
+
+function getTripIdFromPath() {
+  const segments = window.location.pathname.split('/').filter(Boolean);
+  if (!segments.length) return null;
+  const last = segments[segments.length - 1];
+  if (!/^[0-9]+$/.test(last)) return null;
+  const tripId = Number.parseInt(last, 10);
+  return Number.isNaN(tripId) ? null : tripId;
+}
+
+function updateHistoryForTrip(tripId, options = {}) {
+  if (!Number.isInteger(tripId) || tripId <= 0 || !window.history || !window.history.pushState) return;
+  const { replace = false } = options;
+  const newPath = `${basePathname}${tripId}`;
+  const currentPath = window.location.pathname;
+  const search = window.location.search || '';
+  const hash = window.location.hash || '';
+  const newUrl = `${newPath}${search}${hash}`;
+  if (replace) {
+    window.history.replaceState({ tripId }, '', newUrl);
+    return;
+  }
+  if (currentPath === newPath) return;
+  window.history.pushState({ tripId }, '', newUrl);
+}
+
+function syncVoyageSelectionWithPath(options = {}) {
+  const { updateHistory = false } = options;
+  const tripId = getTripIdFromPath();
+  if (!Number.isInteger(tripId)) return false;
+  const idx = tripId - 1;
+  const voyage = voyageData[idx];
+  const row = voyageRows[idx];
+  if (!voyage || !row) return false;
+  suppressHistoryUpdate = true;
+  try {
+    selectVoyage(voyage, row, { fit: true, scrollIntoView: true });
+  } finally {
+    suppressHistoryUpdate = false;
+  }
+  if (updateHistory) updateHistoryForTrip(tripId, { replace: true });
+  return true;
+}
+
+window.addEventListener('popstate', () => {
+  syncVoyageSelectionWithPath({ updateHistory: false });
+});
 
 // Data helpers
 function getVoyagePoints(v) {
@@ -56,9 +115,12 @@ function drawMaxSpeedMarkerFromCoord(coord, speed) {
 
 // Select a voyage from table or map and set up interactions
 function selectVoyage(v, row, opts = {}) {
-  const { fit = true } = opts;
+  const { fit = true, scrollIntoView = false } = opts;
   // highlight table row
   setSelectedTableRow(row);
+  if (scrollIntoView && row && typeof row.scrollIntoView === 'function') {
+    row.scrollIntoView({ block: 'center', inline: 'nearest' });
+  }
   // reset all polylines to default and re-enable voyage selection on blue lines
   polylines.forEach(pl => {
     pl.setStyle({ color: 'blue', weight: 2 });
@@ -118,6 +180,10 @@ function selectVoyage(v, row, opts = {}) {
       m.addTo(activePointMarkersGroup);
     });
     activePointMarkersGroup.addTo(map);
+  }
+
+  if (!suppressHistoryUpdate && typeof v._tripIndex === 'number') {
+    updateHistoryForTrip(v._tripIndex, { replace: false });
   }
 
   setDetailsHint('Click on the red path to inspect a point.');
@@ -277,13 +343,19 @@ async function load() {
 
   const tbody = document.querySelector('#voyTable tbody');
   tbody.innerHTML = '';
+  voyageRows = [];
+  voyageData = [];
 
   // Track overall bounds to fit all voyages when nothing is selected
   let allBounds = null;
 
   data.voyages.forEach((v, i) => {
+    v._tripIndex = i + 1;
     const avgWindDir = (v.avgWindHeading !== undefined && v.avgWindHeading !== null) ? degToCompass(v.avgWindHeading) : '';
     const row = tbody.insertRow();
+    row.dataset.tripIndex = String(i + 1);
+    voyageRows.push(row);
+    voyageData.push(v);
 
     const segments = computeDaySegments(v);
     v._segments = segments;
@@ -309,7 +381,7 @@ async function load() {
         polylines.push(pl);
         const b = pl.getBounds();
         voyageBounds = voyageBounds ? voyageBounds.extend(b) : b;
-        const voySelect = (ev) => { L.DomEvent.stopPropagation(ev); selectVoyage(v, row, { fit: false }); };
+        const voySelect = (ev) => { L.DomEvent.stopPropagation(ev); selectVoyage(v, row, { fit: false, scrollIntoView: true }); };
         pl.on('click', voySelect);
         pl._voySelect = voySelect;
       });
@@ -319,7 +391,7 @@ async function load() {
       polylines.push(line);
       v._fallbackPolyline = line;
       voyageBounds = line.getBounds();
-      const voySelect = (ev) => { L.DomEvent.stopPropagation(ev); selectVoyage(v, row, { fit: false }); };
+      const voySelect = (ev) => { L.DomEvent.stopPropagation(ev); selectVoyage(v, row, { fit: false, scrollIntoView: true }); };
       line.on('click', voySelect);
       line._voySelect = voySelect;
     }
@@ -424,13 +496,17 @@ async function load() {
     }
   });
 
+  const selectedFromPath = syncVoyageSelectionWithPath({ updateHistory: true });
+
   // On initial load/refresh with no selection, fit all voyages
-  if (allBounds) map.fitBounds(allBounds);
+  if (!selectedFromPath && allBounds) map.fitBounds(allBounds);
 
   // Scroll table to bottom on initial load
   const tableWrapper = document.querySelector('.table-wrapper');
   if (tableWrapper) {
-    tableWrapper.scrollTop = tableWrapper.scrollHeight;
+    if (!selectedFromPath) {
+      tableWrapper.scrollTop = tableWrapper.scrollHeight;
+    }
   }
 }
 
