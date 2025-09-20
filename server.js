@@ -78,7 +78,17 @@ const server = http.createServer((req, res) => {
       const indexPath = path.join(unsafePath, 'index.html');
       return serveFile(res, indexPath);
     }
-    return serveFile(res, unsafePath);
+    if (!err && stats.isFile()) {
+      return serveFile(res, unsafePath);
+    }
+
+    // For routes without file extensions (e.g. /8), fall back to SPA index
+    if (!path.extname(pathname)) {
+      const indexPath = path.join(PUBLIC_DIR, 'index.html');
+      return serveFile(res, indexPath);
+    }
+
+    return send(res, 404, { 'Content-Type': 'text/plain; charset=utf-8' }, 'Not Found');
   });
 });
 
