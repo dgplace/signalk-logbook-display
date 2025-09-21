@@ -58,8 +58,8 @@ function parseEntryDate(entry) {
 function classifyVoyagePoints(points) {
   if (!Array.isArray(points) || points.length === 0) return;
 
-  const MOVE_THRESHOLD_NM = 0.5;
-  const NEAR_ANCHOR_THRESHOLD_NM = 1;
+  const MOVE_THRESHOLD_NM = 0.25;
+  const NEAR_ANCHOR_THRESHOLD_NM = 0.5;
   const GAP_HOURS_THRESHOLD = 4;
   const GAP_SOG_THRESHOLD = 1;
   const LOW_WIND_THRESHOLD = 7;
@@ -80,6 +80,12 @@ function classifyVoyagePoints(points) {
 
     const gapHours = currentTime && nextTime ? (nextTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60) : null;
     const gapAnchored = gapHours !== null && gapHours > GAP_HOURS_THRESHOLD && (sog ?? 0) < GAP_SOG_THRESHOLD;
+    const nextDayBreak = currentTime && nextTime
+      ? (currentTime.getUTCFullYear() !== nextTime.getUTCFullYear() ||
+         currentTime.getUTCMonth() !== nextTime.getUTCMonth() ||
+         currentTime.getUTCDate() !== nextTime.getUTCDate())
+      : false;
+    const endOfDayAnchored = nextDayBreak && (sog ?? 0) < GAP_SOG_THRESHOLD;
 
     let distanceFromAnchor = null;
     if (coord && lastAnchoredCoord) {
@@ -90,6 +96,8 @@ function classifyVoyagePoints(points) {
     if (i === 0) {
       isAnchored = true;
     } else if (gapAnchored) {
+      isAnchored = true;
+    } else if (endOfDayAnchored) {
       isAnchored = true;
     } else if (!coord) {
       isAnchored = lastAnchoredCoord === null || prevActivity === 'anchored';
