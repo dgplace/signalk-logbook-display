@@ -30,6 +30,21 @@ function circularMean(angles) {
   return (avg + 360) % 360;
 }
 
+function normalizeDegrees(value) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return null;
+  const wrapped = value % 360;
+  return wrapped < 0 ? wrapped + 360 : wrapped;
+}
+
+function computeTrueWindAngle(courseDeg, windDirDeg) {
+  const course = normalizeDegrees(courseDeg);
+  const windDir = normalizeDegrees(windDirDeg);
+  if (course === null || windDir === null) return null;
+  let angle = (windDir - course + 360) % 360;
+  if (angle > 180) angle = 360 - angle;
+  return angle;
+}
+
 function getSog(entry) {
   if (!entry || !entry.speed) return null;
   const { speed } = entry;
@@ -44,6 +59,15 @@ function getWindSpeed(entry) {
   if (typeof wind.speedTrue === 'number') return wind.speedTrue;
   if (typeof wind.speed === 'number') return wind.speed;
   if (typeof wind.speedApparent === 'number') return wind.speedApparent;
+  return null;
+}
+
+function getWindDirection(entry) {
+  if (!entry || !entry.wind) return null;
+  const { wind } = entry;
+  if (typeof wind.directionTrue === 'number') return wind.directionTrue;
+  if (typeof wind.direction === 'number') return wind.direction;
+  if (typeof wind.directionApparent === 'number') return wind.directionApparent;
   return null;
 }
 
@@ -144,8 +168,31 @@ function createVoyageAccumulator(entry) {
   };
 }
 
-function finalizeVoyage(current) {
+function collectPolarSamples(points, collector) {
+  if (!Array.isArray(points) || !Array.isArray(collector)) return;
+  for (const point of points) {
+    if (!point || point.activity !== 'sailing') continue;
+    const entry = point.entry || {};
+    if (entry.activity !== 'sailing') continue;
+    const twa = computeTrueWindAngle(entry.course, getWindDirection(entry));
+    const tws = getWindSpeed(entry);
+    const sog = typeof entry?.speed?.sog === 'number' ? entry.speed.sog : null;
+    const stw = typeof entry?.speed?.stw === 'number' ? entry.speed.stw : null;
+    if (twa === null || tws === null || sog === null) continue;
+    const datetime = entry.datetime ?? entry.time ?? entry.timestamp ?? null;
+    collector.push({
+      datetime,
+      twa,
+      trueWindSpeed: tws,
+      speedThroughWater: stw,
+      speedOverGround: sog
+    });
+  }
+}
+
+function finalizeVoyage(current, polarCollector) {
   classifyVoyagePoints(current.points);
+  collectPolarSamples(current.points, polarCollector);
   const avgSpeed = current.speedCount > 0 ? current.speedSum / current.speedCount : 0;
   const avgWindSpeed = current.windSpeedCount > 0 ? current.windSpeedSum / current.windSpeedCount : 0;
   return {
@@ -179,6 +226,7 @@ async function readEntries(dir) {
 
 function groupVoyages(entries) {
   const voyages = [];
+  const polarSamples = [];
   let current = null;
   let lastDate = null;
 
@@ -195,7 +243,7 @@ function groupVoyages(entries) {
       current = createVoyageAccumulator(entry);
     } else {
       if (!lastDate || !isConsecutiveDay(lastDate, entryDate)) {
-        voyages.push(finalizeVoyage(current));
+        voyages.push(finalizeVoyage(current, polarSamples));
         current = createVoyageAccumulator(entry);
       }
     }
@@ -248,16 +296,18 @@ function groupVoyages(entries) {
   }
 
   if (current) {
-    voyages.push(finalizeVoyage(current));
+    voyages.push(finalizeVoyage(current, polarSamples));
   }
-  return voyages;
+  return { voyages, polarSamples };
 }
 
 (async () => {
   const dir     = process.argv[2];
   const entries = await readEntries(dir);
-  const voyages = groupVoyages(entries);
+  const { voyages, polarSamples } = groupVoyages(entries);
   // Ensure voyages are emitted in chronological order by start time
   voyages.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+  const polarOut = path.join(process.cwd(), 'polar.json');
+  await fs.writeFile(polarOut, JSON.stringify({ samples: polarSamples }, null, 2), 'utf8');
   console.log(JSON.stringify({ voyages }, null, 2));
 })();
