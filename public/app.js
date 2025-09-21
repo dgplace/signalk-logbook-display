@@ -24,6 +24,11 @@ let suppressHistoryUpdate = false;
 // Allow a bit of tolerance when selecting voyages by clicking the map background
 const MAP_CLICK_SELECT_THRESHOLD_METERS = 1500;
 
+const SAILING_HIGHLIGHT_COLOR = '#ef4444'; // vivid red
+const NON_SAIL_HIGHLIGHT_COLOR = '#facc15'; // warm yellow
+const DEFAULT_HIGHLIGHT_WEIGHT = 4;
+const DEFAULT_HIGHLIGHT_OPACITY = 0.95;
+
 const basePathname = (() => {
   let path = window.location.pathname || '/';
   if (/\/index\.html?$/i.test(path)) path = path.replace(/\/index\.html?$/i, '/');
@@ -40,6 +45,78 @@ function getTripIdFromPath() {
   if (!/^[0-9]+$/.test(last)) return null;
   const tripId = Number.parseInt(last, 10);
   return Number.isNaN(tripId) ? null : tripId;
+}
+
+function getPointActivity(point) {
+  const activity = point?.activity ?? point?.entry?.activity;
+  if (activity === 'sailing' || activity === 'motoring' || activity === 'anchored') return activity;
+  return 'sailing';
+}
+
+function segmentPointsByActivity(points) {
+  if (!Array.isArray(points) || points.length < 2) return [];
+  const segments = [];
+  let current = null;
+
+  const flush = () => {
+    if (current && Array.isArray(current.latLngs) && current.latLngs.length >= 2) segments.push(current);
+    current = null;
+  };
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const start = points[i];
+    const end = points[i + 1];
+    const startValid = typeof start?.lat === 'number' && typeof start?.lon === 'number';
+    const endValid = typeof end?.lat === 'number' && typeof end?.lon === 'number';
+    if (!startValid || !endValid) {
+      flush();
+      continue;
+    }
+    const startLL = [start.lat, start.lon];
+    const endLL = [end.lat, end.lon];
+    const startAct = getPointActivity(start);
+    const endAct = getPointActivity(end);
+    const color = (startAct === 'sailing' && endAct === 'sailing') ? SAILING_HIGHLIGHT_COLOR : NON_SAIL_HIGHLIGHT_COLOR;
+    if (!current || current.color !== color) {
+      flush();
+      current = { color, latLngs: [startLL] };
+    } else {
+      const last = current.latLngs[current.latLngs.length - 1];
+      if (!last || last[0] !== startLL[0] || last[1] !== startLL[1]) current.latLngs.push(startLL);
+    }
+    current.latLngs.push(endLL);
+  }
+  flush();
+  return segments;
+}
+
+function createActivityHighlightPolylines(points, options = {}) {
+  if (!map || !Array.isArray(points) || points.length < 2) return [];
+  const weight = typeof options.weight === 'number' ? options.weight : DEFAULT_HIGHLIGHT_WEIGHT;
+  const opacity = typeof options.opacity === 'number' ? options.opacity : DEFAULT_HIGHLIGHT_OPACITY;
+  const segments = segmentPointsByActivity(points);
+  return segments.map(seg => {
+    const polyline = L.polyline(seg.latLngs, {
+      color: seg.color,
+      weight,
+      opacity,
+      lineCap: 'round',
+      lineJoin: 'round'
+    }).addTo(map);
+    polyline._activityHighlight = true;
+    if (polyline.bringToFront) polyline.bringToFront();
+    return polyline;
+  });
+}
+
+function removeActivePolylines() {
+  if (!Array.isArray(activePolylines) || !map) { activePolylines = []; return; }
+  activePolylines.forEach(pl => {
+    if (pl && pl._activityHighlight) {
+      try { map.removeLayer(pl); } catch (_) {}
+    }
+  });
+  activePolylines = [];
 }
 
 function updateHistoryForTrip(tripId, options = {}) {
@@ -135,21 +212,26 @@ function selectVoyage(v, row, opts = {}) {
   clearSelectedWindGraphics();
 
   // highlight selected voyage
-  activePolylines = [];
-  if (v._segments && v._segments.length > 0) {
-    v._segments.forEach(seg => {
-      seg.polyline.setStyle({ color: 'red', weight: 4 });
-      activePolylines.push(seg.polyline);
-    });
-    if (fit && v._segments[0].polyline) {
-      let b = v._segments[0].polyline.getBounds();
-      for (let k = 1; k < v._segments.length; k++) b = b.extend(v._segments[k].polyline.getBounds());
-      map.fitBounds(b);
+  removeActivePolylines();
+  let voyagePoints = getVoyagePoints(v);
+  if (!Array.isArray(voyagePoints) || voyagePoints.length === 0) voyagePoints = [];
+  let highlightLines = voyagePoints.length >= 2 ? createActivityHighlightPolylines(voyagePoints) : [];
+  if (!highlightLines.length) {
+    if (v._segments && v._segments.length > 0) {
+      v._segments.forEach(seg => {
+        seg.polyline.setStyle({ color: SAILING_HIGHLIGHT_COLOR, weight: DEFAULT_HIGHLIGHT_WEIGHT });
+        highlightLines.push(seg.polyline);
+      });
+    } else if (v._fallbackPolyline) {
+      v._fallbackPolyline.setStyle({ color: SAILING_HIGHLIGHT_COLOR, weight: DEFAULT_HIGHLIGHT_WEIGHT });
+      highlightLines = [v._fallbackPolyline];
     }
-  } else if (v._fallbackPolyline) {
-    v._fallbackPolyline.setStyle({ color: 'red', weight: 4 });
-    activePolylines = [v._fallbackPolyline];
-    if (fit) map.fitBounds(v._fallbackPolyline.getBounds());
+  }
+  activePolylines = highlightLines;
+  if (fit && activePolylines.length > 0) {
+    let bounds = activePolylines[0].getBounds();
+    for (let i = 1; i < activePolylines.length; i++) bounds = bounds.extend(activePolylines[i].getBounds());
+    if (bounds && bounds.isValid && bounds.isValid()) map.fitBounds(bounds);
   }
 
   // update max speed marker
@@ -157,10 +239,8 @@ function selectVoyage(v, row, opts = {}) {
 
   // clear previous point selection
   if (selectedPointMarker) { map.removeLayer(selectedPointMarker); selectedPointMarker = null; }
-  detachActiveClickers();
 
-  // attach click handler to red path to select nearest point
-  const voyagePoints = getVoyagePoints(v);
+  // attach click handler to highlighted track to select nearest point
   currentVoyagePoints = voyagePoints;
   activePolylines.forEach(pl => {
     if (pl._voySelect) { try { pl.off('click', pl._voySelect); } catch(_) {} }
@@ -189,7 +269,7 @@ function selectVoyage(v, row, opts = {}) {
     updateHistoryForTrip(v._tripIndex, { replace: false });
   }
 
-  setDetailsHint('Click on the red path to inspect a point.');
+  setDetailsHint('Click on the highlighted track to inspect a point.');
 }
 
 function findNearestVoyageSelection(latLng) {
@@ -471,19 +551,29 @@ async function load() {
           detachActiveClickers();
           clearActivePointMarkers();
           clearSelectedWindGraphics();
-          activePolylines = [];
-          if (seg.polyline) {
-            seg.polyline.setStyle({ color: 'red', weight: 4 });
-            activePolylines = [seg.polyline];
-            map.fitBounds(seg.polyline.getBounds());
+          removeActivePolylines();
+          const dayPoints = Array.isArray(seg.points) ? seg.points : [];
+          let dayHighlights = dayPoints.length >= 2 ? createActivityHighlightPolylines(dayPoints, { weight: 5 }) : [];
+          if (!dayHighlights.length && seg.polyline) {
+            seg.polyline.setStyle({ color: SAILING_HIGHLIGHT_COLOR, weight: DEFAULT_HIGHLIGHT_WEIGHT });
+            dayHighlights = [seg.polyline];
+          }
+          activePolylines = dayHighlights;
+          if (activePolylines.length > 0) {
+            let bounds = activePolylines[0].getBounds();
+            for (let i = 1; i < activePolylines.length; i++) bounds = bounds.extend(activePolylines[i].getBounds());
+            if (bounds && bounds.isValid && bounds.isValid()) map.fitBounds(bounds);
           }
           drawMaxSpeedMarkerFromCoord(seg.maxSpeedCoord, seg.maxSpeed);
           if (selectedPointMarker) { map.removeLayer(selectedPointMarker); selectedPointMarker = null; }
-          if (seg.points && seg.points.length) {
+          if (activePolylines.length && seg.points && seg.points.length) {
             const onLineClick = (e) => onPolylineClick(e, seg.points);
-            seg.polyline.on('click', onLineClick);
-            seg.polyline.on('tap', onLineClick);
-            activeLineClickers.push({ pl: seg.polyline, onLineClick });
+            activePolylines.forEach(pl => {
+              if (pl._voySelect) { try { pl.off('click', pl._voySelect); } catch (_) {} }
+              pl.on('click', onLineClick);
+              pl.on('tap', onLineClick);
+              activeLineClickers.push({ pl, onLineClick });
+            });
             activePointMarkersGroup = L.layerGroup();
             seg.points.forEach((p, idx) => {
               if (typeof p.lat === 'number' && typeof p.lon === 'number') {
@@ -498,7 +588,7 @@ async function load() {
             activePointMarkersGroup.addTo(map);
           }
           currentVoyagePoints = seg.points || [];
-          setDetailsHint('Click on the red path to inspect a point.');
+          setDetailsHint('Click on the highlighted track to inspect a point.');
         });
 
         dayRows.push(dr);
@@ -738,7 +828,7 @@ function circularMean(degrees) {
 }
 
 // Boot
-load().then(() => setDetailsHint('Select a voyage, then click the red path to inspect points.')).catch(console.error);
+load().then(() => setDetailsHint('Select a voyage, then click the highlighted track to inspect points.')).catch(console.error);
 document.getElementById('regenBtn').addEventListener('click', async () => {
   await fetch('/plugins/voyage-webapp/generate', { method: 'GET', credentials: 'include' });
   await load();

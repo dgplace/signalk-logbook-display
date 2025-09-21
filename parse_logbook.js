@@ -30,6 +30,131 @@ function circularMean(angles) {
   return (avg + 360) % 360;
 }
 
+function getSog(entry) {
+  if (!entry || !entry.speed) return null;
+  const { speed } = entry;
+  if (typeof speed.sog === 'number') return speed.sog;
+  if (typeof speed.stw === 'number') return speed.stw;
+  return null;
+}
+
+function getWindSpeed(entry) {
+  if (!entry || !entry.wind) return null;
+  const { wind } = entry;
+  if (typeof wind.speedTrue === 'number') return wind.speedTrue;
+  if (typeof wind.speed === 'number') return wind.speed;
+  if (typeof wind.speedApparent === 'number') return wind.speedApparent;
+  return null;
+}
+
+function parseEntryDate(entry) {
+  if (!entry) return null;
+  const raw = entry.datetime ?? entry.time ?? entry.timestamp;
+  if (!raw) return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function classifyVoyagePoints(points) {
+  if (!Array.isArray(points) || points.length === 0) return;
+
+  const MOVE_THRESHOLD_NM = 0.5;
+  const NEAR_ANCHOR_THRESHOLD_NM = 1;
+  const GAP_HOURS_THRESHOLD = 4;
+  const GAP_SOG_THRESHOLD = 1;
+  const LOW_WIND_THRESHOLD = 7;
+  const FAST_SPEED_THRESHOLD = 4;
+
+  let lastAnchoredCoord = null;
+
+  for (let i = 0; i < points.length; i++) {
+    const point = points[i];
+    const entry = point?.entry || {};
+    const coord = (typeof point.lon === 'number' && typeof point.lat === 'number') ? [point.lon, point.lat] : null;
+    const prevActivity = i > 0 ? points[i - 1]?.activity : null;
+
+    const currentTime = parseEntryDate(entry);
+    const nextTime = i < points.length - 1 ? parseEntryDate(points[i + 1]?.entry) : null;
+    const sog = getSog(entry);
+    const windSpeed = getWindSpeed(entry);
+
+    const gapHours = currentTime && nextTime ? (nextTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60) : null;
+    const gapAnchored = gapHours !== null && gapHours > GAP_HOURS_THRESHOLD && (sog ?? 0) < GAP_SOG_THRESHOLD;
+
+    let distanceFromAnchor = null;
+    if (coord && lastAnchoredCoord) {
+      distanceFromAnchor = haversine(lastAnchoredCoord, coord);
+    }
+
+    let isAnchored = false;
+    if (i === 0) {
+      isAnchored = true;
+    } else if (gapAnchored) {
+      isAnchored = true;
+    } else if (!coord) {
+      isAnchored = lastAnchoredCoord === null || prevActivity === 'anchored';
+    } else if (!lastAnchoredCoord) {
+      isAnchored = true;
+    } else if (distanceFromAnchor !== null && distanceFromAnchor <= MOVE_THRESHOLD_NM) {
+      isAnchored = true;
+    }
+
+    let activity;
+    if (isAnchored) {
+      activity = 'anchored';
+      if (coord) {
+        lastAnchoredCoord = coord;
+      }
+    } else {
+      const nearAnchor = distanceFromAnchor !== null && distanceFromAnchor <= NEAR_ANCHOR_THRESHOLD_NM;
+      const lowWindHighSpeed = (windSpeed != null && windSpeed < LOW_WIND_THRESHOLD) && (sog != null && sog > FAST_SPEED_THRESHOLD);
+      activity = (nearAnchor || lowWindHighSpeed) ? 'motoring' : 'sailing';
+    }
+
+    point.activity = activity;
+    if (entry && typeof entry === 'object') {
+      entry.activity = activity;
+    }
+  }
+}
+
+function createVoyageAccumulator(entry) {
+  return {
+    startTime: entry.datetime,
+    endTime: entry.datetime,
+    distance: 0,
+    maxSpeed: 0,
+    maxWind: 0,
+    maxSpeedCoord: null,
+    coords: [],
+    points: [],
+    windHeadings: [],
+    windSpeedSum: 0,
+    windSpeedCount: 0,
+    speedSum: 0,
+    speedCount: 0
+  };
+}
+
+function finalizeVoyage(current) {
+  classifyVoyagePoints(current.points);
+  const avgSpeed = current.speedCount > 0 ? current.speedSum / current.speedCount : 0;
+  const avgWindSpeed = current.windSpeedCount > 0 ? current.windSpeedSum / current.windSpeedCount : 0;
+  return {
+    startTime: current.startTime.toISOString(),
+    endTime:   current.endTime.toISOString(),
+    nm:        parseFloat(current.distance.toFixed(1)),
+    maxSpeed:  current.maxSpeed,
+    avgSpeed:  avgSpeed,
+    maxWind:   current.maxWind,
+    avgWindSpeed: avgWindSpeed,
+    avgWindHeading: current.windHeadings.length > 0 ? circularMean(current.windHeadings) : null,
+    coords:    current.coords,
+    points:    current.points,
+    maxSpeedCoord: current.maxSpeedCoord
+  };
+}
+
 async function readEntries(dir) {
   const files = await fs.readdir(dir);
   const entries = [];
@@ -59,49 +184,11 @@ function groupVoyages(entries) {
     const entryDate = new Date(entry.datetime.getFullYear(), entry.datetime.getMonth(), entry.datetime.getDate());
 
     if (!current) {
-      current = {
-        startTime: entry.datetime,
-        endTime: entry.datetime,
-        distance: 0, maxSpeed: 0, maxWind: 0,
-        maxSpeedCoord: null,
-        coords: [],
-        points: [],
-        windHeadings: [],
-        windSpeedSum: 0,
-        windSpeedCount: 0,
-        speedSum: 0,
-        speedCount: 0
-      };
+      current = createVoyageAccumulator(entry);
     } else {
       if (!lastDate || !isConsecutiveDay(lastDate, entryDate)) {
-        const avgSpeed = current.speedCount > 0 ? current.speedSum / current.speedCount : 0;
-        const avgWindSpeed = current.windSpeedCount > 0 ? current.windSpeedSum / current.windSpeedCount : 0;
-        voyages.push({
-          startTime: current.startTime.toISOString(),
-          endTime:   current.endTime.toISOString(),
-          nm:        parseFloat(current.distance.toFixed(1)),
-          maxSpeed:  current.maxSpeed,
-          avgSpeed:  avgSpeed,
-          maxWind:   current.maxWind,
-          avgWindSpeed: avgWindSpeed,
-          avgWindHeading: current.windHeadings.length > 0 ? circularMean(current.windHeadings) : null,
-          coords:    current.coords,
-          points:    current.points,
-          maxSpeedCoord: current.maxSpeedCoord
-        });
-        current = {
-          startTime: entry.datetime,
-          endTime: entry.datetime,
-          distance: 0, maxSpeed: 0, maxWind: 0,
-          maxSpeedCoord: null,
-          coords: [],
-          points: [],
-          windHeadings: [],
-          windSpeedSum: 0,
-          windSpeedCount: 0,
-          speedSum: 0,
-          speedCount: 0
-        };
+        voyages.push(finalizeVoyage(current));
+        current = createVoyageAccumulator(entry);
       }
     }
 
@@ -153,21 +240,7 @@ function groupVoyages(entries) {
   }
 
   if (current) {
-    const avgSpeed = current.speedCount > 0 ? current.speedSum / current.speedCount : 0;
-    const avgWindSpeed = current.windSpeedCount > 0 ? current.windSpeedSum / current.windSpeedCount : 0;
-    voyages.push({
-      startTime: current.startTime.toISOString(),
-      endTime:   current.endTime.toISOString(),
-      nm:        parseFloat(current.distance.toFixed(1)),
-      maxSpeed:  current.maxSpeed,
-      avgSpeed:  avgSpeed,
-      maxWind:   current.maxWind,
-      avgWindSpeed: avgWindSpeed,
-      avgWindHeading: current.windHeadings.length > 0 ? circularMean(current.windHeadings) : null,
-      coords:    current.coords,
-      points:    current.points,
-      maxSpeedCoord: current.maxSpeedCoord
-    });
+    voyages.push(finalizeVoyage(current));
   }
   return voyages;
 }
