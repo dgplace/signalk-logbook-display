@@ -66,6 +66,8 @@ function classifyVoyagePoints(points) {
   const FAST_SPEED_THRESHOLD = 4;
 
   let lastAnchoredCoord = null;
+  let previousCoord = null;
+  let distanceSinceAnchor = 0;
 
   for (let i = 0; i < points.length; i++) {
     const point = points[i];
@@ -87,10 +89,17 @@ function classifyVoyagePoints(points) {
       : false;
     const endOfDayAnchored = nextDayBreak && (sog ?? 0) < GAP_SOG_THRESHOLD;
 
-    let distanceFromAnchor = null;
+    let directDistanceFromAnchor = null;
     if (coord && lastAnchoredCoord) {
-      distanceFromAnchor = haversine(lastAnchoredCoord, coord);
+      directDistanceFromAnchor = haversine(lastAnchoredCoord, coord);
     }
+
+    let segmentDistance = null;
+    if (coord && previousCoord) {
+      segmentDistance = haversine(previousCoord, coord);
+    }
+
+    let distanceFromAnchor = null;
 
     let isAnchored = false;
     if (i === 0) {
@@ -103,7 +112,7 @@ function classifyVoyagePoints(points) {
       isAnchored = lastAnchoredCoord === null || prevActivity === 'anchored';
     } else if (!lastAnchoredCoord) {
       isAnchored = true;
-    } else if (distanceFromAnchor !== null && distanceFromAnchor <= MOVE_THRESHOLD_NM) {
+    } else if (directDistanceFromAnchor !== null && directDistanceFromAnchor <= MOVE_THRESHOLD_NM) {
       isAnchored = true;
     }
 
@@ -113,15 +122,31 @@ function classifyVoyagePoints(points) {
       if (coord) {
         lastAnchoredCoord = coord;
       }
+      distanceSinceAnchor = 0;
+      distanceFromAnchor = 0;
     } else {
-      const nearAnchor = distanceFromAnchor !== null && distanceFromAnchor <= NEAR_ANCHOR_THRESHOLD_NM;
+      if (segmentDistance !== null) {
+        distanceSinceAnchor += segmentDistance;
+      }
+      distanceFromAnchor = distanceSinceAnchor;
+      const nearAnchor = directDistanceFromAnchor !== null && directDistanceFromAnchor <= NEAR_ANCHOR_THRESHOLD_NM;
       const lowWindHighSpeed = (windSpeed != null && windSpeed < LOW_WIND_THRESHOLD) && (sog != null && sog > FAST_SPEED_THRESHOLD);
       activity = (nearAnchor || lowWindHighSpeed) ? 'motoring' : 'sailing';
     }
 
     point.activity = activity;
+    if (distanceFromAnchor !== null) {
+      point.distanceFromAnchor = distanceFromAnchor;
+    }
     if (entry && typeof entry === 'object') {
       entry.activity = activity;
+      if (distanceFromAnchor !== null) {
+        entry.distanceFromAnchor = distanceFromAnchor;
+      }
+    }
+
+    if (coord) {
+      previousCoord = coord;
     }
   }
 }
