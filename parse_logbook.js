@@ -189,7 +189,7 @@ function classifyVoyagePoints(points) {
         distanceSinceAnchor += segmentDistance;
       }
       distanceFromAnchor = distanceSinceAnchor;
-      const nearAnchor = directDistanceFromAnchor !== null && directDistanceFromAnchor <= NEAR_ANCHOR_THRESHOLD_NM;
+      const nearAnchor = distanceFromAnchor !== null && distanceFromAnchor <= NEAR_ANCHOR_THRESHOLD_NM;
       const lowWindHighSpeed = (windSpeed != null && windSpeed < LOW_WIND_THRESHOLD) && (sog != null && sog > FAST_SPEED_THRESHOLD);
       activity = (nearAnchor || lowWindHighSpeed) ? 'motoring' : 'sailing';
     }
