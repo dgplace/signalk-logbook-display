@@ -47,6 +47,8 @@ const apiBasePath = (() => {
   return '';
 })();
 
+console.log(`[voyage-webapp] apiBasePath resolved to "${apiBasePath || '/'}" for pathname "${window.location.pathname}"`);
+
 function getTripIdFromPath() {
   const segments = window.location.pathname.split('/').filter(Boolean);
   if (!segments.length) return null;
@@ -839,11 +841,13 @@ function circularMean(degrees) {
 // Boot
 load().then(() => setDetailsHint('Select a voyage, then click the highlighted track to inspect points.')).catch(console.error);
 document.getElementById('regenBtn').addEventListener('click', async () => {
+  console.log(`[voyage-webapp] Triggering voyage regeneration via ${apiBasePath || ''}/generate`);
   await fetch(`${apiBasePath}/generate`, { method: 'GET', credentials: 'include' });
   await load();
 });
 
 document.getElementById('regenPolarBtn').addEventListener('click', async () => {
+  console.log(`[voyage-webapp] Triggering polar regeneration via ${apiBasePath || ''}/generate/polar`);
   await fetch(`${apiBasePath}/generate/polar`, { method: 'GET', credentials: 'include' });
 });
 

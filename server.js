@@ -65,11 +65,19 @@ function serveFile(res, filePath) {
 const server = http.createServer((req, res) => {
   const parsed = url.parse(req.url);
   let pathname = decodeURI(parsed.pathname || '/');
+  console.log(`[voyage-webapp] ${req.method} ${pathname}`);
 
   if (req.method === 'GET' && pathname === '/generate') {
+    console.log(`[voyage-webapp] Handling /generate with log dir ${LOG_DIR}`);
     execFile('node', [path.join(__dirname, 'parse_logbook.js'), LOG_DIR], (err, stdout, stderr) => {
       if (err) {
-        console.error(`Failed to generate voyages: ${stderr}`);
+        console.error(`[voyage-webapp] Failed to generate voyages: ${err.message}`);
+        if (stderr) {
+          console.error(`[voyage-webapp] parser stderr: ${stderr}`);
+        }
+        if (stdout) {
+          console.error(`[voyage-webapp] parser stdout (partial): ${stdout.slice(0, 400)}${stdout.length > 400 ? '…' : ''}`);
+        }
         return send(res, 500, { 'Content-Type': 'application/json' }, JSON.stringify({ message: 'Error running parser' }));
       }
       try {
@@ -79,9 +87,11 @@ const server = http.createServer((req, res) => {
         const polarJson = JSON.stringify(polarData, null, 2);
         fs.writeFileSync(OUTPUT_JSON, voyagesJson);
         fs.writeFileSync(OUTPUT_POLAR, polarJson);
+        console.log('[voyage-webapp] Successfully wrote voyages.json and Polar.json');
         return send(res, 200, { 'Content-Type': 'application/json' }, JSON.stringify({ status: 'ok' }));
       } catch (error) {
-        console.error(`Failed to process voyages output: ${error.message}`);
+        console.error(`[voyage-webapp] Failed to process voyages output: ${error.message}`);
+        console.error(`[voyage-webapp] raw stdout (partial): ${stdout.slice(0, 400)}${stdout.length > 400 ? '…' : ''}`);
         return send(res, 500, { 'Content-Type': 'application/json' }, JSON.stringify({ message: 'Error processing parser output' }));
       }
     });
@@ -89,9 +99,10 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === 'GET' && pathname === '/generate/polar') {
+    console.log('[voyage-webapp] Handling /generate/polar');
     fs.readFile(OUTPUT_JSON, 'utf8', (readErr, contents) => {
       if (readErr) {
-        console.error(`Failed to read voyages.json: ${readErr.message}`);
+        console.error(`[voyage-webapp] Failed to read voyages.json: ${readErr.message}`);
         return send(res, 500, { 'Content-Type': 'application/json' }, JSON.stringify({ message: 'Could not read voyages data' }));
       }
       try {
@@ -100,13 +111,14 @@ const server = http.createServer((req, res) => {
         const polarJson = JSON.stringify(polarData, null, 2);
         fs.writeFile(OUTPUT_POLAR, polarJson, writeErr => {
           if (writeErr) {
-            console.error(`Failed to write Polar.json: ${writeErr.message}`);
+            console.error(`[voyage-webapp] Failed to write Polar.json: ${writeErr.message}`);
             return send(res, 500, { 'Content-Type': 'application/json' }, JSON.stringify({ message: 'Could not write polar data' }));
           }
+          console.log('[voyage-webapp] Successfully regenerated Polar.json from existing voyages.json');
           return send(res, 200, { 'Content-Type': 'application/json' }, JSON.stringify({ status: 'ok' }));
         });
       } catch (parseErr) {
-        console.error(`Failed to generate polar data: ${parseErr.message}`);
+        console.error(`[voyage-webapp] Failed to generate polar data: ${parseErr.message}`);
         return send(res, 500, { 'Content-Type': 'application/json' }, JSON.stringify({ message: 'Could not process voyages data' }));
       }
     });
