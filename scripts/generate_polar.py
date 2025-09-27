@@ -1,370 +1,240 @@
 #!/usr/bin/env python3
-"""Generate sailing polar diagrams grouped by true wind speed bins."""
-from __future__ import annotations
+"""Plot the sailing polar diagram from public/Polar.json."""
 
 import argparse
 import json
 import math
-from bisect import bisect_left
 from collections import defaultdict
-from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
-import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-
-
-@dataclass(frozen=True)
-class Sample:
-    """Minimal sailing sample used for plotting."""
-    theta: float  # absolute true wind angle in radians
-    stw: float     # speed through water in knots
-
-
-WIND_BINS: List[Tuple[str, float, Optional[float]]] = [
-    ("2.5-7.5 kn", 2.5, 7.5),
-    ("7.5-12.5 kn", 7.5, 12.5),
-    ("12.5-17.5 kn", 12.5, 17.5),
-    (">17.5 kn", 17.5, None),
-]
-
-WIND_BIN_TWS: Dict[str, float] = {
-    "2.5-7.5 kn": 5.0,
-    "7.5-12.5 kn": 10.0,
-    "12.5-17.5 kn": 15.0,
-    ">17.5 kn": 20.0,
-}
-
-TWA_BAND_CENTERS: List[int] = list(range(35, 181, 10))
+import numpy as np
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Parse voyages.json and generate polar curves per true wind speed band."
-        )
-    )
+    parser = argparse.ArgumentParser(description="Plot a polar diagram using Polar.json data.")
     parser.add_argument(
-        "--voyages-file",
-        default=Path("public/voyages.json"),
+        "--polar-file",
+        default=Path("public/Polar.json"),
         type=Path,
-        help="Path to the voyages.json file exported from the logbook",
+        help="Path to the Polar.json file (default: public/Polar.json)",
     )
     parser.add_argument(
         "--output",
-        default=Path("polar_diagram.png"),
         type=Path,
-        help="Output image path for the polar diagram",
-    )
-    parser.add_argument(
-        "--text-output",
-        default=Path("polar.txt"),
-        type=Path,
-        help="Output path for the tab-separated polar table",
-    )
-    parser.add_argument(
-        "--bin-size",
-        default=10,
-        type=int,
-        help="Angle bin size in degrees for the aggregated polar curve",
-    )
-    parser.add_argument(
-        "--percentile",
-        default=80,
-        type=float,
-        help="Percentile of speed samples to plot for each aggregated curve (0-100)",
-    )
-    parser.add_argument(
-        "--min-samples",
-        default=3,
-        type=int,
-        help="Minimum samples per angle bin required to include it in the aggregated curve",
+        help="Optional path to save the plot instead of showing it interactively",
     )
     return parser.parse_args()
 
 
-def parse_iso8601(value: str) -> datetime:
-    if value.endswith("Z"):
-        value = value[:-1] + "+00:00"
-    return datetime.fromisoformat(value)
+def is_finite(value) -> bool:
+    return isinstance(value, (int, float)) and math.isfinite(value)
 
 
-def percentile(values: Iterable[float], pct: float) -> float:
+def load_points(path: Path) -> List[Dict[str, float]]:
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise SystemExit(f"Polar file not found: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Polar file is not valid JSON: {path}") from exc
+
+    points = raw.get("points", [])
+    filtered = []
+    for point in points:
+        twa = point.get("twa")
+        stw = point.get("stw")
+        tws = point.get("tws")
+        if not (is_finite(twa) and is_finite(stw) and is_finite(tws)):
+            continue
+        filtered.append({"twa": float(twa), "stw": float(stw), "tws": float(tws)})
+    return filtered
+
+
+def group_points(points: Iterable[Dict[str, float]]) -> Dict[float, List[Tuple[float, float]]]:
+    grouped: Dict[float, List[Tuple[float, float]]] = defaultdict(list)
+    for point in points:
+        angle_rad = math.radians(point["twa"])
+        grouped[point["tws"]].append((angle_rad, point["stw"]))
+    return grouped
+
+
+def percentile(values: List[float], pct: float) -> float:
+    if not values:
+        raise ValueError("Cannot compute percentile of empty data")
     ordered = sorted(values)
-    if not ordered:
-        raise ValueError("Cannot compute percentile of empty dataset")
     if len(ordered) == 1:
         return ordered[0]
-    clamped_pct = max(0.0, min(100.0, pct))
-    rank = (len(ordered) - 1) * (clamped_pct / 100.0)
+    pct_clamped = max(0.0, min(100.0, pct))
+    rank = (len(ordered) - 1) * (pct_clamped / 100.0)
     lower = math.floor(rank)
     upper = math.ceil(rank)
     if lower == upper:
         return ordered[lower]
-    lower_value = ordered[lower]
-    upper_value = ordered[upper]
     fraction = rank - lower
-    return lower_value + (upper_value - lower_value) * fraction
+    return ordered[lower] + (ordered[upper] - ordered[lower]) * fraction
 
 
-def true_wind_angle(course: float, wind_dir: float) -> float:
-    """Return the absolute true wind angle (0-180) with 0 meaning head to wind."""
-    angle = (wind_dir - course) % 360.0
-    if angle > 180.0:
-        angle = 360.0 - angle
-    return angle
+def percentile_curve(samples: Iterable[Tuple[float, float]], *, bin_size: int = 5, pct: float = 75, min_samples: int = 3) -> List[Tuple[float, float]]:
+    bins: Dict[int, List[float]] = defaultdict(list)
+    for angle_rad, stw in samples:
+        angle_deg = math.degrees(angle_rad)
+        if angle_deg < 0:
+            angle_deg += 360
+        bucket_center = int(math.floor((angle_deg + bin_size / 2) / bin_size) * bin_size) % 360
+        bins[bucket_center].append(stw)
 
-
-def load_voyages(path: Path) -> Dict:
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def categorize_wind_speed(speed: float) -> Optional[str]:
-    for label, lower, upper in WIND_BINS:
-        if upper is None:
-            if speed >= lower:
-                return label
-        else:
-            if lower <= speed < upper:
-                return label
-    return None
-
-
-def collect_sailing_samples(voyages: Dict) -> Dict[str, List[Sample]]:
-    samples_by_band: Dict[str, List[Sample]] = {label: [] for label, *_ in WIND_BINS}
-    voyages_list = voyages.get("voyages", [])
-    for voyage in voyages_list:
-        start_str = voyage.get("startTime")
-        end_str = voyage.get("endTime")
-        if not start_str or not end_str:
+    curve: List[Tuple[float, float]] = []
+    for bucket in sorted(bins.keys()):
+        values = bins[bucket]
+        if len(values) < min_samples:
             continue
         try:
-            start_time = parse_iso8601(start_str)
-            end_time = parse_iso8601(end_str)
+            p_val = percentile(values, pct)
         except ValueError:
             continue
-        exclusion_seconds = 3600  # 1 hour
-        points = voyage.get("points", [])
-        for point in points:
-            entry = point.get("entry", {})
-            dt_str = entry.get("datetime")
-            if not dt_str:
-                continue
-            try:
-                entry_time = parse_iso8601(dt_str)
-            except ValueError:
-                continue
-            if (entry_time - start_time).total_seconds() < exclusion_seconds:
-                continue
-            if (end_time - entry_time).total_seconds() < exclusion_seconds:
-                continue
-            speed_data = entry.get("speed", {})
-            wind_data = entry.get("wind", {})
-            stw = speed_data.get("stw")
-            sog = speed_data.get("sog")
-            wind_speed = wind_data.get("speed")
-            wind_dir = wind_data.get("direction")
-            course = entry.get("course")
-            if stw is None or sog is None or wind_speed is None or wind_dir is None or course is None:
-                continue
-            if wind_speed <= 0:
-                continue
-            if sog > 0.8 * wind_speed:
-                continue
-            band_label = categorize_wind_speed(float(wind_speed))
-            if not band_label:
-                continue
-            angle_deg = true_wind_angle(float(course), float(wind_dir))
-            if angle_deg < 30.0:
-                continue
-            theta_primary = math.radians(angle_deg)
-            stw_value = float(stw)
-            samples_by_band[band_label].append(Sample(theta_primary, stw_value))
-            if 0.0 < angle_deg < 180.0:
-                mirrored_angle = (360.0 - angle_deg) % 360.0
-                if mirrored_angle <= 330.0:
-                    mirrored_theta = math.radians(mirrored_angle)
-                    samples_by_band[band_label].append(Sample(mirrored_theta, stw_value))
-    return samples_by_band
+        bucket_adj = bucket
+        if bucket_adj > 180:
+            bucket_adj = 360 - bucket_adj
+        curve.append((bucket_adj, p_val))
+    return curve
 
 
-def bucket_by_angle(samples: Iterable[Sample], bin_size: int) -> Dict[int, List[float]]:
-    buckets: Dict[int, List[float]] = defaultdict(list)
-    for sample in samples:
-        angle_deg = math.degrees(sample.theta)
-        bucket_center = int(((angle_deg + (bin_size / 2.0)) % 360) // bin_size * bin_size)
-        buckets[bucket_center].append(sample.stw)
-    return buckets
+def make_open_uniform_knots(n_control: int, degree: int) -> np.ndarray:
+    knots = np.zeros(n_control + degree + 1, dtype=float)
+    knots[degree:n_control + 1] = np.linspace(0.0, 1.0, n_control - degree + 1)
+    knots[n_control + 1:] = 1.0
+    return knots
 
 
+def bspline_basis(i: int, degree: int, t: float, knots: np.ndarray) -> float:
+    if degree == 0:
+        left = knots[i]
+        right = knots[i + 1]
+        if left <= t < right or (t == knots[-1] and left <= t <= right):
+            return 1.0
+        return 0.0
+    denom_left = knots[i + degree] - knots[i]
+    denom_right = knots[i + degree + 1] - knots[i + 1]
+    term_left = 0.0
+    term_right = 0.0
+    if denom_left > 0:
+        term_left = (t - knots[i]) / denom_left * bspline_basis(i, degree - 1, t, knots)
+    if denom_right > 0:
+        term_right = (knots[i + degree + 1] - t) / denom_right * bspline_basis(i + 1, degree - 1, t, knots)
+    return term_left + term_right
 
 
-def remove_outliers(values: Iterable[float]) -> List[float]:
-    data = list(values)
-    if len(data) < 4:
-        return data
-    q1 = percentile(data, 25)
-    q3 = percentile(data, 75)
-    iqr = q3 - q1
-    if iqr <= 0:
-        return [v for v in data if q1 <= v <= q3]
-    lower = q1 - 1.5 * iqr
-    upper = q3 + 1.5 * iqr
-    return [v for v in data if lower <= v <= upper]
+def fit_bspline_curve(curve: List[Tuple[float, float]], control_count: int = 5, degree: int = 3) -> List[Tuple[float, float]]:
+    if len(curve) < control_count:
+        return []
+
+    angles_deg = np.array([point[0] for point in curve], dtype=float)
+    radii = np.array([point[1] for point in curve], dtype=float)
+
+    valid = np.isfinite(angles_deg) & np.isfinite(radii)
+    if valid.sum() < control_count:
+        return []
+    angles_deg = angles_deg[valid]
+    radii = radii[valid]
+
+    order = np.argsort(angles_deg)
+    angles_deg = angles_deg[order]
+    radii = radii[order]
+
+    unique_angles, inverse = np.unique(angles_deg, return_inverse=True)
+    if unique_angles.size < control_count:
+        return []
+    aggregated_radii = np.zeros_like(unique_angles, dtype=float)
+    counts = np.zeros_like(unique_angles, dtype=int)
+    for idx, group in enumerate(inverse):
+        aggregated_radii[group] += radii[idx]
+        counts[group] += 1
+    radii = aggregated_radii / np.maximum(counts, 1)
+    angles_deg = unique_angles
+
+    min_angle = angles_deg[0]
+    max_angle = angles_deg[-1]
+    if max_angle - min_angle < 1e-6:
+        return []
+
+    t_values = (angles_deg - min_angle) / (max_angle - min_angle)
+    t_values = np.clip(t_values, 0.0, 1.0)
+
+    degree = min(degree, control_count - 1)
+    knots = make_open_uniform_knots(control_count, degree)
+
+    basis_matrix = np.array([
+        [bspline_basis(j, degree, t, knots) for j in range(control_count)]
+        for t in t_values
+    ], dtype=float)
+
+    try:
+        control_radii, *_ = np.linalg.lstsq(basis_matrix, radii, rcond=None)
+    except np.linalg.LinAlgError:
+        return []
+
+    ts = np.linspace(0.0, 1.0, 200)
+    spline_angles_deg = min_angle + ts * (max_angle - min_angle)
+    spline_radii = np.array([
+        sum(control_radii[j] * bspline_basis(j, degree, t, knots) for j in range(control_count))
+        for t in ts
+    ])
+    spline_radii = np.clip(spline_radii, 0.0, None)
+    spline_angles_rad = np.radians(spline_angles_deg)
+    return list(zip(spline_angles_rad, spline_radii))
 
 
+def plot_polar(grouped: Dict[float, List[Tuple[float, float]]], output: Optional[Path]) -> None:
+    if not grouped:
+        raise SystemExit("No valid polar points to plot.")
 
-def smooth_curve(points: List[Tuple[float, float]], window: int = 2) -> List[Tuple[float, float]]:
-    if len(points) <= 3 or window <= 0:
-        return points
-    smoothed: List[Tuple[float, float]] = []
-    n = len(points)
-    for idx, (angle, speed) in enumerate(points):
-        if idx == 0 or idx == n - 1:
-            smoothed.append((angle, speed))
+    tws_values = sorted(grouped.keys())
+    cmap = plt.get_cmap("viridis", max(len(tws_values), 3))
+
+    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw={"projection": "polar"})
+
+    for idx, tws in enumerate(tws_values):
+        samples = grouped[tws]
+        if not samples:
             continue
-        start = max(0, idx - window)
-        end = min(n, idx + window + 1)
-        window_speeds = [pts[1] for pts in points[start:end]]
-        smoothed.append((angle, sum(window_speeds) / len(window_speeds)))
-    return smoothed
+        angles, radii = zip(*samples)
+        color = cmap(idx)
+        ax.scatter(angles, radii, s=18, color=color, alpha=0.35, edgecolors="none")
 
-def aggregated_curve(samples: List[Sample], bin_size: int, pct: float, min_samples: int) -> Tuple[List[float], List[float]]:
-    bins = bucket_by_angle(samples, bin_size)
-    curve_points: List[Tuple[float, float]] = []
-    for angle_deg in sorted(bins.keys()):
-        filtered = remove_outliers(bins[angle_deg])
-        if len(filtered) < min_samples:
-            continue
-        curve_points.append((float(angle_deg), percentile(filtered, pct)))
-    if not curve_points:
-        curve_points = [(0.0, 0.0), (360.0, 0.0)]
-    else:
-        curve_points.sort(key=lambda item: item[0])
-        if curve_points[0][0] > 0.0:
-            curve_points.insert(0, (0.0, 0.0))
-        else:
-            curve_points[0] = (0.0, 0.0)
-        if curve_points[-1][0] < 360.0:
-            curve_points.append((360.0, 0.0))
-        else:
-            curve_points[-1] = (360.0, 0.0)
-    smoothed_points = smooth_curve(curve_points)
-    angles = [math.radians(angle) for angle, _ in smoothed_points]
-    speeds = [speed for _, speed in smoothed_points]
-    return angles, speeds
-
-def interpolate_speed(points: List[Tuple[float, float]], target: float) -> Optional[float]:
-    if not points:
-        return None
-    angles = [angle for angle, _ in points]
-    idx = bisect_left(angles, target)
-    if idx < len(points) and math.isclose(angles[idx], target, abs_tol=1e-6):
-        return points[idx][1]
-    if idx == 0:
-        first_angle, first_speed = points[0]
-        if first_angle >= target and first_angle - target <= 10.0:
-            return first_speed
-        return None
-    if idx == len(points):
-        last_angle, last_speed = points[-1]
-        if target >= last_angle and target - last_angle <= 10.0:
-            return last_speed
-        return None
-    left_angle, left_speed = points[idx - 1]
-    right_angle, right_speed = points[idx]
-    if math.isclose(right_angle, left_angle, abs_tol=1e-6):
-        return left_speed
-    proportion = (target - left_angle) / (right_angle - left_angle)
-    return left_speed + proportion * (right_speed - left_speed)
-
-
-def write_polar_table(curves: Dict[str, Tuple[List[float], List[float]]], output_path: Path) -> None:
-    if not curves:
-        output_path.write_text("TWS\n")
-        return
-    filtered: Dict[str, List[Tuple[float, float]]] = {}
-    for label, (angles, speeds) in curves.items():
-        filtered_points = [
-            (math.degrees(angle), speed)
-            for angle, speed in zip(angles, speeds)
-            if 30.0 <= math.degrees(angle) <= 330.0
-        ]
-        filtered[label] = sorted(filtered_points, key=lambda item: item[0])
-    header: List[str] = ["TWS"]
-    for center in TWA_BAND_CENTERS:
-        header.extend([f"TWA{center}", f"STW{center}"])
-    lines = ["	".join(header)]
-    for label in curves.keys():
-        points = filtered.get(label, [])
-        tws = WIND_BIN_TWS.get(label)
-        if tws is None:
-            lower_upper = next(((lower, upper) for lbl, lower, upper in WIND_BINS if lbl == label), None)
-            if lower_upper is not None:
-                lower, upper = lower_upper
-                if upper is None:
-                    tws = lower + 2.5
-                else:
-                    tws = (lower + upper) / 2.0
+        curve_points = percentile_curve(samples, bin_size=5, pct=75, min_samples=3)
+        if curve_points:
+            smooth_curve = fit_bspline_curve(curve_points, control_count=5, degree=3)
+            if smooth_curve:
+                curve_angles, curve_radii = zip(*smooth_curve)
+                ax.plot(curve_angles, curve_radii, color=color, linewidth=2.2, label=f"{tws:g} kn (75th pct spline)")
             else:
-                tws = 0.0
-        row: List[str] = [f"{tws:.1f}"]
-        for center in TWA_BAND_CENTERS:
-            row.append(f"{center}")
-            stw_value = interpolate_speed(points, center)
-            row.append("" if stw_value is None else f"{stw_value:.2f}")
-        lines.append("	".join(row))
-    output_path.write_text("\n".join(lines) + "\n")
+                # fallback: plot unsmoothed percentile markers
+                curve_angles = [math.radians(pt[0]) for pt in curve_points]
+                curve_radii = [pt[1] for pt in curve_points]
+                ax.plot(curve_angles, curve_radii, color=color, linewidth=1.5, linestyle='--', label=f"{tws:g} kn (75th pct)")
 
-def make_plot(samples_by_band: Dict[str, List[Sample]], args: argparse.Namespace) -> None:
-    total_samples = sum(len(samples) for samples in samples_by_band.values())
-    if total_samples == 0:
-        raise SystemExit("No sailing samples found with the provided filters.")
-    fig = plt.figure(figsize=(9, 9))
-    ax = fig.add_subplot(111, projection="polar")
     ax.set_theta_zero_location("N")
     ax.set_theta_direction(-1)
+    ax.set_title("Polar Diagram (STW vs TWA)", pad=20)
+    ax.set_rlabel_position(225)
+    ax.grid(True, linestyle="--", alpha=0.4)
+    ax.legend(title="True Wind Speed", loc="upper right", bbox_to_anchor=(1.2, 1.1))
 
-    color_cycle = plt.rcParams["axes.prop_cycle"].by_key().get("color", [])
-    if len(color_cycle) < len(WIND_BINS):
-        color_cycle.extend([
-            "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",
-        ])
-    band_curves: Dict[str, Tuple[List[float], List[float]]] = {}
-    for idx, (label, *_bounds) in enumerate(WIND_BINS):
-        samples = samples_by_band[label]
-        if not samples:
-            band_curves[label] = ([], [])
-            continue
-        color = color_cycle[idx % len(color_cycle)]
-        thetas, speeds = zip(*((s.theta, s.stw) for s in samples))
-        ax.scatter(thetas, speeds, s=10, alpha=0.15, color=color)
-        angles, aggregated_speeds = aggregated_curve(samples, args.bin_size, args.percentile, args.min_samples)
-        band_curves[label] = (angles, aggregated_speeds)
-        if angles and aggregated_speeds and any(speed > 0 for speed in aggregated_speeds):
-            ax.plot(angles, aggregated_speeds, linewidth=2, color=color, label=f"{label} ({int(args.percentile)}th %ile)")
+    fig.tight_layout()
 
-    write_polar_table(band_curves, args.text_output)
-    ax.set_title("Sailing Polar Diagram by True Wind Speed")
-    ax.set_rlabel_position(90)
-    ax.grid(True)
-    ax.legend(loc="upper right", bbox_to_anchor=(1.3, 1.2))
-    plt.tight_layout()
-    plt.savefig(args.output, dpi=150)
-    plt.close(fig)
+    if output:
+        fig.savefig(output, dpi=150, bbox_inches="tight")
+    else:
+        plt.show()
 
 
 def main() -> None:
     args = parse_args()
-    voyages_data = load_voyages(args.voyages_file)
-    samples_by_band = collect_sailing_samples(voyages_data)
-    make_plot(samples_by_band, args)
-    print(f"Polar diagram saved to {args.output}")
-    print(f"Polar table saved to {args.text_output}")
+    points = load_points(args.polar_file)
+    grouped = group_points(points)
+    plot_polar(grouped, args.output)
 
 
 if __name__ == "__main__":

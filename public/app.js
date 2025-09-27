@@ -38,6 +38,14 @@ const basePathname = (() => {
   return path;
 })();
 
+const apiBasePath = (() => {
+  const parts = window.location.pathname.split('/').filter(Boolean);
+  if (parts[0] === 'plugins' && parts[1] === 'voyage-webapp') {
+    return '/plugins/voyage-webapp';
+  }
+  return '';
+})();
+
 function getTripIdFromPath() {
   const segments = window.location.pathname.split('/').filter(Boolean);
   if (!segments.length) return null;
@@ -830,8 +838,12 @@ function circularMean(degrees) {
 // Boot
 load().then(() => setDetailsHint('Select a voyage, then click the highlighted track to inspect points.')).catch(console.error);
 document.getElementById('regenBtn').addEventListener('click', async () => {
-  await fetch('/plugins/voyage-webapp/generate', { method: 'GET', credentials: 'include' });
+  await fetch(`${apiBasePath}/generate`, { method: 'GET', credentials: 'include' });
   await load();
+});
+
+document.getElementById('regenPolarBtn').addEventListener('click', async () => {
+  await fetch(`${apiBasePath}/generate/polar`, { method: 'GET', credentials: 'include' });
 });
 
 // Splitter initialization (vertical between map and details, horizontal above map)
