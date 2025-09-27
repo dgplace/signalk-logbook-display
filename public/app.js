@@ -41,7 +41,7 @@ const basePathname = (() => {
 const apiBasePath = (() => {
   const pathname = window.location.pathname || '';
   const pluginPrefix = '/plugins/voyage-webapp';
-  if (pathname.includes(pluginPrefix)) {
+  if (pathname.includes('voyage-webapp')) {
     return pluginPrefix;
   }
   return '';

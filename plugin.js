@@ -1,4 +1,4 @@
-const { execFile } = require('child_process');
+const { spawn } = require('child_process');
 const fs  = require('fs');
 const path = require('path');
 
@@ -12,6 +12,36 @@ function logSnippet(label, content, logger) {
     ? `${content.slice(0, MAX_LOG_SNIPPET)}… (truncated ${content.length - MAX_LOG_SNIPPET} chars)`
     : content;
   logger(`${label}${payload}`);
+}
+
+function runLogbookParser(scriptPath, logDir) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [scriptPath, logDir], {
+      cwd: __dirname,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    const stdoutChunks = [];
+    const stderrChunks = [];
+
+    child.stdout.on('data', chunk => stdoutChunks.push(chunk));
+    child.stderr.on('data', chunk => stderrChunks.push(chunk));
+    child.on('error', reject);
+    child.on('close', (code, signal) => {
+      const stdout = Buffer.concat(stdoutChunks).toString('utf8');
+      const stderr = Buffer.concat(stderrChunks).toString('utf8');
+      if (code === 0) {
+        resolve({ stdout, stderr });
+      } else {
+        const err = new Error(`parse_logbook.js exited with code ${code} and signal ${signal || 'null'}`);
+        err.code = code;
+        err.signal = signal;
+        err.stdout = stdout;
+        err.stderr = stderr;
+        reject(err);
+      }
+    });
+  });
 }
 
 // adjust this path if your logs live elsewhere
@@ -37,31 +67,32 @@ module.exports = function(app) {
       const targetUrl = req.originalUrl || req.url || '/generate';
       app.debug(`[voyage-webapp] GET ${targetUrl} -> running parser with log dir ${LOG_DIR}`);
       const scriptPath = path.join(__dirname, 'parse_logbook.js');
-      execFile('node', [scriptPath, LOG_DIR], (err, stdout, stderr) => {
-        if (err) {
-          app.error(`[voyage-webapp] parse_logbook.js failed (code=${err.code ?? 'n/a'} signal=${err.signal ?? 'n/a'}): ${err.message}`);
-          logSnippet('[voyage-webapp] parser stderr: ', stderr, msg => app.error(msg));
-          logSnippet('[voyage-webapp] parser stdout: ', stdout, msg => app.error(msg));
-          res.status(500).send({message: 'Error running parser'});
-          return;
-        }
-        logSnippet('[voyage-webapp] parser stdout: ', stdout, msg => app.debug(msg));
-        try {
-          const voyagesData = JSON.parse(stdout);
-          const voyagesJson = JSON.stringify(voyagesData, null, 2);
-          const polarData = generatePolar(voyagesData);
-          const polarJson = JSON.stringify(polarData, null, 2);
+      runLogbookParser(scriptPath, LOG_DIR)
+        .then(({ stdout, stderr }) => {
+          logSnippet('[voyage-webapp] parser stderr: ', stderr, msg => app.debug(msg));
+          logSnippet('[voyage-webapp] parser stdout: ', stdout, msg => app.debug(msg));
+          try {
+            const voyagesData = JSON.parse(stdout);
+            const voyagesJson = JSON.stringify(voyagesData, null, 2);
+            const polarData = generatePolar(voyagesData);
+            const polarJson = JSON.stringify(polarData, null, 2);
 
-          fs.writeFileSync(OUTPUT_JSON, voyagesJson);
-          fs.writeFileSync(OUTPUT_POLAR, polarJson);
-          app.debug('[voyage-webapp] Successfully wrote voyages.json and Polar.json');
-          res.json({ status: 'ok' });
-        } catch (writeErr) {
-          app.error(`[voyage-webapp] Failed to process voyages output: ${writeErr.message}`);
-          logSnippet('[voyage-webapp] raw stdout: ', stdout, msg => app.error(msg));
-          res.status(500).send({message: 'Error processing parser output'});
-        }
-      });
+            fs.writeFileSync(OUTPUT_JSON, voyagesJson);
+            fs.writeFileSync(OUTPUT_POLAR, polarJson);
+            app.debug('[voyage-webapp] Successfully wrote voyages.json and Polar.json');
+            res.json({ status: 'ok' });
+          } catch (writeErr) {
+            app.error(`[voyage-webapp] Failed to process voyages output: ${writeErr.message}`);
+            logSnippet('[voyage-webapp] raw stdout: ', stdout, msg => app.error(msg));
+            res.status(500).send({message: 'Error processing parser output'});
+          }
+        })
+        .catch(err => {
+          app.error(`[voyage-webapp] parse_logbook.js failed (code=${err.code ?? 'n/a'} signal=${err.signal ?? 'n/a'}): ${err.message}`);
+          logSnippet('[voyage-webapp] parser stderr: ', err.stderr, msg => app.error(msg));
+          logSnippet('[voyage-webapp] parser stdout: ', err.stdout, msg => app.error(msg));
+          res.status(500).send({message: 'Error running parser'});
+        });
     });
 
     // GET /generate/polar – regenerate polar data using the existing voyages.json
