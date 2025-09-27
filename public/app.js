@@ -39,9 +39,10 @@ const basePathname = (() => {
 })();
 
 const apiBasePath = (() => {
-  const parts = window.location.pathname.split('/').filter(Boolean);
-  if (parts[0] === 'plugins' && parts[1] === 'voyage-webapp') {
-    return '/plugins/voyage-webapp';
+  const pathname = window.location.pathname || '';
+  const pluginPrefix = '/plugins/voyage-webapp';
+  if (pathname.includes(pluginPrefix)) {
+    return pluginPrefix;
   }
   return '';
 })();
