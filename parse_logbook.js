@@ -65,20 +65,17 @@ function classifyVoyagePoints(points) {
   const LOW_WIND_THRESHOLD = 7;
   const FAST_SPEED_THRESHOLD = 4;
 
+  // Forward pass: initial anchored classification
   let lastAnchoredCoord = null;
-  let previousCoord = null;
-  let distanceSinceAnchor = 0;
-
   for (let i = 0; i < points.length; i++) {
     const point = points[i];
-    const entry = point?.entry || {};
+    if (!point) continue;
+    const entry = point.entry || {};
     const coord = (typeof point.lon === 'number' && typeof point.lat === 'number') ? [point.lon, point.lat] : null;
-    const prevActivity = i > 0 ? points[i - 1]?.activity : null;
 
     const currentTime = parseEntryDate(entry);
     const nextTime = i < points.length - 1 ? parseEntryDate(points[i + 1]?.entry) : null;
     const sog = getSog(entry);
-    const windSpeed = getWindSpeed(entry);
 
     const gapHours = currentTime && nextTime ? (nextTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60) : null;
     const gapAnchored = gapHours !== null && gapHours > GAP_HOURS_THRESHOLD && (sog ?? 0) < GAP_SOG_THRESHOLD;
@@ -94,30 +91,93 @@ function classifyVoyagePoints(points) {
       directDistanceFromAnchor = haversine(lastAnchoredCoord, coord);
     }
 
-    let segmentDistance = null;
-    if (coord && previousCoord) {
-      segmentDistance = haversine(previousCoord, coord);
-    }
-
-    let distanceFromAnchor = null;
-
     let isAnchored = false;
     if (i === 0) {
       isAnchored = true;
-    } else if (gapAnchored) {
-      isAnchored = true;
-    } else if (endOfDayAnchored) {
+    } else if (gapAnchored || endOfDayAnchored) {
       isAnchored = true;
     } else if (!coord) {
-      isAnchored = lastAnchoredCoord === null || prevActivity === 'anchored';
+      const prevAnchored = i > 0 ? points[i - 1]?.__isAnchored === true : false;
+      isAnchored = lastAnchoredCoord === null || prevAnchored;
     } else if (!lastAnchoredCoord) {
       isAnchored = true;
     } else if (directDistanceFromAnchor !== null && directDistanceFromAnchor <= MOVE_THRESHOLD_NM) {
       isAnchored = true;
     }
 
+    point.__isAnchored = isAnchored;
+    if (isAnchored && coord) {
+      lastAnchoredCoord = coord;
+    }
+  }
+
+  // Reverse pass: ensure trailing points are classified correctly
+  let nextAnchoredCoord = null;
+  for (let i = points.length - 1; i >= 0; i--) {
+    const point = points[i];
+    if (!point) continue;
+    const entry = point.entry || {};
+    const coord = (typeof point.lon === 'number' && typeof point.lat === 'number') ? [point.lon, point.lat] : null;
+    const sog = getSog(entry);
+
+    const nextPoint = i < points.length - 1 ? points[i + 1] : null;
+    const nextEntry = nextPoint ? nextPoint.entry : null;
+    const currentTime = parseEntryDate(entry);
+    const nextTime = nextEntry ? parseEntryDate(nextEntry) : null;
+
+    const gapHours = currentTime && nextTime ? (nextTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60) : null;
+    const nextDayBreak = currentTime && nextTime
+      ? (currentTime.getUTCFullYear() !== nextTime.getUTCFullYear() ||
+         currentTime.getUTCMonth() !== nextTime.getUTCMonth() ||
+         currentTime.getUTCDate() !== nextTime.getUTCDate())
+      : false;
+
+    const nearFutureAnchor = coord && nextAnchoredCoord
+      ? haversine(coord, nextAnchoredCoord) <= MOVE_THRESHOLD_NM
+      : false;
+
+    const sogValue = sog ?? 0;
+    const shouldForceAnchor = (!nextPoint && sogValue < GAP_SOG_THRESHOLD) ||
+      (gapHours !== null && gapHours > GAP_HOURS_THRESHOLD && sogValue < GAP_SOG_THRESHOLD) ||
+      (nextDayBreak && sogValue < GAP_SOG_THRESHOLD) ||
+      nearFutureAnchor;
+
+    if (!point.__isAnchored && shouldForceAnchor) {
+      point.__isAnchored = true;
+    }
+
+    if (point.__isAnchored && coord) {
+      nextAnchoredCoord = coord;
+    }
+  }
+
+  // Final forward pass: compute activities and distances
+  lastAnchoredCoord = null;
+  let previousCoord = null;
+  let distanceSinceAnchor = 0;
+
+  for (let i = 0; i < points.length; i++) {
+    const point = points[i];
+    if (!point) continue;
+    const entry = point.entry || {};
+    const coord = (typeof point.lon === 'number' && typeof point.lat === 'number') ? [point.lon, point.lat] : null;
+    const sog = getSog(entry);
+    const windSpeed = getWindSpeed(entry);
+
+    let directDistanceFromAnchor = null;
+    if (coord && lastAnchoredCoord) {
+      directDistanceFromAnchor = haversine(lastAnchoredCoord, coord);
+    }
+
+    let segmentDistance = null;
+    if (coord && previousCoord) {
+      segmentDistance = haversine(previousCoord, coord);
+    }
+
     let activity;
-    if (isAnchored) {
+    let distanceFromAnchor = null;
+
+    if (point.__isAnchored) {
       activity = 'anchored';
       if (coord) {
         lastAnchoredCoord = coord;
@@ -144,6 +204,8 @@ function classifyVoyagePoints(points) {
         entry.distanceFromAnchor = distanceFromAnchor;
       }
     }
+
+    delete point.__isAnchored;
 
     if (coord) {
       previousCoord = coord;
