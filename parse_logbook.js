@@ -67,6 +67,8 @@ function classifyVoyagePoints(points) {
 
   // Forward pass: initial anchored classification
   let lastAnchoredCoord = null;
+  let previousCoord = null;
+  let distanceSinceAnchorPath = 0;
   for (let i = 0; i < points.length; i++) {
     const point = points[i];
     if (!point) continue;
@@ -86,9 +88,14 @@ function classifyVoyagePoints(points) {
       : false;
     const endOfDayAnchored = nextDayBreak && (sog ?? 0) < GAP_SOG_THRESHOLD;
 
-    let directDistanceFromAnchor = null;
-    if (coord && lastAnchoredCoord) {
-      directDistanceFromAnchor = haversine(lastAnchoredCoord, coord);
+    let segmentDistanceFromPrevious = null;
+    if (coord && previousCoord) {
+      segmentDistanceFromPrevious = haversine(previousCoord, coord);
+    }
+
+    let pathDistanceFromAnchor = distanceSinceAnchorPath;
+    if (segmentDistanceFromPrevious !== null) {
+      pathDistanceFromAnchor += segmentDistanceFromPrevious;
     }
 
     let isAnchored = false;
@@ -101,13 +108,21 @@ function classifyVoyagePoints(points) {
       isAnchored = lastAnchoredCoord === null || prevAnchored;
     } else if (!lastAnchoredCoord) {
       isAnchored = true;
-    } else if (directDistanceFromAnchor !== null && directDistanceFromAnchor <= MOVE_THRESHOLD_NM) {
+    } else if (pathDistanceFromAnchor <= MOVE_THRESHOLD_NM) {
       isAnchored = true;
     }
 
     point.__isAnchored = isAnchored;
     if (isAnchored && coord) {
       lastAnchoredCoord = coord;
+    }
+    if (isAnchored) {
+      distanceSinceAnchorPath = 0;
+    } else {
+      distanceSinceAnchorPath = pathDistanceFromAnchor;
+    }
+    if (coord) {
+      previousCoord = coord;
     }
   }
 
@@ -153,7 +168,7 @@ function classifyVoyagePoints(points) {
 
   // Final forward pass: compute activities and distances
   lastAnchoredCoord = null;
-  let previousCoord = null;
+  previousCoord = null;
   let distanceSinceAnchor = 0;
 
   for (let i = 0; i < points.length; i++) {
@@ -270,7 +285,7 @@ function groupVoyages(entries) {
   let lastDate = null;
 
   function isConsecutiveDay(d1, d2) {
-    const oneDay = 24 * 60 * 60 * 1000;
+    const oneDay = 48 * 60 * 60 * 1000;
     const diff = d2.getTime() - d1.getTime();
     return diff >= 0 && diff <= oneDay;
   }
