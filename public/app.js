@@ -20,6 +20,26 @@ let currentVoyagePoints = [];
 let voyageRows = [];
 let voyageData = [];
 let suppressHistoryUpdate = false;
+const loadingOverlay = document.getElementById('loadingOverlay');
+const loadingMessageEl = loadingOverlay ? loadingOverlay.querySelector('.loading-message') : null;
+
+function showLoading(message) {
+  if (!loadingOverlay) return;
+  if (loadingMessageEl) {
+    loadingMessageEl.textContent = message || 'Working...';
+  }
+  loadingOverlay.classList.add('is-active');
+  document.body.classList.add('is-loading');
+}
+
+function hideLoading() {
+  if (!loadingOverlay) return;
+  loadingOverlay.classList.remove('is-active');
+  document.body.classList.remove('is-loading');
+  if (loadingMessageEl) {
+    loadingMessageEl.textContent = 'Working...';
+  }
+}
 
 // Allow a bit of tolerance when selecting voyages by clicking the map background
 const MAP_CLICK_SELECT_THRESHOLD_METERS = 1500;
@@ -847,16 +867,45 @@ function circularMean(degrees) {
 
 // Boot
 load().then(() => setDetailsHint('Select a voyage, then click the highlighted track to inspect points.')).catch(console.error);
-document.getElementById('regenBtn').addEventListener('click', async () => {
-  console.log(`[voyage-webapp] Triggering voyage regeneration via ${apiBasePath || ''}/generate`);
-  await fetch(`${apiBasePath}/generate`, { method: 'GET', credentials: 'include' });
-  await load();
-});
 
-document.getElementById('regenPolarBtn').addEventListener('click', async () => {
-  console.log(`[voyage-webapp] Triggering polar regeneration via ${apiBasePath || ''}/generate/polar`);
-  await fetch(`${apiBasePath}/generate/polar`, { method: 'GET', credentials: 'include' });
-});
+const regenBtn = document.getElementById('regenBtn');
+if (regenBtn) {
+  regenBtn.addEventListener('click', async () => {
+    showLoading('Generating voyages...');
+    try {
+      console.log(`[voyage-webapp] Triggering voyage regeneration via ${apiBasePath || ''}/generate`);
+      const response = await fetch(`${apiBasePath}/generate`, { method: 'GET', credentials: 'include' });
+      if (!response.ok) {
+        throw new Error(`Voyage generation request failed with status ${response.status}`);
+      }
+      await load();
+    } catch (err) {
+      console.error('[voyage-webapp] Voyage regeneration failed', err);
+      alert('Failed to regenerate voyages. See console for details.');
+    } finally {
+      hideLoading();
+    }
+  });
+}
+
+const regenPolarBtn = document.getElementById('regenPolarBtn');
+if (regenPolarBtn) {
+  regenPolarBtn.addEventListener('click', async () => {
+    showLoading('Generating polar...');
+    try {
+      console.log(`[voyage-webapp] Triggering polar regeneration via ${apiBasePath || ''}/generate/polar`);
+      const response = await fetch(`${apiBasePath}/generate/polar`, { method: 'GET', credentials: 'include' });
+      if (!response.ok) {
+        throw new Error(`Polar generation request failed with status ${response.status}`);
+      }
+    } catch (err) {
+      console.error('[voyage-webapp] Polar regeneration failed', err);
+      alert('Failed to regenerate polar data. See console for details.');
+    } finally {
+      hideLoading();
+    }
+  });
+}
 
 // Splitter initialization (vertical between map and details, horizontal above map)
 (function initSplitters() {
