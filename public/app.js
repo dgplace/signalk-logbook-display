@@ -38,6 +38,9 @@ const basePathname = (() => {
   return path;
 })();
 
+// Resolve the API base path for this plugin
+// The API base path is "/plugins/voyage-webapp" when the app is run from signalk (the app path is "/voyage-webapp")
+// Otherwise, the API base path is the empty string ("/") when the app is run standalone  server.js (the app path is "/")
 const apiBasePath = (() => {
   const pathname = window.location.pathname || '';
   const pluginPrefix = '/plugins/voyage-webapp';
@@ -46,6 +49,8 @@ const apiBasePath = (() => {
   }
   return '';
 })();
+
+const historyUpdatesEnabled = apiBasePath === '';
 
 console.log(`[voyage-webapp] apiBasePath resolved to "${apiBasePath || '/'}" for pathname "${window.location.pathname}"`);
 
@@ -160,7 +165,9 @@ function syncVoyageSelectionWithPath(options = {}) {
   } finally {
     suppressHistoryUpdate = false;
   }
-  if (updateHistory) updateHistoryForTrip(tripId, { replace: true });
+  if (updateHistory && historyUpdatesEnabled) {
+    updateHistoryForTrip(tripId, { replace: true });
+  }
   return true;
 }
 
@@ -276,7 +283,7 @@ function selectVoyage(v, row, opts = {}) {
     activePointMarkersGroup.addTo(map);
   }
 
-  if (!suppressHistoryUpdate && typeof v._tripIndex === 'number') {
+  if (!suppressHistoryUpdate && historyUpdatesEnabled && typeof v._tripIndex === 'number') {
     updateHistoryForTrip(v._tripIndex, { replace: false });
   }
 
@@ -638,7 +645,7 @@ async function load() {
     }
   });
 
-  const selectedFromPath = syncVoyageSelectionWithPath({ updateHistory: true });
+  const selectedFromPath = syncVoyageSelectionWithPath({ updateHistory: historyUpdatesEnabled });
 
   // On initial load/refresh with no selection, fit all voyages
   if (!selectedFromPath && allBounds) map.fitBounds(allBounds);
