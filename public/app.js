@@ -236,6 +236,105 @@ function getVoyagePoints(v) {
 }
 
 /**
+ * Function: computeVoyageTotals
+ * Description: Aggregate voyage distance and activity durations across the full voyage list.
+ * Parameters:
+ *   voyages (object[]): Voyage summaries containing point data and statistics.
+ * Returns: object - Accumulated totals for distance (NM) and activity durations (milliseconds).
+ */
+function computeVoyageTotals(voyages) {
+  if (!Array.isArray(voyages) || voyages.length === 0) {
+    return { totalDistanceNm: 0, totalActiveMs: 0, totalSailingMs: 0 };
+  }
+
+  let totalDistanceNm = 0;
+  let totalActiveMs = 0;
+  let totalSailingMs = 0;
+  const activeActivities = new Set(['sailing', 'motoring', 'anchored']);
+
+  const readActivity = (point) => {
+    const activity = point?.activity ?? point?.entry?.activity;
+    if (typeof activity !== 'string') return '';
+    return activity.toLowerCase();
+  };
+
+  voyages.forEach((voyage) => {
+    if (typeof voyage?.nm === 'number' && Number.isFinite(voyage.nm)) {
+      totalDistanceNm += voyage.nm;
+    }
+    const points = getVoyagePoints(voyage);
+    if (!Array.isArray(points) || points.length < 2) return;
+    for (let idx = 1; idx < points.length; idx++) {
+      const prev = points[idx - 1];
+      const curr = points[idx];
+      if (shouldSkipConnection(prev, curr)) continue;
+      const prevDt = prev?.entry?.datetime || prev?.datetime;
+      const currDt = curr?.entry?.datetime || curr?.datetime;
+      if (!prevDt || !currDt) continue;
+      const prevDate = new Date(prevDt);
+      const currDate = new Date(currDt);
+      const prevMs = prevDate.getTime();
+      const currMs = currDate.getTime();
+      if (!Number.isFinite(prevMs) || !Number.isFinite(currMs)) continue;
+      const gap = currMs - prevMs;
+      if (!(gap > 0)) continue;
+      const prevAct = readActivity(prev);
+      const currAct = readActivity(curr);
+      if (activeActivities.has(prevAct) && activeActivities.has(currAct)) {
+        totalActiveMs += gap;
+        if (prevAct === 'sailing' && currAct === 'sailing') {
+          totalSailingMs += gap;
+        }
+      }
+    }
+  });
+
+  return { totalDistanceNm, totalActiveMs, totalSailingMs };
+}
+
+/**
+ * Function: formatDurationMs
+ * Description: Convert a duration in milliseconds to a human-readable days, hours, and minutes string.
+ * Parameters:
+ *   durationMs (number): Duration expressed in milliseconds.
+ * Returns: string - Formatted "Xd Yh Zm" duration string.
+ */
+function formatDurationMs(durationMs) {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return '0d 0h 0m';
+  const totalMinutes = Math.round(durationMs / (1000 * 60));
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const remainingMinutes = totalMinutes - (days * 24 * 60);
+  const hours = Math.floor(remainingMinutes / 60);
+  const minutes = remainingMinutes % 60;
+  return `${days}d ${hours}h ${minutes}m`;
+}
+
+/**
+ * Function: renderTotalsRow
+ * Description: Append a totals row summarising voyage metrics to the voyages table body.
+ * Parameters:
+ *   tbody (HTMLElement): Table body element that will receive the new totals row.
+ *   totals (object): Aggregated voyage totals including distance and activity durations.
+ * Returns: void.
+ */
+function renderTotalsRow(tbody, totals) {
+  if (!tbody || !totals) return;
+  const totalDistanceNm = Number.isFinite(totals.totalDistanceNm) ? totals.totalDistanceNm : 0;
+  const totalActiveMs = Number.isFinite(totals.totalActiveMs) ? totals.totalActiveMs : 0;
+  const totalSailingMs = Number.isFinite(totals.totalSailingMs) ? totals.totalSailingMs : 0;
+  const sailingPct = totalActiveMs > 0 ? ((totalSailingMs / totalActiveMs) * 100) : 0;
+  const row = tbody.insertRow();
+  row.classList.add('totals-row');
+  row.innerHTML = `
+    <td class="exp-cell"></td>
+    <td class="idx-cell totals-label">Totals</td>
+    <td colspan="2" class="totals-active">Active Time: ${formatDurationMs(totalActiveMs)}</td>
+    <td class="totals-distance">${totalDistanceNm.toFixed(1)}</td>
+    <td colspan="2" class="totals-sailing">Sailing Time: ${formatDurationMs(totalSailingMs)} (${sailingPct.toFixed(1)}%)</td>
+    <td colspan="3"></td>`;
+}
+
+/**
  * Function: clearMaxSpeedMarker
  * Description: Remove the maximum speed marker and popup from the map when present.
  * Parameters: None.
@@ -559,6 +658,7 @@ async function load() {
 
   // Track overall bounds to fit all voyages when nothing is selected
   let allBounds = null;
+  const totals = computeVoyageTotals(data.voyages);
 
   data.voyages.forEach((v, i) => {
     v._tripIndex = i + 1;
@@ -762,6 +862,8 @@ async function load() {
       }
     }
   });
+
+  renderTotalsRow(tbody, totals);
 
   const selectedFromPath = syncVoyageSelectionWithPath({ updateHistory: historyUpdatesEnabled });
 

@@ -112,6 +112,20 @@ tbody tr.selected-row:hover,
 tbody tr.selected-row:hover td {
   background-color: #bfdbfe; /* subtle hover feedback while keeping highlight */
 }
+.totals-row,
+.totals-row td {
+  background-color: var(--table-totals-bg-color, #ede9fe);
+  color: var(--table-totals-text-color, #312e81);
+  font-weight: 600;
+}
+.totals-row td {
+  border-top: 2px solid var(--border-color, #d1d5db);
+  border-bottom: 0;
+}
+.totals-label {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
 .max-speed-cell {
   color: var(--accent-color, #b45309);
   font-weight: 600;
