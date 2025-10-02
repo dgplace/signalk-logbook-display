@@ -128,6 +128,7 @@ function classifyVoyagePoints(points) {
     const currentTime = parseEntryDate(entry);
     const nextTime = i < points.length - 1 ? parseEntryDate(points[i + 1]?.entry) : null;
     const sog = getSog(entry);
+    const textIndicatesStopped = entryIndicatesStopped(entry);
 
     const gapHours = currentTime && nextTime ? (nextTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60) : null;
     const gapAnchored = gapHours !== null && gapHours > GAP_HOURS_THRESHOLD && (sog ?? 0) < GAP_SOG_THRESHOLD;
@@ -159,6 +160,8 @@ function classifyVoyagePoints(points) {
     } else if (!lastAnchoredCoord) {
       isAnchored = true;
     } else if (pathDistanceFromAnchor <= MOVE_THRESHOLD_NM) {
+      isAnchored = true;
+    } else if (textIndicatesStopped) {
       isAnchored = true;
     }
 
@@ -242,7 +245,9 @@ function classifyVoyagePoints(points) {
     let activity;
     let distanceFromAnchor = null;
 
-    if (point.__isAnchored) {
+    const textIndicatesStopped = entryIndicatesStopped(entry);
+
+    if (point.__isAnchored || textIndicatesStopped) {
       activity = 'anchored';
       if (coord) {
         lastAnchoredCoord = coord;
