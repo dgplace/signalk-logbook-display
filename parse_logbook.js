@@ -30,6 +30,21 @@ function circularMean(angles) {
   return (avg + 360) % 360;
 }
 
+function getEntryText(entry) {
+  if (!entry || typeof entry !== 'object') return '';
+  const { text } = entry;
+  if (typeof text !== 'string') return '';
+  return text.toLowerCase();
+}
+
+function entryIndicatesStopped(entry) {
+  return getEntryText(entry).includes('stopped');
+}
+
+function entryIndicatesSailing(entry) {
+  return getEntryText(entry).includes('sailing');
+}
+
 function getSog(entry) {
   if (!entry || !entry.speed) return null;
   const { speed } = entry;
@@ -228,6 +243,57 @@ function classifyVoyagePoints(points) {
   }
 }
 
+function markStopGaps(points) {
+  if (!Array.isArray(points) || points.length === 0) return;
+
+  const applyBreakFlags = (fromPoint, toPoint) => {
+    if (fromPoint && typeof fromPoint === 'object') {
+      fromPoint.skipConnectionToNext = true;
+      if (fromPoint.entry && typeof fromPoint.entry === 'object') {
+        fromPoint.entry.skipConnectionToNext = true;
+      }
+    }
+    if (toPoint && typeof toPoint === 'object') {
+      toPoint.skipConnectionFromPrev = true;
+      if (toPoint.entry && typeof toPoint.entry === 'object') {
+        toPoint.entry.skipConnectionFromPrev = true;
+      }
+    }
+  };
+
+  let activeStopIndex = null;
+
+  for (let i = 0; i < points.length; i++) {
+    const point = points[i];
+    const textLower = getEntryText(point ? point.entry : null);
+    if (!textLower) {
+      if (activeStopIndex !== null && i > activeStopIndex) {
+        applyBreakFlags(points[i - 1], point);
+      }
+      continue;
+    }
+
+    if (entryIndicatesStopped(point.entry)) {
+      if (activeStopIndex === null) activeStopIndex = i;
+    }
+
+    if (entryIndicatesSailing(point.entry)) {
+      if (activeStopIndex !== null) {
+        for (let j = activeStopIndex; j < i; j++) {
+          applyBreakFlags(points[j], points[j + 1]);
+        }
+      }
+      activeStopIndex = null;
+    }
+  }
+
+  if (activeStopIndex !== null) {
+    for (let j = activeStopIndex; j < points.length - 1; j++) {
+      applyBreakFlags(points[j], points[j + 1]);
+    }
+  }
+}
+
 function createVoyageAccumulator(entry) {
   return {
     startTime: entry.datetime,
@@ -242,13 +308,26 @@ function createVoyageAccumulator(entry) {
     windSpeedSum: 0,
     windSpeedCount: 0,
     speedSum: 0,
-    speedCount: 0
+    speedCount: 0,
+    totalDurationMs: 0,
+    stoppedDurationMs: 0,
+    stopActive: false,
+    lastEntry: null
   };
 }
 
 function finalizeVoyage(current) {
   classifyVoyagePoints(current.points);
-  const avgSpeed = current.speedCount > 0 ? current.speedSum / current.speedCount : 0;
+  markStopGaps(current.points);
+  let avgSpeed = 0;
+  if (current.totalDurationMs > 0) {
+    const totalHours = current.totalDurationMs / (1000 * 60 * 60);
+    if (totalHours > 0) {
+      avgSpeed = current.distance / totalHours;
+    }
+  } else if (current.speedCount > 0) {
+    avgSpeed = current.speedSum / current.speedCount;
+  }
   const avgWindSpeed = current.windSpeedCount > 0 ? current.windSpeedSum / current.windSpeedCount : 0;
   return {
     startTime: current.startTime.toISOString(),
@@ -304,6 +383,16 @@ function groupVoyages(entries) {
 
     current.endTime = entry.datetime;
 
+    if (current.lastEntry && current.lastEntry.datetime instanceof Date && entry.datetime instanceof Date) {
+      const durationMs = entry.datetime.getTime() - current.lastEntry.datetime.getTime();
+      if (Number.isFinite(durationMs) && durationMs > 0) {
+        current.totalDurationMs += durationMs;
+        if (current.stopActive) {
+          current.stoppedDurationMs += durationMs;
+        }
+      }
+    }
+
     let coord = null;
     if (entry.position && typeof entry.position.longitude === 'number' &&
         typeof entry.position.latitude === 'number') {
@@ -345,6 +434,17 @@ function groupVoyages(entries) {
         current.windHeadings.push(entry.wind.direction);
       }
     }
+
+    const textIndicatesStopped = entryIndicatesStopped(entry);
+    const textIndicatesSailing = entryIndicatesSailing(entry);
+    if (textIndicatesStopped) {
+      current.stopActive = true;
+    }
+    if (textIndicatesSailing) {
+      current.stopActive = false;
+    }
+
+    current.lastEntry = entry;
 
     lastDate = entryDate;
   }

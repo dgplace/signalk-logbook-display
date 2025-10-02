@@ -108,6 +108,14 @@ function segmentPointsByActivity(points) {
       flush();
       continue;
     }
+    const skipSegment = Boolean((start && start.skipConnectionToNext) ||
+      (start?.entry && start.entry.skipConnectionToNext) ||
+      (end && end.skipConnectionFromPrev) ||
+      (end?.entry && end.entry.skipConnectionFromPrev));
+    if (skipSegment) {
+      flush();
+      continue;
+    }
     const startLL = [start.lat, start.lon];
     const endLL = [end.lat, end.lon];
     const startAct = getPointActivity(start);
