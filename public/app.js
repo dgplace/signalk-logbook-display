@@ -2,6 +2,13 @@
 // Depends on Leaflet (global L). Expects DOM with #map, #voyTable, #pointDetails.
 
 // Compass utility
+/**
+ * Function: degToCompass
+ * Description: Convert a heading in degrees to a cardinal or intercardinal compass label.
+ * Parameters:
+ *   deg (number): Heading in degrees from 0 through 359.
+ * Returns: string - Compass label representing the supplied heading.
+ */
 function degToCompass(deg) {
   const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   return dirs[Math.round(deg / 45) % 8];
@@ -23,6 +30,13 @@ let suppressHistoryUpdate = false;
 const loadingOverlay = document.getElementById('loadingOverlay');
 const loadingMessageEl = loadingOverlay ? loadingOverlay.querySelector('.loading-message') : null;
 
+/**
+ * Function: showLoading
+ * Description: Display the global loading overlay with an optional status message.
+ * Parameters:
+ *   message (string): Message shown to the user while loading; defaults to a generic label.
+ * Returns: void.
+ */
 function showLoading(message) {
   if (!loadingOverlay) return;
   if (loadingMessageEl) {
@@ -32,6 +46,12 @@ function showLoading(message) {
   document.body.classList.add('is-loading');
 }
 
+/**
+ * Function: hideLoading
+ * Description: Hide the global loading overlay and reset its message copy.
+ * Parameters: None.
+ * Returns: void.
+ */
 function hideLoading() {
   if (!loadingOverlay) return;
   loadingOverlay.classList.remove('is-active');
@@ -74,6 +94,12 @@ const historyUpdatesEnabled = apiBasePath === '';
 
 console.log(`[voyage-webapp] apiBasePath resolved to "${apiBasePath || '/'}" for pathname "${window.location.pathname}"`);
 
+/**
+ * Function: getTripIdFromPath
+ * Description: Extract the trip identifier from the current URL path when present.
+ * Parameters: None.
+ * Returns: number|null - Trip identifier or null when no valid identifier exists in the path.
+ */
 function getTripIdFromPath() {
   const segments = window.location.pathname.split('/').filter(Boolean);
   if (!segments.length) return null;
@@ -83,6 +109,13 @@ function getTripIdFromPath() {
   return Number.isNaN(tripId) ? null : tripId;
 }
 
+/**
+ * Function: getPointActivity
+ * Description: Determine the activity type for a voyage point, falling back to sailing.
+ * Parameters:
+ *   point (object): Voyage point potentially containing activity metadata.
+ * Returns: string - Activity label such as 'sailing', 'motoring', or 'anchored'.
+ */
 function getPointActivity(point) {
   const activity = point?.activity ?? point?.entry?.activity;
   if (activity === 'sailing' || activity === 'motoring' || activity === 'anchored') return activity;
@@ -158,6 +191,14 @@ function segmentPointsByActivity(points) {
   return segments;
 }
 
+/**
+ * Function: createActivityHighlightPolylines
+ * Description: Build polylines that visually highlight voyage activity segments on the map.
+ * Parameters:
+ *   points (object[]): Voyage points used to generate highlighted polylines.
+ *   options (object): Optional styling overrides for line weight and opacity.
+ * Returns: object[] - Array of Leaflet polylines added to the map.
+ */
 function createActivityHighlightPolylines(points, options = {}) {
   if (!map || !Array.isArray(points) || points.length < 2) return [];
   const weight = typeof options.weight === 'number' ? options.weight : DEFAULT_HIGHLIGHT_WEIGHT;
@@ -177,6 +218,12 @@ function createActivityHighlightPolylines(points, options = {}) {
   });
 }
 
+/**
+ * Function: removeActivePolylines
+ * Description: Remove all active highlight polylines from the map and reset the tracking array.
+ * Parameters: None.
+ * Returns: void.
+ */
 function removeActivePolylines() {
   if (!Array.isArray(activePolylines) || !map) { activePolylines = []; return; }
   activePolylines.forEach(pl => {
@@ -187,6 +234,14 @@ function removeActivePolylines() {
   activePolylines = [];
 }
 
+/**
+ * Function: updateHistoryForTrip
+ * Description: Update the browser history state to reflect the selected voyage identifier.
+ * Parameters:
+ *   tripId (number): Voyage identifier to encode into the history state.
+ *   options (object): Optional flags including replace to control history mutation.
+ * Returns: void.
+ */
 function updateHistoryForTrip(tripId, options = {}) {
   if (!Number.isInteger(tripId) || tripId <= 0 || !window.history || !window.history.pushState) return;
   const { replace = false } = options;
@@ -203,6 +258,13 @@ function updateHistoryForTrip(tripId, options = {}) {
   window.history.pushState({ tripId }, '', newUrl);
 }
 
+/**
+ * Function: syncVoyageSelectionWithPath
+ * Description: Select the voyage corresponding to the current URL path if possible.
+ * Parameters:
+ *   options (object): Optional flags controlling history updates during selection.
+ * Returns: boolean - True when a voyage selection was applied from the path.
+ */
 function syncVoyageSelectionWithPath(options = {}) {
   const { updateHistory = false } = options;
   const tripId = getTripIdFromPath();
@@ -228,6 +290,13 @@ window.addEventListener('popstate', () => {
 });
 
 // Data helpers
+/**
+ * Function: getVoyagePoints
+ * Description: Retrieve the best available array of points for a voyage regardless of source field.
+ * Parameters:
+ *   v (object): Voyage summary that may store points under multiple property names.
+ * Returns: object[] - Array of point objects prepared for mapping.
+ */
 function getVoyagePoints(v) {
   if (Array.isArray(v.points) && v.points.length) return v.points;
   if (Array.isArray(v.entries) && v.entries.length) return v.entries;
@@ -383,6 +452,15 @@ function drawMaxSpeedMarkerFromCoord(coord, speed) {
 }
 
 // Select a voyage from table or map and set up interactions
+/**
+ * Function: selectVoyage
+ * Description: Activate a voyage selection, updating UI state, map overlays, and browser history.
+ * Parameters:
+ *   v (object): Voyage record containing geometry and metrics.
+ *   row (HTMLTableRowElement): Table row element representing the voyage in the list.
+ *   opts (object): Optional behaviour flags such as map fitting and row scrolling.
+ * Returns: void.
+ */
 function selectVoyage(v, row, opts = {}) {
   const { fit = true, scrollIntoView = false } = opts;
   // highlight table row
@@ -461,6 +539,13 @@ function selectVoyage(v, row, opts = {}) {
   setDetailsHint('Click on the highlighted track to inspect a point.');
 }
 
+/**
+ * Function: findNearestVoyageSelection
+ * Description: Locate the voyage point closest to the provided map coordinate.
+ * Parameters:
+ *   latLng (L.LatLng): Leaflet latitude/longitude representing the user's selection.
+ * Returns: object|null - Metadata about the closest voyage point or null when none is suitable.
+ */
 function findNearestVoyageSelection(latLng) {
   if (!latLng || !Array.isArray(voyageData) || voyageData.length === 0) return null;
   let best = null;
@@ -481,6 +566,13 @@ function findNearestVoyageSelection(latLng) {
   return best;
 }
 
+/**
+ * Function: onMapBackgroundClick
+ * Description: Handle clicks on the map background to select nearby voyages or points.
+ * Parameters:
+ *   ev (LeafletMouseEvent): Leaflet event describing the click or tap location.
+ * Returns: void.
+ */
 function onMapBackgroundClick(ev) {
   const latLng = ev?.latlng;
   if (!latLng) return;
@@ -498,19 +590,45 @@ function onMapBackgroundClick(ev) {
 }
 
 // UI helpers
+/**
+ * Function: setSelectedTableRow
+ * Description: Apply selection styling to a voyage table row while clearing previous selections.
+ * Parameters:
+ *   row (HTMLTableRowElement|null): Table row to mark as selected.
+ * Returns: void.
+ */
 function setSelectedTableRow(row) {
   document.querySelectorAll('#voyTable tr.selected-row').forEach(r => r.classList.remove('selected-row'));
   if (row) row.classList.add('selected-row');
 }
 
+/**
+ * Function: clearActivePointMarkers
+ * Description: Remove the active point markers layer from the map if present.
+ * Parameters: None.
+ * Returns: void.
+ */
 function clearActivePointMarkers() {
   if (activePointMarkersGroup) { map.removeLayer(activePointMarkersGroup); activePointMarkersGroup = null; }
 }
 
+/**
+ * Function: clearSelectedWindGraphics
+ * Description: Remove the wind overlay associated with the selected point.
+ * Parameters: None.
+ * Returns: void.
+ */
 function clearSelectedWindGraphics() {
   if (selectedWindGroup) { map.removeLayer(selectedWindGroup); selectedWindGroup = null; }
 }
 
+/**
+ * Function: nearestHour
+ * Description: Round a timestamp to the nearest hour and return the adjusted Date and label.
+ * Parameters:
+ *   dateStr (string): ISO datetime string to round.
+ * Returns: object|string - Object with rounded Date and label or an em dash when invalid.
+ */
 function nearestHour(dateStr) {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
@@ -523,6 +641,13 @@ function nearestHour(dateStr) {
   return { d, label: `${h}${ampm}` };
 }
 
+/**
+ * Function: dateHourLabel
+ * Description: Format a timestamp into a combined date and nearest-hour label.
+ * Parameters:
+ *   dateStr (string): ISO datetime string to format.
+ * Returns: string - Formatted label or em dash when invalid.
+ */
 function dateHourLabel(dateStr) {
   const res = nearestHour(dateStr);
   if (res === '—') return res;
@@ -531,6 +656,13 @@ function dateHourLabel(dateStr) {
   return `${dateTxt} ${label}`;
 }
 
+/**
+ * Function: weekdayShort
+ * Description: Produce a short weekday label for the supplied timestamp.
+ * Parameters:
+ *   dateStr (string): ISO datetime string to format.
+ * Returns: string - Abbreviated weekday or empty string when invalid.
+ */
 function weekdayShort(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
@@ -538,6 +670,13 @@ function weekdayShort(dateStr) {
   return d.toLocaleDateString(undefined, { weekday: 'short' });
 }
 
+/**
+ * Function: arrowSizeFromSpeed
+ * Description: Determine a wind arrow icon size scaled by wind speed for readability.
+ * Parameters:
+ *   kn (number): Wind speed in knots.
+ * Returns: number - Size in pixels for the arrow visual.
+ */
 function arrowSizeFromSpeed(kn) {
   const small = 60;   // ~= 5 kn
   const mid   = 180;  // ~= 25 kn
@@ -550,6 +689,13 @@ function arrowSizeFromSpeed(kn) {
 }
 
 // Boat + heading helpers
+/**
+ * Function: makeBoatIcon
+ * Description: Create a Leaflet div icon representing the selected vessel at a specific bearing.
+ * Parameters:
+ *   bearingDeg (number): Heading in degrees for icon rotation.
+ * Returns: L.DivIcon - Configured boat icon instance.
+ */
 function makeBoatIcon(bearingDeg) {
   const w = 18, h = 36; // long triangle
   const html = `
@@ -561,6 +707,16 @@ function makeBoatIcon(bearingDeg) {
   return L.divIcon({ className: '', html, iconSize: [w, h], iconAnchor: [w/2, h/2] });
 }
 
+/**
+ * Function: bearingBetween
+ * Description: Calculate the initial bearing from the first coordinate to the second.
+ * Parameters:
+ *   lat1 (number): Latitude of the starting coordinate.
+ *   lon1 (number): Longitude of the starting coordinate.
+ *   lat2 (number): Latitude of the destination coordinate.
+ *   lon2 (number): Longitude of the destination coordinate.
+ * Returns: number|null - Bearing in degrees or null when insufficient data is provided.
+ */
 function bearingBetween(lat1, lon1, lat2, lon2) {
   const toRad = (d) => d * Math.PI / 180;
   const toDeg = (r) => r * 180 / Math.PI;
@@ -573,6 +729,15 @@ function bearingBetween(lat1, lon1, lat2, lon2) {
   return θ;
 }
 
+/**
+ * Function: courseFromNeighbors
+ * Description: Approximate the vessel course using surrounding voyage points when heading data is missing.
+ * Parameters:
+ *   prev (object): Previous voyage point.
+ *   sel (object): Selected voyage point.
+ *   next (object): Following voyage point.
+ * Returns: number|null - Average bearing derived from neighbours or null when unavailable.
+ */
 function courseFromNeighbors(prev, sel, next) {
   if (prev && typeof prev.lat === 'number' && typeof prev.lon === 'number' &&
       next && typeof next.lat === 'number' && typeof next.lon === 'number') {
@@ -587,6 +752,13 @@ function courseFromNeighbors(prev, sel, next) {
   return 0;
 }
 
+/**
+ * Function: extractHeadingDegrees
+ * Description: Extract a heading measurement from an entry when available.
+ * Parameters:
+ *   entry (object): Voyage entry containing heading-related properties.
+ * Returns: number|undefined - Heading in degrees or undefined when not present.
+ */
 function extractHeadingDegrees(entry) {
   if (!entry || typeof entry !== 'object') return undefined;
   const v = entry.heading;
@@ -594,6 +766,14 @@ function extractHeadingDegrees(entry) {
   return ((v % 360) + 360) % 360;
 }
 
+/**
+ * Function: updateSelectedPoint
+ * Description: Refresh the selected point marker, wind overlay, and details pane based on the chosen voyage point.
+ * Parameters:
+ *   sel (object): Selected voyage point containing coordinates and entry data.
+ *   neighbors (object): Adjacent voyage points used to infer vessel course information.
+ * Returns: void.
+ */
 function updateSelectedPoint(sel, neighbors = {}) {
   if (!sel || typeof sel.lat !== 'number' || typeof sel.lon !== 'number') return;
   const lat = sel.lat, lon = sel.lon;
@@ -638,6 +818,12 @@ function updateSelectedPoint(sel, neighbors = {}) {
 }
 
 // Core init and rendering
+/**
+ * Function: load
+ * Description: Fetch voyages data, rebuild map overlays, and refresh the voyage table UI.
+ * Parameters: None.
+ * Returns: Promise<void> - Resolves when the interface has been refreshed.
+ */
 async function load() {
   const res  = await fetch('voyages.json');
   const data = await res.json();
@@ -880,6 +1066,13 @@ async function load() {
 }
 
 // Details panel helpers
+/**
+ * Function: setDetailsHint
+ * Description: Display a hint message within the point details panel and ensure controls are wired.
+ * Parameters:
+ *   msg (string): Message to present to the user inside the panel.
+ * Returns: void.
+ */
 function setDetailsHint(msg) {
   const panel = document.getElementById('pointDetails');
   panel.style.display = '';
@@ -888,10 +1081,25 @@ function setDetailsHint(msg) {
     <div class="details-body"><em>${msg}</em></div>`;
   wireDetailsControls(panel);
 }
+/**
+ * Function: degToCompassLocal
+ * Description: Convert degrees to a localised compass heading used within the details panel.
+ * Parameters:
+ *   deg (number): Heading in degrees.
+ * Returns: string - Compass label representing the supplied heading.
+ */
 function degToCompassLocal(deg) {
   const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   return dirs[Math.round(deg / 45) % 8];
 }
+/**
+ * Function: toDMS
+ * Description: Format a latitude or longitude value as degrees, minutes, and seconds.
+ * Parameters:
+ *   value (number): Coordinate component in decimal degrees.
+ *   isLat (boolean): True when formatting a latitude value, false for longitude.
+ * Returns: string - Formatted DMS representation or an em dash when invalid.
+ */
 function toDMS(value, isLat) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '—';
   const abs = Math.abs(value);
@@ -906,10 +1114,25 @@ function toDMS(value, isLat) {
   const ss = String(sec).padStart(2, '0');
   return `${deg}°${mm}′${ss}″${dir}`;
 }
+/**
+ * Function: formatPosition
+ * Description: Produce a formatted position string that combines latitude and longitude values.
+ * Parameters:
+ *   lat (number): Latitude in decimal degrees.
+ *   lon (number): Longitude in decimal degrees.
+ * Returns: string - Combined DMS formatted position.
+ */
 function formatPosition(lat, lon) {
   if (typeof lat !== 'number' || typeof lon !== 'number') return '—';
   return `${toDMS(lat, true)} ${toDMS(lon, false)}`;
 }
+/**
+ * Function: renderPointDetails
+ * Description: Populate the point details panel with data from the selected voyage point.
+ * Parameters:
+ *   point (object): Voyage point containing entry metadata and coordinates.
+ * Returns: void.
+ */
 function renderPointDetails(point) {
   const panel = document.getElementById('pointDetails');
   const entry = point.entry || point;
@@ -936,6 +1159,13 @@ function renderPointDetails(point) {
     <div class="details-body">${summary}<details><summary>Raw data</summary>${raw}</details></div>`;
   wireDetailsControls(panel);
 }
+/**
+ * Function: wireDetailsControls
+ * Description: Attach drag and close handlers to the point details floating panel.
+ * Parameters:
+ *   panel (HTMLElement|null): Panel element containing the point details UI.
+ * Returns: void.
+ */
 function wireDetailsControls(panel) {
   if (!panel) return;
   const closeBtn = panel.querySelector('.close-details');
@@ -986,17 +1216,38 @@ function wireDetailsControls(panel) {
   handleEl.addEventListener('mousedown', (e) => { beginDrag(e.clientX, e.clientY); e.preventDefault(); e.stopPropagation(); });
   handleEl.addEventListener('touchstart', (e) => { if (!e.touches || e.touches.length === 0) return; beginDrag(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); e.stopPropagation(); }, { passive: false });
 }
+/**
+ * Function: escapeHtml
+ * Description: Escape HTML-sensitive characters to safely display raw JSON content.
+ * Parameters:
+ *   str (string): String value to escape.
+ * Returns: string - Escaped string safe for HTML insertion.
+ */
 function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 // Interaction helpers
+/**
+ * Function: detachActiveClickers
+ * Description: Remove click handlers previously attached to active voyage polylines.
+ * Parameters: None.
+ * Returns: void.
+ */
 function detachActiveClickers() {
   if (Array.isArray(activeLineClickers)) {
     activeLineClickers.forEach(({ pl, onLineClick }) => { try { pl.off('click', onLineClick); } catch (_) {} });
   }
   activeLineClickers = [];
 }
+/**
+ * Function: onPolylineClick
+ * Description: Select the voyage point nearest to the clicked location along a highlighted polyline.
+ * Parameters:
+ *   e (LeafletMouseEvent): Event emitted by Leaflet when a polyline is clicked or tapped.
+ *   points (object[]): Voyage points associated with the active polyline.
+ * Returns: void.
+ */
 function onPolylineClick(e, points) {
   if (!points || points.length === 0) return;
   const clickLL = e.latlng;
@@ -1085,6 +1336,13 @@ function computeDaySegments(v) {
   return segments;
 }
 
+/**
+ * Function: circularMean
+ * Description: Compute the average direction of a set of angles in degrees.
+ * Parameters:
+ *   degrees (number[]): Collection of angles in degrees.
+ * Returns: number - Mean direction normalized to [0, 360).
+ */
 function circularMean(degrees) {
   let sumSin = 0, sumCos = 0;
   for (const d of degrees) { const rad = d * Math.PI / 180; sumSin += Math.sin(rad); sumCos += Math.cos(rad); }
@@ -1137,6 +1395,12 @@ if (regenPolarBtn) {
 }
 
 // Splitter initialization (vertical between map and details, horizontal above map)
+/**
+ * Function: initSplitters
+ * Description: Configure draggable splitters that resize the layout in desktop and touch contexts.
+ * Parameters: None.
+ * Returns: void.
+ */
 (function initSplitters() {
   const container = document.querySelector('.container');
   const top = document.querySelector('.top-section');

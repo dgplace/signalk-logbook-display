@@ -2,6 +2,36 @@
 
 A Signal K plugin/webapp that provides a voyage summary and map viewer.
 
+## Quick Start
+
+1. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+2. Launch the standalone dev server:
+
+   ```bash
+   node server.js
+   ```
+
+   Open `http://localhost:3645/` in your browser. Use the **Generate Voyages** or **Generate Polar** buttons to refresh the JSON outputs after updating log files.
+
+3. To ingest log files manually, run the parser directly:
+
+   ```bash
+   node parse_logbook.js ~/.signalk/plugin-config-data/signalk-logbook > public/voyages.json
+   ```
+
+   Then regenerate the polar dataset:
+
+   ```bash
+   node -e "const generatePolar = require('./parse_polar'); const fs = require('fs'); const voyages = JSON.parse(fs.readFileSync('public/voyages.json', 'utf8')); fs.writeFileSync('public/Polar.json', JSON.stringify(generatePolar(voyages), null, 2));"
+   ```
+
+For architectural details and file responsibilities, see `LOG.md`.
+
 ## Build and Package
 
 - Prerequisites: Node.js and npm available in your PATH.
@@ -42,21 +72,23 @@ Restart the Signal K server after installation if necessary.
 
 ## Local Deploy for Testing
 
-To test changes to the static assets without reinstalling the plugin, deploy the contents of `public/` directly to your Signal K data directory.
+To test changes without reinstalling the plugin, deploy the `public/` assets and root-level helper scripts straight into your Signal K install.
 
-- Default destination: `~/.signalk/node_modules/voyage-webapp/public/`
-- Excludes: `voyages.json` (keeps your local data intact)
+- Default destination root: `~/.signalk/node_modules/voyage-webapp/`
+- Public assets land under `public/` while skipping `voyages.json`
+- Root-level `*.js` files copy beside `plugin.js` for quick iteration
 
 Usage:
 
 ```bash
-scripts/deploy-public.sh                                      # deploy to ~/.signalk/node_modules/voyage-webapp/public/
-scripts/deploy-public.sh /custom/target/path                  # custom destination
+scripts/deploy-to-signalk.sh                                   # deploy to ~/.signalk/node_modules/voyage-webapp/
+scripts/deploy-to-signalk.sh /custom/target/path               # custom destination root
 ```
 
 Notes:
-- If `rsync` is available, the script uses it and excludes `voyages.json`.
-- Without `rsync`, it falls back to copying files and preserves existing `voyages.json`.
+- If `rsync` is available, the script syncs `public/` and excludes `voyages.json`.
+- Without `rsync`, it falls back to copying files while preserving existing `voyages.json`.
+- Root-level scripts copy via `cp -p`; rerun after editing back-end helpers.
 
 ## Utilities
 
@@ -70,4 +102,10 @@ Examples:
 ```bash
 python scripts/merge_course_changes.py input.yml output.yml --fix-maxima-pos
 python scripts/merge_course_changes_dir.py logs/ --inplace --fix-maxima-pos
+```
+
+- `scripts/generate_polar.py`: Plot the computed polar diagram using Matplotlib and optionally save the figure.
+
+```bash
+python scripts/generate_polar.py --polar-file public/Polar.json --output polar_diagram.png
 ```

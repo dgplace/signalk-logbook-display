@@ -66,6 +66,14 @@ def get_speed_knots(entry: Dict[str, Any]) -> Optional[float]:
     return None
 
 def merge_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Merge successive course change entries that share the same starting course.
+
+    Args:
+        entries: Sequence of log entries parsed from YAML.
+
+    Returns:
+        List[Dict[str, Any]]: Normalised entries with merged course changes.
+    """
     merged: List[Dict[str, Any]] = []
     i = 0
     n = len(entries)
@@ -144,6 +152,7 @@ def merge_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def _is_good_position_value(pos: Any) -> bool:
+    """Return True when the position dictionary contains valid, non-zero coordinates."""
     if not isinstance(pos, dict):
         return False
     lon = pos.get("longitude")
@@ -204,6 +213,7 @@ def fix_maxima_positions(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def main() -> None:
+    """CLI entry point for merging course change YAML logs."""
     parser = argparse.ArgumentParser(description="Merge course change log entries and optional maxima position fixes")
     parser.add_argument("input", help="Input YAML file with log entries")
     parser.add_argument("output", help="Output YAML file for merged/fixed entries")
@@ -231,4 +241,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

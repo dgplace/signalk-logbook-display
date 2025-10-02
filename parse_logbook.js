@@ -5,9 +5,22 @@ const fs   = require('fs').promises;
 const path = require('path');
 const yaml = require('yaml');
 
-// convert degrees to radians
+/**
+ * Function: degToRad
+ * Description: Convert an angle in degrees to radians.
+ * Parameters:
+ *   d (number): Angle expressed in degrees.
+ * Returns: number - Angle converted to radians.
+ */
 function degToRad(d) { return (d * Math.PI) / 180; }
-// compute haversine distance in nautical miles
+/**
+ * Function: haversine
+ * Description: Compute the great-circle distance between two coordinates in nautical miles.
+ * Parameters:
+ *   [lon1, lat1] (number[]): Longitude and latitude of the first point.
+ *   [lon2, lat2] (number[]): Longitude and latitude of the second point.
+ * Returns: number - Great-circle distance separating the two coordinates.
+ */
 function haversine([lon1, lat1], [lon2, lat2]) {
   const R = 6371e3; // metres
   const φ1 = degToRad(lat1);
@@ -73,6 +86,13 @@ function entryIndicatesSailing(entry) {
   return getEntryText(entry).includes('sailing');
 }
 
+/**
+ * Function: getSog
+ * Description: Extract the speed over ground or speed through water from an entry when present.
+ * Parameters:
+ *   entry (object): Log entry containing speed metrics.
+ * Returns: number|null - Speed value in knots or null when unavailable.
+ */
 function getSog(entry) {
   if (!entry || !entry.speed) return null;
   const { speed } = entry;
@@ -81,6 +101,13 @@ function getSog(entry) {
   return null;
 }
 
+/**
+ * Function: getWindSpeed
+ * Description: Extract the best available wind speed metric from an entry.
+ * Parameters:
+ *   entry (object): Log entry containing wind data.
+ * Returns: number|null - Wind speed in knots or null when unavailable.
+ */
 function getWindSpeed(entry) {
   if (!entry || !entry.wind) return null;
   const { wind } = entry;
@@ -90,6 +117,13 @@ function getWindSpeed(entry) {
   return null;
 }
 
+/**
+ * Function: parseEntryDate
+ * Description: Resolve a Date object from the datetime-like fields on an entry.
+ * Parameters:
+ *   entry (object): Log entry with potential datetime, time, or timestamp values.
+ * Returns: Date|null - Parsed Date instance or null when parsing fails.
+ */
 function parseEntryDate(entry) {
   if (!entry) return null;
   const raw = entry.datetime ?? entry.time ?? entry.timestamp;

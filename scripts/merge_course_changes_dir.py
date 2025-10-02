@@ -30,6 +30,7 @@ except Exception as e:  # pragma: no cover - helpful error for CLI usage
 
 
 def process_file(src_path: str, dst_path: str, fix_maxima_pos: bool = False) -> None:
+    """Process a single YAML file, writing the merged output to a destination path."""
     with open(src_path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
     if not isinstance(data, list):
@@ -43,6 +44,7 @@ def process_file(src_path: str, dst_path: str, fix_maxima_pos: bool = False) -> 
 
 
 def process_inplace(src_path: str, fix_maxima_pos: bool = False) -> None:
+    """Merge a YAML file in place using an atomic temporary file replacement."""
     dir_name = os.path.dirname(src_path) or "."
     with tempfile.NamedTemporaryFile("w", delete=False, dir=dir_name, encoding="utf-8", suffix=".tmp") as tmp:
         tmp_path = tmp.name
@@ -59,6 +61,7 @@ def process_inplace(src_path: str, fix_maxima_pos: bool = False) -> None:
 
 
 def main(argv: List[str] | None = None) -> int:
+    """CLI entry point for batch merging course change YAML files in a directory."""
     parser = argparse.ArgumentParser(description="Merge course changes in all .yml files in a directory")
     parser.add_argument("directory", help="Directory containing .yml files (non-recursive)")
     parser.add_argument("--inplace", action="store_true", help="Overwrite source files atomically")
@@ -106,4 +109,3 @@ def main(argv: List[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

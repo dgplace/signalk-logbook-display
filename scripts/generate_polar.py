@@ -13,6 +13,11 @@ import numpy as np
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the polar plotting utility.
+
+    Returns:
+        argparse.Namespace: Parsed arguments including input and output paths.
+    """
     parser = argparse.ArgumentParser(description="Plot a polar diagram using Polar.json data.")
     parser.add_argument(
         "--polar-file",
@@ -29,10 +34,19 @@ def parse_args() -> argparse.Namespace:
 
 
 def is_finite(value) -> bool:
+    """Return True when the value is a finite integer or float."""
     return isinstance(value, (int, float)) and math.isfinite(value)
 
 
 def load_points(path: Path) -> List[Dict[str, float]]:
+    """Load polar points from disk, filtering out incomplete or non-finite records.
+
+    Args:
+        path: Path to the JSON file holding polar points.
+
+    Returns:
+        List[Dict[str, float]]: Normalised polar points ready for analysis.
+    """
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
@@ -53,6 +67,14 @@ def load_points(path: Path) -> List[Dict[str, float]]:
 
 
 def group_points(points: Iterable[Dict[str, float]]) -> Dict[float, List[Tuple[float, float]]]:
+    """Group polar samples by true wind speed.
+
+    Args:
+        points: Iterable of polar samples containing TWA, STW, and TWS values.
+
+    Returns:
+        Dict[float, List[Tuple[float, float]]]: Mapping of TWS to angle/speed pairs.
+    """
     grouped: Dict[float, List[Tuple[float, float]]] = defaultdict(list)
     for point in points:
         angle_rad = math.radians(point["twa"])
@@ -61,6 +83,15 @@ def group_points(points: Iterable[Dict[str, float]]) -> Dict[float, List[Tuple[f
 
 
 def percentile(values: List[float], pct: float) -> float:
+    """Compute a percentile for a non-empty list of numeric values.
+
+    Args:
+        values: Sample values from which to compute the percentile.
+        pct: Percentile to compute, expressed as 0-100.
+
+    Returns:
+        float: Percentile value using linear interpolation.
+    """
     if not values:
         raise ValueError("Cannot compute percentile of empty data")
     ordered = sorted(values)
@@ -77,6 +108,17 @@ def percentile(values: List[float], pct: float) -> float:
 
 
 def percentile_curve(samples: Iterable[Tuple[float, float]], *, bin_size: int = 5, pct: float = 75, min_samples: int = 3) -> List[Tuple[float, float]]:
+    """Aggregate samples into angular bins and compute the percentile speed per bin.
+
+    Args:
+        samples: Iterable of (angle_rad, stw) tuples.
+        bin_size: Angular bin size in degrees.
+        pct: Percentile to compute for each bin.
+        min_samples: Minimum number of samples required to keep a bin.
+
+    Returns:
+        List[Tuple[float, float]]: Percentile curve points expressed as (degrees, speed).
+    """
     bins: Dict[int, List[float]] = defaultdict(list)
     for angle_rad, stw in samples:
         angle_deg = math.degrees(angle_rad)
@@ -102,6 +144,7 @@ def percentile_curve(samples: Iterable[Tuple[float, float]], *, bin_size: int = 
 
 
 def make_open_uniform_knots(n_control: int, degree: int) -> np.ndarray:
+    """Construct an open uniform knot vector for a B-spline curve."""
     knots = np.zeros(n_control + degree + 1, dtype=float)
     knots[degree:n_control + 1] = np.linspace(0.0, 1.0, n_control - degree + 1)
     knots[n_control + 1:] = 1.0
@@ -109,6 +152,7 @@ def make_open_uniform_knots(n_control: int, degree: int) -> np.ndarray:
 
 
 def bspline_basis(i: int, degree: int, t: float, knots: np.ndarray) -> float:
+    """Evaluate the i-th B-spline basis function of a given degree at parameter t."""
     if degree == 0:
         left = knots[i]
         right = knots[i + 1]
@@ -127,6 +171,16 @@ def bspline_basis(i: int, degree: int, t: float, knots: np.ndarray) -> float:
 
 
 def fit_bspline_curve(curve: List[Tuple[float, float]], control_count: int = 5, degree: int = 3) -> List[Tuple[float, float]]:
+    """Fit a smoothing B-spline curve through percentile samples.
+
+    Args:
+        curve: Ordered list of (degrees, speed) percentile samples.
+        control_count: Number of control points for the spline.
+        degree: Degree of the spline basis.
+
+    Returns:
+        List[Tuple[float, float]]: Smoothed polar curve expressed in radians and knots.
+    """
     if len(curve) < control_count:
         return []
 
@@ -187,6 +241,12 @@ def fit_bspline_curve(curve: List[Tuple[float, float]], control_count: int = 5, 
 
 
 def plot_polar(grouped: Dict[float, List[Tuple[float, float]]], output: Optional[Path]) -> None:
+    """Plot grouped polar data, optionally saving the figure to disk.
+
+    Args:
+        grouped: Samples grouped by true wind speed.
+        output: Optional output path for saving instead of showing the plot interactively.
+    """
     if not grouped:
         raise SystemExit("No valid polar points to plot.")
 
@@ -231,6 +291,7 @@ def plot_polar(grouped: Dict[float, List[Tuple[float, float]]], output: Optional
 
 
 def main() -> None:
+    """Entry point for the polar plotting CLI."""
     args = parse_args()
     points = load_points(args.polar_file)
     grouped = group_points(points)

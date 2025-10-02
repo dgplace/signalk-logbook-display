@@ -31,6 +31,14 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
+/**
+ * Function: runLogbookParser
+ * Description: Execute the logbook parser script and collect its stdout/stderr output streams.
+ * Parameters:
+ *   scriptPath (string): Absolute path to the Node.js parser script.
+ *   logDir (string): Directory containing the Signal K logbook YAML files.
+ * Returns: Promise<object> - Resolves with stdout and stderr strings when the parser exits successfully.
+ */
 function runLogbookParser(scriptPath, logDir) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [scriptPath, logDir], {
@@ -61,6 +69,16 @@ function runLogbookParser(scriptPath, logDir) {
   });
 }
 
+/**
+ * Function: send
+ * Description: Write a response with headers and body to an HTTP client, supporting stream payloads.
+ * Parameters:
+ *   res (http.ServerResponse): Response object used to send data back to the client.
+ *   status (number): HTTP status code to return.
+ *   headers (object): Header key/value pairs for the response.
+ *   body (string|stream.Readable|undefined): Optional response payload or stream.
+ * Returns: void.
+ */
 function send(res, status, headers, body) {
   res.writeHead(status, headers);
   // If body is a readable stream, pipe it; otherwise end with string/undefined
@@ -71,6 +89,14 @@ function send(res, status, headers, body) {
   }
 }
 
+/**
+ * Function: serveFile
+ * Description: Stream a static file to the HTTP client, applying appropriate MIME type headers.
+ * Parameters:
+ *   res (http.ServerResponse): Response object used to transmit the file contents.
+ *   filePath (string): Absolute path to the file that should be served.
+ * Returns: void.
+ */
 function serveFile(res, filePath) {
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
@@ -92,6 +118,14 @@ function serveFile(res, filePath) {
   });
 }
 
+/**
+ * Function: serverRequestHandler
+ * Description: Handle incoming HTTP requests for static assets and parser endpoints.
+ * Parameters:
+ *   req (http.IncomingMessage): Request object describing the client request.
+ *   res (http.ServerResponse): Response object used to send data back to the client.
+ * Returns: void.
+ */
 const server = http.createServer((req, res) => {
   const parsed = url.parse(req.url);
   let pathname = decodeURI(parsed.pathname || '/');

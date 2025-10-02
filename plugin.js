@@ -6,6 +6,15 @@ const generatePolar = require('./parse_polar');
 
 const MAX_LOG_SNIPPET = 400;
 
+/**
+ * Function: logSnippet
+ * Description: Emit a truncated log message using the supplied logger when content is present.
+ * Parameters:
+ *   label (string): Prefix describing the log context.
+ *   content (string): Message body that may be truncated for readability.
+ *   logger (Function): Logging function that handles the formatted output.
+ * Returns: void.
+ */
 function logSnippet(label, content, logger) {
   if (!content) return;
   const payload = content.length > MAX_LOG_SNIPPET
@@ -14,6 +23,14 @@ function logSnippet(label, content, logger) {
   logger(`${label}${payload}`);
 }
 
+/**
+ * Function: runLogbookParser
+ * Description: Spawn the logbook parser script and capture its stdout/stderr output.
+ * Parameters:
+ *   scriptPath (string): Absolute path to the parser script file.
+ *   logDir (string): Directory containing Signal K logbook YAML files.
+ * Returns: Promise<object> - Resolves with stdout and stderr buffers when the parser succeeds.
+ */
 function runLogbookParser(scriptPath, logDir) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [scriptPath, logDir], {
@@ -49,18 +66,44 @@ const LOG_DIR = path.join(process.env.HOME, '.signalk', 'plugin-config-data', 's
 const OUTPUT_JSON = path.join(__dirname, 'public', 'voyages.json');
 const OUTPUT_POLAR = path.join(__dirname, 'public', 'Polar.json');
 
+/**
+ * Function: module.exports
+ * Description: Create the Signal K plugin instance that exposes HTTP routes and generation hooks.
+ * Parameters:
+ *   app (object): Signal K application context providing logging and routing helpers.
+ * Returns: object - Plugin definition consumed by the host server.
+ */
 module.exports = function(app) {
   const plugin = {};
   plugin.id = 'voyage-webapp';
   plugin.name = 'Voyage Webapp';
 
+  /**
+   * Function: plugin.start
+   * Description: Lifecycle hook invoked when the plugin starts; no initialization required currently.
+   * Parameters: None.
+   * Returns: void.
+   */
   plugin.start = () => {
     // nothing to initialise
   };
+  /**
+   * Function: plugin.stop
+   * Description: Lifecycle hook invoked when the plugin stops; no teardown actions required currently.
+   * Parameters: None.
+   * Returns: void.
+   */
   plugin.stop = () => {
     // nothing to clean up
   };
 
+  /**
+   * Function: plugin.registerWithRouter
+   * Description: Attach HTTP routes that trigger voyage and polar generation when requested.
+   * Parameters:
+   *   router (object): Express-style router used to register HTTP route handlers.
+   * Returns: void.
+   */
   plugin.registerWithRouter = router => {
     // GET /generate – run the parser and save voyages.json
     router.get('/generate', (req, res) => {
