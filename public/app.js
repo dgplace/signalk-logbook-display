@@ -235,32 +235,52 @@ function getVoyagePoints(v) {
   return [];
 }
 
-function drawMaxSpeedMarkerFromCoord(coord, speed) {
-  if (maxMarker) { map.removeLayer(maxMarker); maxMarker = null; }
-  if (coord && coord.length === 2) {
-    const [lon, lat] = coord;
-    maxMarker = L.circleMarker([lat, lon], { color: 'orange', radius: 6 }).addTo(map);
-    // Disable autoPan so opening this popup does not move the map
-    maxMarker.bindPopup(`Max SoG: ${Number(speed).toFixed(1)} kn`, { autoPan: false, autoClose: false, closeOnClick: false }).openPopup();
-    const onMaxSelect = (e) => {
-      const clickLL = e.latlng || (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches[0]
-        ? map.mouseEventToLatLng(e.originalEvent.touches[0])
-        : null);
-      if (!clickLL || !Array.isArray(currentVoyagePoints) || currentVoyagePoints.length === 0) return;
-      let bestIdx = 0; let bestDist = Infinity;
-      for (let i = 0; i < currentVoyagePoints.length; i++) {
-        const p = currentVoyagePoints[i];
-        if (typeof p.lat !== 'number' || typeof p.lon !== 'number') continue;
-        const pll = L.latLng(p.lat, p.lon);
-        const d = clickLL.distanceTo(pll);
-        if (d < bestDist) { bestDist = d; bestIdx = i; }
-      }
-      const sel = currentVoyagePoints[bestIdx];
-      updateSelectedPoint(sel, { prev: currentVoyagePoints[bestIdx-1], next: currentVoyagePoints[bestIdx+1] });
-    };
-    maxMarker.on('click', onMaxSelect);
-    maxMarker.on('tap', onMaxSelect);
+/**
+ * Function: clearMaxSpeedMarker
+ * Description: Remove the maximum speed marker and popup from the map when present.
+ * Parameters: None.
+ * Returns: void.
+ */
+function clearMaxSpeedMarker() {
+  if (map && maxMarker) {
+    try { map.removeLayer(maxMarker); } catch (_) {}
   }
+  maxMarker = null;
+}
+
+/**
+ * Function: drawMaxSpeedMarkerFromCoord
+ * Description: Render the maximum speed marker and popup at the supplied coordinate.
+ * Parameters:
+ *   coord (number[]): Longitude and latitude pair representing the maximum speed location.
+ *   speed (number): Speed over ground in knots to present in the popup.
+ * Returns: void.
+ */
+function drawMaxSpeedMarkerFromCoord(coord, speed) {
+  clearMaxSpeedMarker();
+  if (!Array.isArray(coord) || coord.length !== 2) return;
+  const [lon, lat] = coord;
+  maxMarker = L.circleMarker([lat, lon], { color: 'orange', radius: 6 }).addTo(map);
+  // Disable autoPan so opening this popup does not move the map
+  maxMarker.bindPopup(`Max SoG: ${Number(speed).toFixed(1)} kn`, { autoPan: false, autoClose: false, closeOnClick: false }).openPopup();
+  const onMaxSelect = (e) => {
+    const clickLL = e.latlng || (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches[0]
+      ? map.mouseEventToLatLng(e.originalEvent.touches[0])
+      : null);
+    if (!clickLL || !Array.isArray(currentVoyagePoints) || currentVoyagePoints.length === 0) return;
+    let bestIdx = 0; let bestDist = Infinity;
+    for (let i = 0; i < currentVoyagePoints.length; i++) {
+      const p = currentVoyagePoints[i];
+      if (typeof p.lat !== 'number' || typeof p.lon !== 'number') continue;
+      const pll = L.latLng(p.lat, p.lon);
+      const d = clickLL.distanceTo(pll);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    const sel = currentVoyagePoints[bestIdx];
+    updateSelectedPoint(sel, { prev: currentVoyagePoints[bestIdx-1], next: currentVoyagePoints[bestIdx+1] });
+  };
+  maxMarker.on('click', onMaxSelect);
+  maxMarker.on('tap', onMaxSelect);
 }
 
 // Select a voyage from table or map and set up interactions
@@ -305,7 +325,7 @@ function selectVoyage(v, row, opts = {}) {
   }
 
   // update max speed marker
-  drawMaxSpeedMarkerFromCoord(v.maxSpeedCoord, v.maxSpeed);
+  clearMaxSpeedMarker();
 
   // clear previous point selection
   if (selectedPointMarker) { map.removeLayer(selectedPointMarker); selectedPointMarker = null; }
@@ -557,11 +577,37 @@ async function load() {
       `<td class="exp-cell">${expander}</td><td class="idx-cell">${i+1}</td><td>${dateHourLabel(v.startTime)}</td>
         <td>${dateHourLabel(v.endTime)}</td>
         <td>${v.nm.toFixed(1)}</td>
-        <td>${v.maxSpeed.toFixed(1)} kn</td>
+        <td class="max-speed-cell" tabindex="0">${v.maxSpeed.toFixed(1)} kn</td>
         <td>${v.avgSpeed.toFixed(1)} kn</td>
         <td>${v.maxWind.toFixed(1)} kn</td>
         <td>${v.avgWindSpeed.toFixed(1)} kn</td>
         <td>${avgWindDir}</td>`;
+
+    const maxSpeedCell = row.querySelector('.max-speed-cell');
+    if (maxSpeedCell) {
+      const activateMaxSpeedCell = () => {
+        const wasSelected = row.classList.contains('selected-row');
+        const previousSuppress = suppressHistoryUpdate;
+        if (wasSelected) suppressHistoryUpdate = true;
+        try {
+          selectVoyage(v, row, { fit: wasSelected ? false : true });
+        } finally {
+          suppressHistoryUpdate = previousSuppress;
+        }
+        drawMaxSpeedMarkerFromCoord(v.maxSpeedCoord, v.maxSpeed);
+      };
+      maxSpeedCell.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        activateMaxSpeedCell();
+      });
+      maxSpeedCell.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault();
+          ev.stopPropagation();
+          activateMaxSpeedCell();
+        }
+      });
+    }
 
     let voyageBounds = null;
     if (segments.length > 0) {
@@ -609,14 +655,15 @@ async function load() {
           <td>${dateHourLabel(seg.startTime)}</td>
           <td>${dateHourLabel(seg.endTime)}</td>
           <td>${seg.nm.toFixed(1)}</td>
-          <td>${seg.maxSpeed.toFixed(1)} kn</td>
+          <td class="max-speed-cell" tabindex="0">${seg.maxSpeed.toFixed(1)} kn</td>
           <td>${seg.avgSpeed.toFixed(1)} kn</td>
           <td>${seg.maxWind.toFixed(1)} kn</td>
           <td>${seg.avgWindSpeed.toFixed(1)} kn</td>
           <td>${avgWindDirDay}</td>
           `;
 
-        dr.addEventListener('click', () => {
+        const handleDayRowClick = () => {
+          clearMaxSpeedMarker();
           polylines.forEach(pl => pl.setStyle({ color: 'blue', weight: 2 }));
           detachActiveClickers();
           clearActivePointMarkers();
@@ -634,7 +681,6 @@ async function load() {
             for (let i = 1; i < activePolylines.length; i++) bounds = bounds.extend(activePolylines[i].getBounds());
             if (bounds && bounds.isValid && bounds.isValid()) map.fitBounds(bounds);
           }
-          drawMaxSpeedMarkerFromCoord(seg.maxSpeedCoord, seg.maxSpeed);
           if (selectedPointMarker) { map.removeLayer(selectedPointMarker); selectedPointMarker = null; }
           if (activePolylines.length && seg.points && seg.points.length) {
             const onLineClick = (e) => onPolylineClick(e, seg.points);
@@ -659,7 +705,27 @@ async function load() {
           }
           currentVoyagePoints = seg.points || [];
           setDetailsHint('Click on the highlighted track to inspect a point.');
-        });
+        };
+        dr.addEventListener('click', handleDayRowClick);
+
+        const dayMaxSpeedCell = dr.querySelector('.max-speed-cell');
+        if (dayMaxSpeedCell) {
+          const activateDayMaxSpeedCell = () => {
+            handleDayRowClick();
+            drawMaxSpeedMarkerFromCoord(seg.maxSpeedCoord, seg.maxSpeed);
+          };
+          dayMaxSpeedCell.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            activateDayMaxSpeedCell();
+          });
+          dayMaxSpeedCell.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter' || ev.key === ' ') {
+              ev.preventDefault();
+              ev.stopPropagation();
+              activateDayMaxSpeedCell();
+            }
+          });
+        }
 
         dayRows.push(dr);
         insertIndex += 1;

@@ -112,6 +112,19 @@ tbody tr.selected-row:hover,
 tbody tr.selected-row:hover td {
   background-color: #bfdbfe; /* subtle hover feedback while keeping highlight */
 }
+.max-speed-cell {
+  color: var(--accent-color, #b45309);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  transition: color 0.2s ease;
+}
+.max-speed-cell:hover,
+.max-speed-cell:focus-visible {
+  color: var(--accent-color-strong, #7c2d12);
+  outline: none;
+}
 .details-panel {
   position: absolute;
   top: 12px;
