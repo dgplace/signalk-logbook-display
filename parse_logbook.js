@@ -19,6 +19,13 @@ function haversine([lon1, lat1], [lon2, lat2]) {
   return (R * c) / 1852; // nautical miles
 }
 
+/**
+ * Function: circularMean
+ * Description: Calculate the mean direction of a collection of angles.
+ * Parameters:
+ *   angles (number[]): Angles in degrees that should be averaged using circular statistics.
+ * Returns: number - Average angle in degrees normalized to [0, 360).
+ */
 function circularMean(angles) {
   const sum = angles.reduce((acc, angle) => {
     const rad = degToRad(angle);
@@ -30,6 +37,13 @@ function circularMean(angles) {
   return (avg + 360) % 360;
 }
 
+/**
+ * Function: getEntryText
+ * Description: Retrieve the lower-cased text content of a log entry.
+ * Parameters:
+ *   entry (object): Log entry object that may contain a text field.
+ * Returns: string - Lower-cased text content or an empty string when unavailable.
+ */
 function getEntryText(entry) {
   if (!entry || typeof entry !== 'object') return '';
   const { text } = entry;
@@ -37,10 +51,24 @@ function getEntryText(entry) {
   return text.toLowerCase();
 }
 
+/**
+ * Function: entryIndicatesStopped
+ * Description: Determine whether an entry marks the vessel as stopped.
+ * Parameters:
+ *   entry (object): Log entry object to inspect.
+ * Returns: boolean - True when the entry text contains "stopped".
+ */
 function entryIndicatesStopped(entry) {
   return getEntryText(entry).includes('stopped');
 }
 
+/**
+ * Function: entryIndicatesSailing
+ * Description: Determine whether an entry marks the vessel as sailing.
+ * Parameters:
+ *   entry (object): Log entry object to inspect.
+ * Returns: boolean - True when the entry text contains "sailing".
+ */
 function entryIndicatesSailing(entry) {
   return getEntryText(entry).includes('sailing');
 }
@@ -70,6 +98,13 @@ function parseEntryDate(entry) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * Function: classifyVoyagePoints
+ * Description: Enrich voyage points with activity metadata such as anchored, motoring, or sailing.
+ * Parameters:
+ *   points (object[]): Ordered list of points in a voyage, each containing coordinates and entry data.
+ * Returns: void - Mutates points to include activity metadata.
+ */
 function classifyVoyagePoints(points) {
   if (!Array.isArray(points) || points.length === 0) return;
 
@@ -243,6 +278,13 @@ function classifyVoyagePoints(points) {
   }
 }
 
+/**
+ * Function: markStopGaps
+ * Description: Flag point pairs that should not be connected because they bridge a stop-to-sail interval.
+ * Parameters:
+ *   points (object[]): Ordered list of voyage points to scan for stop and sailing markers.
+ * Returns: void - Adds skip connection flags onto affected points and their entries.
+ */
 function markStopGaps(points) {
   if (!Array.isArray(points) || points.length === 0) return;
 
@@ -294,6 +336,13 @@ function markStopGaps(points) {
   }
 }
 
+/**
+ * Function: createVoyageAccumulator
+ * Description: Initialise a voyage aggregation object using the first entry of a voyage.
+ * Parameters:
+ *   entry (object): Initial log entry that seeds the voyage data.
+ * Returns: object - Mutable accumulator tracking voyage statistics.
+ */
 function createVoyageAccumulator(entry) {
   return {
     startTime: entry.datetime,
@@ -316,6 +365,13 @@ function createVoyageAccumulator(entry) {
   };
 }
 
+/**
+ * Function: finalizeVoyage
+ * Description: Produce the final voyage summary from an accumulator, computing averages and metadata.
+ * Parameters:
+ *   current (object): Voyage accumulator with aggregated metrics and points.
+ * Returns: object - Finalised voyage summary ready for serialisation.
+ */
 function finalizeVoyage(current) {
   classifyVoyagePoints(current.points);
   markStopGaps(current.points);
@@ -344,6 +400,13 @@ function finalizeVoyage(current) {
   };
 }
 
+/**
+ * Function: readEntries
+ * Description: Load and parse all YAML log entries found within a directory.
+ * Parameters:
+ *   dir (string): Filesystem path containing daily YAML log files.
+ * Returns: Promise<object[]> - Chronologically ordered log entries.
+ */
 async function readEntries(dir) {
   const files = await fs.readdir(dir);
   const entries = [];
@@ -358,6 +421,13 @@ async function readEntries(dir) {
   return entries.sort((a,b) => a.datetime - b.datetime);
 }
 
+/**
+ * Function: groupVoyages
+ * Description: Aggregate chronological entries into voyages spanning consecutive days.
+ * Parameters:
+ *   entries (object[]): Sorted log entries covering one or more days.
+ * Returns: object[] - Array of voyage summaries.
+ */
 function groupVoyages(entries) {
   const voyages = [];
   let current = null;
