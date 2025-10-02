@@ -5,7 +5,7 @@
       "endTime": "2025-06-01T07:16:01.700Z",
       "nm": 19.8,
       "maxSpeed": 8.2,
-      "avgSpeed": 4.7,
+      "avgSpeed": 4.893186428144991,
       "maxWind": 22.5,
       "avgWindSpeed": 14.131249999999998,
       "avgWindHeading": 169.986161922159,
@@ -543,11 +543,13 @@
             ],
             "end": true,
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 9.724913066004165
+            "activity": "anchored",
+            "distanceFromAnchor": 0,
+            "skipConnectionToNext": true
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 9.724913066004165
+          "activity": "anchored",
+          "distanceFromAnchor": 0,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.3546833,
@@ -577,11 +579,13 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 9.772131406910352
+            "activity": "anchored",
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 9.772131406910352
+          "activity": "anchored",
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true
         },
         {
           "lon": 153.3507483,
@@ -611,11 +615,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 10.219803998585455
+            "activity": "motoring",
+            "distanceFromAnchor": 0.44767259167510204
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 10.219803998585455
+          "activity": "motoring",
+          "distanceFromAnchor": 0.44767259167510204
         },
         {
           "lon": 153.3394766,
@@ -646,10 +650,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 10.984899174581468
+            "distanceFromAnchor": 1.2127677676711146
           },
           "activity": "sailing",
-          "distanceFromAnchor": 10.984899174581468
+          "distanceFromAnchor": 1.2127677676711146
         },
         {
           "lon": 153.340032,
@@ -680,10 +684,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 11.118738807349583
+            "distanceFromAnchor": 1.34660740043923
           },
           "activity": "sailing",
-          "distanceFromAnchor": 11.118738807349583
+          "distanceFromAnchor": 1.34660740043923
         },
         {
           "lon": 153.3373966,
@@ -714,10 +718,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 11.31313420648842
+            "distanceFromAnchor": 1.541002799578068
           },
           "activity": "sailing",
-          "distanceFromAnchor": 11.31313420648842
+          "distanceFromAnchor": 1.541002799578068
         },
         {
           "lon": 153.2947072,
@@ -748,10 +752,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 13.658999397812458
+            "distanceFromAnchor": 3.8868679909021044
           },
           "activity": "sailing",
-          "distanceFromAnchor": 13.658999397812458
+          "distanceFromAnchor": 3.8868679909021044
         },
         {
           "lon": 153.2880128,
@@ -782,10 +786,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 14.025680106355047
+            "distanceFromAnchor": 4.253548699444693
           },
           "activity": "sailing",
-          "distanceFromAnchor": 14.025680106355047
+          "distanceFromAnchor": 4.253548699444693
         },
         {
           "lon": 153.2786048,
@@ -816,10 +820,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 14.554006200526521
+            "distanceFromAnchor": 4.781874793616168
           },
           "activity": "sailing",
-          "distanceFromAnchor": 14.554006200526521
+          "distanceFromAnchor": 4.781874793616168
         },
         {
           "lon": 153.2764928,
@@ -850,10 +854,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 14.668608807713802
+            "distanceFromAnchor": 4.896477400803449
           },
           "activity": "sailing",
-          "distanceFromAnchor": 14.668608807713802
+          "distanceFromAnchor": 4.896477400803449
         },
         {
           "lon": 153.2442368,
@@ -884,10 +888,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 16.426928395058674
+            "distanceFromAnchor": 6.654796988148319
           },
           "activity": "sailing",
-          "distanceFromAnchor": 16.426928395058674
+          "distanceFromAnchor": 6.654796988148319
         },
         {
           "lon": 153.2439233,
@@ -918,10 +922,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 16.44363886943114
+            "distanceFromAnchor": 6.671507462520787
           },
           "activity": "sailing",
-          "distanceFromAnchor": 16.44363886943114
+          "distanceFromAnchor": 6.671507462520787
         },
         {
           "lon": 153.219648,
@@ -952,10 +956,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 17.737548179760385
+            "distanceFromAnchor": 7.965416772850032
           },
           "activity": "sailing",
-          "distanceFromAnchor": 17.737548179760385
+          "distanceFromAnchor": 7.965416772850032
         },
         {
           "lon": 153.2185249,
@@ -986,10 +990,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 17.80477214422803
+            "distanceFromAnchor": 8.032640737317676
           },
           "activity": "sailing",
-          "distanceFromAnchor": 17.80477214422803
+          "distanceFromAnchor": 8.032640737317676
         },
         {
           "lon": 153.2158033,
@@ -1020,10 +1024,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 18.052817700048692
+            "distanceFromAnchor": 8.28068629313834
           },
           "activity": "sailing",
-          "distanceFromAnchor": 18.052817700048692
+          "distanceFromAnchor": 8.28068629313834
         },
         {
           "lon": 153.2151552,
@@ -1054,10 +1058,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 18.08833437319638
+            "distanceFromAnchor": 8.316202966286026
           },
           "activity": "sailing",
-          "distanceFromAnchor": 18.08833437319638
+          "distanceFromAnchor": 8.316202966286026
         },
         {
           "lon": 153.2155136,
@@ -1088,10 +1092,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 18.204425054174667
+            "distanceFromAnchor": 8.432293647264313
           },
           "activity": "sailing",
-          "distanceFromAnchor": 18.204425054174667
+          "distanceFromAnchor": 8.432293647264313
         },
         {
           "lon": 153.2150266,
@@ -1122,10 +1126,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 18.232331509684503
+            "distanceFromAnchor": 8.460200102774149
           },
           "activity": "sailing",
-          "distanceFromAnchor": 18.232331509684503
+          "distanceFromAnchor": 8.460200102774149
         },
         {
           "lon": 153.2109449,
@@ -1156,10 +1160,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 18.449849577400954
+            "distanceFromAnchor": 8.677718170490602
           },
           "activity": "sailing",
-          "distanceFromAnchor": 18.449849577400954
+          "distanceFromAnchor": 8.677718170490602
         },
         {
           "lon": 153.1894099,
@@ -1241,7 +1245,7 @@
       "endTime": "2025-06-22T03:02:40.300Z",
       "nm": 32,
       "maxSpeed": 8,
-      "avgSpeed": 4.450980392156863,
+      "avgSpeed": 4.796854899973187,
       "maxWind": 20.3,
       "avgWindSpeed": 12.260784313725491,
       "avgWindHeading": 146.76511825963388,
@@ -2536,10 +2540,12 @@
             "end": true,
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.3951744,
@@ -2570,10 +2576,14 @@
             ],
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.3948416,
@@ -2604,10 +2614,12 @@
             ],
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true
         },
         {
           "lon": 153.381888,
@@ -3199,7 +3211,7 @@
       "endTime": "2025-07-01T05:46:22.900Z",
       "nm": 17.3,
       "maxSpeed": 8.4,
-      "avgSpeed": 5.2519230769230765,
+      "avgSpeed": 4.646308429155459,
       "maxWind": 27.2,
       "avgWindSpeed": 16.878846153846155,
       "avgWindHeading": 269.2368794932315,
@@ -3512,10 +3524,12 @@
             "end": true,
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.1903049,
@@ -3546,10 +3560,12 @@
             ],
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true
         },
         {
           "lon": 153.212224,
@@ -5195,7 +5211,7 @@
       "endTime": "2025-07-05T08:16:35.199Z",
       "nm": 94.6,
       "maxSpeed": 8.8,
-      "avgSpeed": 5.228155339805825,
+      "avgSpeed": 5.339994612511072,
       "maxWind": 21.7,
       "avgWindSpeed": 8.424271844660193,
       "avgWindHeading": 202.4771006634121,
@@ -7979,10 +7995,12 @@
             "end": true,
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.4289152,
@@ -8014,10 +8032,12 @@
             ],
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true
         },
         {
           "lon": 153.4289833,
@@ -8225,10 +8245,12 @@
             "end": true,
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.4828633,
@@ -8260,10 +8282,12 @@
             ],
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true
         },
         {
           "lon": 153.46144,
@@ -9329,7 +9353,7 @@
       "endTime": "2025-08-02T05:36:16.999Z",
       "nm": 20.3,
       "maxSpeed": 9,
-      "avgSpeed": 5.6071428571428585,
+      "avgSpeed": 4.712418473825696,
       "maxWind": 22.2,
       "avgWindSpeed": 15.694642857142851,
       "avgWindHeading": 284.43253557357343,
@@ -11532,7 +11556,7 @@
       "endTime": "2025-08-13T04:45:11.900Z",
       "nm": 7.9,
       "maxSpeed": 6.5,
-      "avgSpeed": 3.696363636363637,
+      "avgSpeed": 3.398377481654144,
       "maxWind": 10,
       "avgWindSpeed": 6.49090909090909,
       "avgWindHeading": 104.131701580568,
@@ -13809,7 +13833,7 @@
       "endTime": "2025-08-24T06:30:48.700Z",
       "nm": 0.1,
       "maxSpeed": 0.3,
-      "avgSpeed": 0.040384615384615394,
+      "avgSpeed": 2.6152880016347853,
       "maxWind": 11.7,
       "avgWindSpeed": 8.725000000000001,
       "avgWindHeading": 117.33851725178693,
@@ -15668,10 +15692,12 @@
             "custom.logbook.maxHeel": 0,
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.1892833,
@@ -15704,10 +15730,14 @@
             "custom.logbook.maxSpeed": 0.15,
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.1892833,
@@ -15740,10 +15770,14 @@
             "custom.logbook.maxWind": 6.476044172728902,
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.1892864,
@@ -15776,10 +15810,14 @@
             "custom.logbook.maxWind": 7.04,
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.1892864,
@@ -15812,10 +15850,14 @@
             "custom.logbook.maxSpeed": 0.2,
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.1892199,
@@ -15848,10 +15890,12 @@
             "custom.logbook.maxSpeed": 0.25,
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true
         }
       ],
       "maxSpeedCoord": [
@@ -15864,7 +15908,7 @@
       "endTime": "2025-08-31T05:15:55.099Z",
       "nm": 14.6,
       "maxSpeed": 7.5,
-      "avgSpeed": 3.4810526315789483,
+      "avgSpeed": 3.9119952276610523,
       "maxWind": 15.1,
       "avgWindSpeed": 8.235120927318297,
       "avgWindHeading": 117.6991832220317,
@@ -23296,7 +23340,7 @@
       "endTime": "2025-09-07T00:38:40.899Z",
       "nm": 32.4,
       "maxSpeed": 9.4,
-      "avgSpeed": 4.748356807511738,
+      "avgSpeed": 5.90582384711942,
       "maxWind": 22.4,
       "avgWindSpeed": 14.360755086071979,
       "avgWindHeading": 117.33454128480662,
@@ -27724,10 +27768,12 @@
             "custom.logbook.maxHeel": 0,
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.3928749,
@@ -27759,10 +27805,12 @@
             ],
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true
         },
         {
           "lon": 153.3926949,
@@ -31629,7 +31677,7 @@
       "endTime": "2025-10-01T07:52:40.999Z",
       "nm": 101.5,
       "maxSpeed": 8.1,
-      "avgSpeed": 3.4903780068728536,
+      "avgSpeed": 4.94372560920312,
       "maxWind": 21.3,
       "avgWindSpeed": 13.013058419243984,
       "avgWindHeading": 19.481061621680226,
@@ -38199,10 +38247,12 @@
             "custom.logbook.maxHeel": 0,
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.3646848,
@@ -38234,10 +38284,12 @@
             ],
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true
         },
         {
           "lon": 153.3654784,
@@ -45465,10 +45517,12 @@
             "custom.logbook.maxHeel": 0,
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.4222449,
@@ -45500,10 +45554,12 @@
             ],
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true
         },
         {
           "lon": 153.422208,
@@ -45750,11 +45806,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 1.5474504599472285
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 1.5474504599472285
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4217984,
@@ -45785,11 +45841,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 1.7248372952519313
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 1.7248372952519313
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4221184,
@@ -45820,11 +45876,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 1.7654439712108834
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 1.7654439712108834
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4224349,
@@ -45855,11 +45911,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 1.8277585207612244
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 1.8277585207612244
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4209024,
@@ -45891,11 +45947,11 @@
             ],
             "custom.logbook.maxSpeed": 3.65,
             "category": "navigation",
-            "activity": "motoring",
-            "distanceFromAnchor": 2.0678195347647077
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "motoring",
-          "distanceFromAnchor": 2.0678195347647077
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.420352,
@@ -45926,11 +45982,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.1386704947171826
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.1386704947171826
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4200576,
@@ -45961,11 +46017,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.159280335112381
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.159280335112381
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4196992,
@@ -45996,11 +46052,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.178843459395413
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.178843459395413
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4176896,
@@ -46031,11 +46087,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.2856344385374383
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.2856344385374383
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4160256,
@@ -46066,11 +46122,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.378792064773474
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.378792064773474
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4154112,
@@ -46101,11 +46157,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.412995307699594
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.412995307699594
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4148864,
@@ -46136,11 +46192,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.4436662381642393
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.4436662381642393
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4147584,
@@ -46171,11 +46227,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.4508369547477256
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.4508369547477256
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4146688,
@@ -46206,11 +46262,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.457872638583837
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.457872638583837
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4145536,
@@ -46241,11 +46297,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.4653029860553244
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.4653029860553244
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4144768,
@@ -46276,11 +46332,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.4694175293696743
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.4694175293696743
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4144256,
@@ -46311,11 +46367,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.472980131362732
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.472980131362732
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4143488,
@@ -46346,11 +46402,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.478201753030305
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.478201753030305
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.414272,
@@ -46381,11 +46437,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.4827060455432806
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.4827060455432806
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4142336,
@@ -46416,11 +46472,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.485377998763179
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.485377998763179
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4141952,
@@ -46451,11 +46507,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.487450914127035
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.487450914127035
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4142208,
@@ -46486,11 +46542,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.4888622251417925
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.4888622251417925
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4142208,
@@ -46521,11 +46577,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.4890543546045762
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.4890543546045762
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4142336,
@@ -46556,11 +46612,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.490079857291025
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.490079857291025
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4142592,
@@ -46591,11 +46647,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.4914513740388102
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.4914513740388102
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.414336,
@@ -46626,11 +46682,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.4958056563489044
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.4958056563489044
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4149888,
@@ -46661,11 +46717,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.5306469983372817
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.5306469983372817
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.41536,
@@ -46696,11 +46752,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.5508705675293384
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.5508705675293384
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4157824,
@@ -46731,11 +46787,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.5773049949322475
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.5773049949322475
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.415808,
@@ -46766,11 +46822,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.5804908573420553
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.5804908573420553
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4157696,
@@ -46801,11 +46857,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.584178567138959
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.584178567138959
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.415744,
@@ -46836,11 +46892,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.5862295682807073
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.5862295682807073
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4156928,
@@ -46871,11 +46927,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.5890060280565312
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.5890060280565312
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4156672,
@@ -46906,11 +46962,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.590669449139058
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.590669449139058
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4156288,
@@ -46941,11 +46997,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.593110362646626
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.593110362646626
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.415232,
@@ -46976,11 +47032,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.623487722028892
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.623487722028892
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4149376,
@@ -47011,11 +47067,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.639147107585322
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.639147107585322
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.413824,
@@ -47046,11 +47102,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.6987175586016403
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.6987175586016403
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4137472,
@@ -47081,11 +47137,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.7037078381012343
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.7037078381012343
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.413632,
@@ -47116,11 +47172,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.715914722938435
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.715914722938435
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4135296,
@@ -47151,11 +47207,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.7266177924768695
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.7266177924768695
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4134528,
@@ -47186,11 +47242,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.730851739332208
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.730851739332208
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4119424,
@@ -47221,11 +47277,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8127780581712067
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8127780581712067
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4119296,
@@ -47256,11 +47312,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8172488976311265
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8172488976311265
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4119296,
@@ -47291,11 +47347,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.821475745814713
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.821475745814713
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4119424,
@@ -47326,11 +47382,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.827661269513547
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.827661269513547
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4119296,
@@ -47361,11 +47417,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8283669305812182
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8283669305812182
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4119296,
@@ -47396,11 +47452,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8283669305812182
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8283669305812182
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4119296,
@@ -47431,11 +47487,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8283669305812182
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8283669305812182
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4119168,
@@ -47466,11 +47522,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.829045932643271
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.829045932643271
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4119168,
@@ -47501,11 +47557,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.829045932643271
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.829045932643271
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4119168,
@@ -47536,11 +47592,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8294301915690516
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8294301915690516
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4119168,
@@ -47571,11 +47627,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8294301915690516
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8294301915690516
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4118912,
@@ -47606,11 +47662,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.830788195611232
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.830788195611232
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4118912,
@@ -47641,11 +47697,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.830788195611232
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.830788195611232
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4118912,
@@ -47676,11 +47732,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.830980325074016
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.830980325074016
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4118784,
@@ -47711,11 +47767,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.831659327075756
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.831659327075756
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4118784,
@@ -47746,11 +47802,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8318514565385398
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8318514565385398
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4118784,
@@ -47781,11 +47837,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8318514565385398
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8318514565385398
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4118656,
@@ -47816,11 +47872,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8325571175109374
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8325571175109374
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4118656,
@@ -47851,11 +47907,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8325571175109374
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8325571175109374
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4118656,
@@ -47886,11 +47942,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8325571175109374
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8325571175109374
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4118528,
@@ -47921,11 +47977,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8332361194724687
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8332361194724687
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4118528,
@@ -47956,11 +48012,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8332361194724687
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8332361194724687
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4118528,
@@ -47991,11 +48047,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8334282489352525
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8334282489352525
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.41184,
@@ -48026,11 +48082,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8341072508751717
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8341072508751717
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.41184,
@@ -48061,11 +48117,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8341072508751717
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8341072508751717
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.41184,
@@ -48096,11 +48152,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8341072508751717
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8341072508751717
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.411776,
@@ -48131,11 +48187,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8399891862656306
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8399891862656306
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4117888,
@@ -48166,11 +48222,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8427633769481297
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8427633769481297
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4117888,
@@ -48201,11 +48257,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8427633769481297
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8427633769481297
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4117888,
@@ -48236,11 +48292,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8427633769481297
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8427633769481297
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4117888,
@@ -48271,11 +48327,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8431476358739105
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8431476358739105
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4117888,
@@ -48306,11 +48362,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8431476358739105
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8431476358739105
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4117888,
@@ -48341,11 +48397,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8431476358739105
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8431476358739105
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4117888,
@@ -48376,11 +48432,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8433397653366943
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8433397653366943
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4117888,
@@ -48411,11 +48467,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8435318947996913
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8435318947996913
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4117888,
@@ -48446,11 +48502,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8435318947996913
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8435318947996913
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4117888,
@@ -48481,11 +48537,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8435318947996913
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8435318947996913
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4117888,
@@ -48516,11 +48572,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8435318947996913
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8435318947996913
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.411776,
@@ -48551,11 +48607,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8442375549015124
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8442375549015124
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.411776,
@@ -48586,11 +48642,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8442375549015124
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8442375549015124
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.411776,
@@ -48621,11 +48677,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8442375549015124
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8442375549015124
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.411776,
@@ -48656,11 +48712,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8444296843645094
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8444296843645094
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.411776,
@@ -48695,11 +48751,13 @@
             "custom.logbook.maxWind": 0,
             "custom.logbook.maxHeel": 0,
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.8457745906046346
+            "activity": "anchored",
+            "distanceFromAnchor": 0,
+            "skipConnectionToNext": true
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.8457745906046346
+          "activity": "anchored",
+          "distanceFromAnchor": 0,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.413632,
@@ -48730,11 +48788,13 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 2.9489744316681503
+            "activity": "anchored",
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 2.9489744316681503
+          "activity": "anchored",
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true
         },
         {
           "lon": 153.4148736,
@@ -48766,11 +48826,11 @@
             ],
             "custom.logbook.maxSpeed": 2.1,
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 3.0163950142430256
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 3.0163950142430256
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4148864,
@@ -48802,11 +48862,11 @@
             ],
             "custom.logbook.maxWind": 9.945362008534037,
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 3.017100669605285
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 3.017100669605285
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4171136,
@@ -48837,11 +48897,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 3.1359450900842814
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 3.1359450900842814
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4175616,
@@ -48873,11 +48933,11 @@
             ],
             "custom.logbook.maxSpeed": 2.46,
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 3.163837410280054
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 3.163837410280054
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4176128,
@@ -48908,11 +48968,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 3.1680853094893036
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 3.1680853094893036
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4177664,
@@ -48943,11 +49003,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 3.179826447353765
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 3.179826447353765
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.417792,
@@ -48978,11 +49038,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 3.1813868224791086
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 3.1813868224791086
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4180352,
@@ -49013,11 +49073,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 3.2054948674410193
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 3.2054948674410193
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.418048,
@@ -49048,11 +49108,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 3.2065203723914357
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 3.2065203723914357
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4181248,
@@ -49083,11 +49143,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 3.215904533066469
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 3.215904533066469
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4181632,
@@ -49118,11 +49178,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 3.237710514275273
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 3.237710514275273
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4178432,
@@ -49153,11 +49213,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 3.3037175974093853
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 3.3037175974093853
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4178304,
@@ -49188,11 +49248,11 @@
               "Tamsin"
             ],
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 3.3052241919163516
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 3.3052241919163516
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4176512,
@@ -49224,11 +49284,11 @@
             ],
             "custom.logbook.maxSpeed": 2.93,
             "category": "navigation",
-            "activity": "sailing",
-            "distanceFromAnchor": 3.33357162926037
+            "activity": "anchored",
+            "distanceFromAnchor": 0
           },
-          "activity": "sailing",
-          "distanceFromAnchor": 3.33357162926037
+          "activity": "anchored",
+          "distanceFromAnchor": 0
         },
         {
           "lon": 153.4135552,
@@ -49265,10 +49325,10 @@
             "custom.logbook.maxWind": 10.115927619024069,
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 4.053437187530424
+            "distanceFromAnchor": 0.7198655582700535
           },
           "activity": "sailing",
-          "distanceFromAnchor": 4.053437187530424
+          "distanceFromAnchor": 0.7198655582700535
         },
         {
           "lon": 153.413952,
@@ -49305,10 +49365,10 @@
             "custom.logbook.maxWind": 10.409954846673033,
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 4.221529044617926
+            "distanceFromAnchor": 0.887957415357555
           },
           "activity": "sailing",
-          "distanceFromAnchor": 4.221529044617926
+          "distanceFromAnchor": 0.887957415357555
         },
         {
           "lon": 153.4146688,
@@ -49344,10 +49404,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 4.328429714712455
+            "distanceFromAnchor": 0.9948580854520844
           },
           "activity": "sailing",
-          "distanceFromAnchor": 4.328429714712455
+          "distanceFromAnchor": 0.9948580854520844
         },
         {
           "lon": 153.4197504,
@@ -49383,10 +49443,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 5.165208286040373
+            "distanceFromAnchor": 1.8316366567800022
           },
           "activity": "sailing",
-          "distanceFromAnchor": 5.165208286040373
+          "distanceFromAnchor": 1.8316366567800022
         },
         {
           "lon": 153.4197504,
@@ -49422,10 +49482,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 5.189800857289691
+            "distanceFromAnchor": 1.8562292280293196
           },
           "activity": "sailing",
-          "distanceFromAnchor": 5.189800857289691
+          "distanceFromAnchor": 1.8562292280293196
         },
         {
           "lon": 153.418432,
@@ -49461,10 +49521,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 5.398971550666192
+            "distanceFromAnchor": 2.0653999214058207
           },
           "activity": "sailing",
-          "distanceFromAnchor": 5.398971550666192
+          "distanceFromAnchor": 2.0653999214058207
         },
         {
           "lon": 153.4180608,
@@ -49500,10 +49560,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 5.43960847186443
+            "distanceFromAnchor": 2.1060368426040585
           },
           "activity": "sailing",
-          "distanceFromAnchor": 5.43960847186443
+          "distanceFromAnchor": 2.1060368426040585
         },
         {
           "lon": 153.418048,
@@ -49539,10 +49599,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 5.440499295155939
+            "distanceFromAnchor": 2.106927665895567
           },
           "activity": "sailing",
-          "distanceFromAnchor": 5.440499295155939
+          "distanceFromAnchor": 2.106927665895567
         },
         {
           "lon": 153.4138624,
@@ -49578,10 +49638,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 6.014707002570302
+            "distanceFromAnchor": 2.6811353733099295
           },
           "activity": "sailing",
-          "distanceFromAnchor": 6.014707002570302
+          "distanceFromAnchor": 2.6811353733099295
         },
         {
           "lon": 153.4151296,
@@ -49617,10 +49677,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 6.541989689775972
+            "distanceFromAnchor": 3.2084180605155996
           },
           "activity": "sailing",
-          "distanceFromAnchor": 6.541989689775972
+          "distanceFromAnchor": 3.2084180605155996
         },
         {
           "lon": 153.4149632,
@@ -49656,10 +49716,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 6.584606861256383
+            "distanceFromAnchor": 3.25103523199601
           },
           "activity": "sailing",
-          "distanceFromAnchor": 6.584606861256383
+          "distanceFromAnchor": 3.25103523199601
         },
         {
           "lon": 153.4149504,
@@ -49695,10 +49755,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 6.585944916674552
+            "distanceFromAnchor": 3.252373287414179
           },
           "activity": "sailing",
-          "distanceFromAnchor": 6.585944916674552
+          "distanceFromAnchor": 3.252373287414179
         },
         {
           "lon": 153.414336,
@@ -49734,10 +49794,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 6.674941751583707
+            "distanceFromAnchor": 3.341370122323334
           },
           "activity": "sailing",
-          "distanceFromAnchor": 6.674941751583707
+          "distanceFromAnchor": 3.341370122323334
         },
         {
           "lon": 153.4133632,
@@ -49773,10 +49833,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 6.819361176030431
+            "distanceFromAnchor": 3.4857895467700586
           },
           "activity": "sailing",
-          "distanceFromAnchor": 6.819361176030431
+          "distanceFromAnchor": 3.4857895467700586
         },
         {
           "lon": 153.4128768,
@@ -49812,10 +49872,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 6.894991492944325
+            "distanceFromAnchor": 3.561419863683952
           },
           "activity": "sailing",
-          "distanceFromAnchor": 6.894991492944325
+          "distanceFromAnchor": 3.561419863683952
         },
         {
           "lon": 153.4110592,
@@ -49851,10 +49911,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 7.305726972293686
+            "distanceFromAnchor": 3.972155343033314
           },
           "activity": "sailing",
-          "distanceFromAnchor": 7.305726972293686
+          "distanceFromAnchor": 3.972155343033314
         },
         {
           "lon": 153.3992192,
@@ -49886,10 +49946,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 8.559080786554986
+            "distanceFromAnchor": 5.225509157294614
           },
           "activity": "sailing",
-          "distanceFromAnchor": 8.559080786554986
+          "distanceFromAnchor": 5.225509157294614
         },
         {
           "lon": 153.4006144,
@@ -49921,10 +49981,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 9.133349517187872
+            "distanceFromAnchor": 5.7997778879275
           },
           "activity": "sailing",
-          "distanceFromAnchor": 9.133349517187872
+          "distanceFromAnchor": 5.7997778879275
         },
         {
           "lon": 153.4059264,
@@ -49956,10 +50016,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 9.90599888812694
+            "distanceFromAnchor": 6.572427258866567
           },
           "activity": "sailing",
-          "distanceFromAnchor": 9.90599888812694
+          "distanceFromAnchor": 6.572427258866567
         },
         {
           "lon": 153.4059264,
@@ -49991,10 +50051,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 9.906191017589723
+            "distanceFromAnchor": 6.57261938832935
           },
           "activity": "sailing",
-          "distanceFromAnchor": 9.906191017589723
+          "distanceFromAnchor": 6.57261938832935
         },
         {
           "lon": 153.4060544,
@@ -50026,10 +50086,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 9.93281837865889
+            "distanceFromAnchor": 6.599246749398518
           },
           "activity": "sailing",
-          "distanceFromAnchor": 9.93281837865889
+          "distanceFromAnchor": 6.599246749398518
         },
         {
           "lon": 153.4123904,
@@ -50061,10 +50121,10 @@
             ],
             "category": "navigation",
             "activity": "sailing",
-            "distanceFromAnchor": 10.538440931704601
+            "distanceFromAnchor": 7.204869302444229
           },
           "activity": "sailing",
-          "distanceFromAnchor": 10.538440931704601
+          "distanceFromAnchor": 7.204869302444229
         },
         {
           "lon": 153.4167424,
@@ -55948,10 +56008,12 @@
             "custom.logbook.maxHeel": 0,
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.42368,
@@ -55983,10 +56045,14 @@
             ],
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.4220928,
@@ -56018,10 +56084,12 @@
             ],
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true
         },
         {
           "lon": 153.4220928,
@@ -63987,10 +64055,12 @@
             "custom.logbook.maxHeel": 0,
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionToNext": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionToNext": true
         },
         {
           "lon": 153.4030976,
@@ -64022,10 +64092,12 @@
             ],
             "category": "navigation",
             "activity": "anchored",
-            "distanceFromAnchor": 0
+            "distanceFromAnchor": 0,
+            "skipConnectionFromPrev": true
           },
           "activity": "anchored",
-          "distanceFromAnchor": 0
+          "distanceFromAnchor": 0,
+          "skipConnectionFromPrev": true
         },
         {
           "lon": 153.4025216,
