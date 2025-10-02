@@ -372,7 +372,7 @@ function createVoyageAccumulator(entry) {
 
 /**
  * Function: finalizeVoyage
- * Description: Produce the final voyage summary from an accumulator, computing averages and metadata.
+ * Description: Produce the final voyage summary from an accumulator, computing averages and metadata while excluding stopped time from speed calculations.
  * Parameters:
  *   current (object): Voyage accumulator with aggregated metrics and points.
  * Returns: object - Finalised voyage summary ready for serialisation.
@@ -381,11 +381,10 @@ function finalizeVoyage(current) {
   classifyVoyagePoints(current.points);
   markStopGaps(current.points);
   let avgSpeed = 0;
-  if (current.totalDurationMs > 0) {
-    const totalHours = current.totalDurationMs / (1000 * 60 * 60);
-    if (totalHours > 0) {
-      avgSpeed = current.distance / totalHours;
-    }
+  const movingDurationMs = Math.max(0, current.totalDurationMs - current.stoppedDurationMs);
+  if (movingDurationMs > 0) {
+    const movingHours = movingDurationMs / (1000 * 60 * 60);
+    avgSpeed = current.distance / movingHours;
   } else if (current.speedCount > 0) {
     avgSpeed = current.speedSum / current.speedCount;
   }
