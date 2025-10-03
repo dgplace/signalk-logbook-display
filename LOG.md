@@ -58,3 +58,4 @@
 - Ensure the mobile layout is applied before selections so reloading with an active voyage keeps the highlighted track visible and refits the map immediately.
 - Hide the table maximize control when the responsive mobile layout is active and reduce the voyage table font size slightly for consistency across viewports.
 - Scroll the page to the top whenever the mobile layout switches back to the Map tab after a voyage or day selection so the map remains in view.
+- In the mobile layout hide the voyage table's Avg Speed and Avg Wind columns to keep the table readable on small screens.
