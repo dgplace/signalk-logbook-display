@@ -91,13 +91,14 @@ function send(res, status, headers, body) {
 
 /**
  * Function: serveFile
- * Description: Stream a static file to the HTTP client, applying appropriate MIME type headers.
+ * Description: Stream a static file to the HTTP client, applying appropriate MIME type headers and cache validation.
  * Parameters:
+ *   req (http.IncomingMessage): Request object used to inspect cache headers from the client.
  *   res (http.ServerResponse): Response object used to transmit the file contents.
  *   filePath (string): Absolute path to the file that should be served.
  * Returns: void.
  */
-function serveFile(res, filePath) {
+function serveFile(req, res, filePath) {
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
       return send(res, 404, { 'Content-Type': 'text/plain; charset=utf-8' }, 'Not Found');
@@ -105,6 +106,25 @@ function serveFile(res, filePath) {
 
     const ext = path.extname(filePath).toLowerCase();
     const type = MIME[ext] || 'application/octet-stream';
+    const lastModified = stats.mtime.toUTCString();
+    const cacheControl = ext === '.json'
+      ? 'public, max-age=60, must-revalidate'
+      : 'public, max-age=86400, must-revalidate';
+
+    const ifModifiedSince = req.headers['if-modified-since'];
+    if (ifModifiedSince) {
+      const modifiedSinceDate = new Date(ifModifiedSince);
+      if (!Number.isNaN(modifiedSinceDate.getTime())) {
+        const lastModifiedSeconds = Math.floor(stats.mtimeMs / 1000);
+        const modifiedSinceSeconds = Math.floor(modifiedSinceDate.getTime() / 1000);
+        if (lastModifiedSeconds <= modifiedSinceSeconds) {
+          return send(res, 304, {
+            'Cache-Control': cacheControl,
+            'Last-Modified': lastModified
+          }, undefined);
+        }
+      }
+    }
 
     const stream = fs.createReadStream(filePath);
     stream.on('error', () => {
@@ -113,7 +133,8 @@ function serveFile(res, filePath) {
 
     send(res, 200, {
       'Content-Type': type,
-      'Cache-Control': 'no-cache',
+      'Cache-Control': cacheControl,
+      'Last-Modified': lastModified,
     }, stream);
   });
 }
@@ -210,16 +231,16 @@ const server = http.createServer((req, res) => {
   fs.stat(unsafePath, (err, stats) => {
     if (!err && stats.isDirectory()) {
       const indexPath = path.join(unsafePath, 'index.html');
-      return serveFile(res, indexPath);
+      return serveFile(req, res, indexPath);
     }
     if (!err && stats.isFile()) {
-      return serveFile(res, unsafePath);
+      return serveFile(req, res, unsafePath);
     }
 
     // For routes without file extensions (e.g. /8), fall back to SPA index
     if (!path.extname(pathname)) {
       const indexPath = path.join(PUBLIC_DIR, 'index.html');
-      return serveFile(res, indexPath);
+      return serveFile(req, res, indexPath);
     }
 
     return send(res, 404, { 'Content-Type': 'text/plain; charset=utf-8' }, 'Not Found');
