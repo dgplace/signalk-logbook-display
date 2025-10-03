@@ -38,7 +38,7 @@ The voyage viewer renders voyages on CARTO's Voyager basemap, which balances lan
 
 ## Mobile Layout
 
-When the viewport drops below 700 px wide the app automatically switches to a tabbed interface tailored for phones. Use the **Voyages** and **Map** tabs above the content to flip between the table and the Leaflet view; the point details drawer moves beneath the map so it remains readable on smaller screens. The mobile layout now opens on the Map tab by default, recentres the view when the page loads with a trip URL, and jumps back to the map whenever you select a voyage or day from the table so the highlighted track is visible straight away. On phones the voyage table hides the Avg Speed and Avg Wind columns so the remaining metrics stay legible without horizontal scrolling. Wider displays continue to use the side-by-side grid without any extra interaction.
+When the viewport drops below 700 px wide the app automatically switches to a tabbed interface tailored for phones. Use the **Voyages** and **Map** tabs above the content to flip between the table and the Leaflet view; the point details drawer moves beneath the map so it remains readable on smaller screens. The mobile layout now opens on the Map tab by default, recentres the view when the page loads with a trip URL, and jumps back to the map whenever you select a voyage or day from the table so the highlighted track is visible straight away. On phones the voyage table hides the End, Avg Speed, and Avg Wind columns so the remaining metrics stay legible without horizontal scrolling, and the totals summary row is suppressed to keep the table compact. Wider displays continue to use the side-by-side grid without any extra interaction.
 
 ## Build and Package
 

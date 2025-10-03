@@ -490,10 +490,16 @@ body.is-loading * {
   height: 60vh;
 }
 
+.container.mobile-layout th.end-col,
+.container.mobile-layout td.end-col,
 .container.mobile-layout th.avg-speed-col,
 .container.mobile-layout td.avg-speed-col,
 .container.mobile-layout th.avg-wind-col,
 .container.mobile-layout td.avg-wind-col {
+  display: none;
+}
+
+.container.mobile-layout .totals-row {
   display: none;
 }
 

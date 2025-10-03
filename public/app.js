@@ -1416,7 +1416,7 @@ async function load() {
 
     row.innerHTML =
       `<td class="exp-cell">${expander}</td><td class="idx-cell">${i+1}</td><td>${dateHourLabel(v.startTime)}</td>
-        <td>${dateHourLabel(v.endTime)}</td>
+        <td class="end-col">${dateHourLabel(v.endTime)}</td>
         <td>${v.nm.toFixed(1)}</td>
         <td class="max-speed-cell" tabindex="0">${v.maxSpeed.toFixed(1)}<span class="unit-kn"> kn</span></td>
         <td class="avg-speed-col">${v.avgSpeed.toFixed(1)} kn</td>
@@ -1494,7 +1494,7 @@ async function load() {
           <td class="exp-cell"></td>
           <td class="idx-cell">${dayLbl}</td>
           <td>${dateHourLabel(seg.startTime)}</td>
-          <td>${dateHourLabel(seg.endTime)}</td>
+          <td class="end-col">${dateHourLabel(seg.endTime)}</td>
           <td>${seg.nm.toFixed(1)}</td>
           <td class="max-speed-cell" tabindex="0">${seg.maxSpeed.toFixed(1)}<span class="unit-kn"> kn</span></td>
           <td class="avg-speed-col">${seg.avgSpeed.toFixed(1)} kn</td>

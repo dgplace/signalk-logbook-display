@@ -60,3 +60,4 @@
 - Scroll the page to the top whenever the mobile layout switches back to the Map tab after a voyage or day selection so the map remains in view.
 - In the mobile layout hide the voyage table's Avg Speed and Avg Wind columns to keep the table readable on small screens.
 - Suppress the `kn` units for Max Speed and Max Wind cells when the mobile layout is active to reduce visual clutter on phones.
+- Hide the End column and the totals summary row from the mobile voyage table to keep the layout focused on primary metrics.
