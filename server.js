@@ -91,7 +91,8 @@ function send(res, status, headers, body) {
 
 /**
  * Function: serveFile
- * Description: Stream a static file to the HTTP client, applying appropriate MIME type headers and cache validation.
+ * Description: Stream a static file to the HTTP client, applying appropriate MIME type headers and cache validation using
+ *              Last-Modified and ETag headers.
  * Parameters:
  *   req (http.IncomingMessage): Request object used to inspect cache headers from the client.
  *   res (http.ServerResponse): Response object used to transmit the file contents.
@@ -110,8 +111,19 @@ function serveFile(req, res, filePath) {
     const cacheControl = ext === '.json'
       ? 'public, max-age=60, must-revalidate'
       : 'public, max-age=86400, must-revalidate';
+    const etag = `"${stats.size.toString(16)}-${Math.floor(stats.mtimeMs).toString(16)}"`;
 
     const ifModifiedSince = req.headers['if-modified-since'];
+    const ifNoneMatch = req.headers['if-none-match'];
+
+    if (ifNoneMatch && ifNoneMatch === etag) {
+      return send(res, 304, {
+        'Cache-Control': cacheControl,
+        'Last-Modified': lastModified,
+        'ETag': etag
+      }, undefined);
+    }
+
     if (ifModifiedSince) {
       const modifiedSinceDate = new Date(ifModifiedSince);
       if (!Number.isNaN(modifiedSinceDate.getTime())) {
@@ -120,7 +132,8 @@ function serveFile(req, res, filePath) {
         if (lastModifiedSeconds <= modifiedSinceSeconds) {
           return send(res, 304, {
             'Cache-Control': cacheControl,
-            'Last-Modified': lastModified
+            'Last-Modified': lastModified,
+            'ETag': etag
           }, undefined);
         }
       }
@@ -135,6 +148,7 @@ function serveFile(req, res, filePath) {
       'Content-Type': type,
       'Cache-Control': cacheControl,
       'Last-Modified': lastModified,
+      'ETag': etag,
     }, stream);
   });
 }
