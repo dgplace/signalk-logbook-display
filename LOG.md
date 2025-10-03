@@ -50,3 +50,6 @@
 - Adopted the CARTO Voyager basemap and rethemed the front-end with a light palette for balanced contrast across the app.
 - Added a header toggle for the wind overlay.
 - Resized point markers to roughly 1.1× the route weight and size wind circles to fixed pixel sizing for consistent visibility.
+- Enforced a 700px minimum page width to preserve layout integrity on narrow viewports.
+- Set a 150px minimum height on the voyage table wrapper to maintain legibility when space is constrained.
+- Let the main layout exceed the viewport when necessary so the page scrolls instead of shrinking the map, keeping the map row at least 400px tall and ensuring the table row never compresses below 230px even when the window is short.

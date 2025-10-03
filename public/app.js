@@ -46,6 +46,9 @@ const MIN_WIND_RADIUS_PX = 6;
 const MAX_WIND_RADIUS_PX = 24;
 const POINT_MARKER_SIZE = 5;
 const POINT_MARKER_DARKEN_FACTOR = 0.75;
+const MIN_TOP_SECTION_HEIGHT = 230;
+const MIN_MAP_SECTION_HEIGHT = 400;
+const GRID_ROW_GAP_PX = 12;
 const loadingOverlay = document.getElementById('loadingOverlay');
 const loadingMessageEl = loadingOverlay ? loadingOverlay.querySelector('.loading-message') : null;
 const windOverlayToggleInput = document.getElementById('windOverlayToggle');
@@ -1731,8 +1734,10 @@ if (regenPolarBtn) {
     const dy = clientY - hStartY;
     const containerH = container.getBoundingClientRect().height;
     let newH = hStartHeight + dy;
-    const minH = 120; // minimum top-section height
-    const maxH = containerH - 140; // keep room for map
+    const minH = MIN_TOP_SECTION_HEIGHT;
+    const dividerHeight = hDivider.getBoundingClientRect().height || 0;
+    const maxAvailable = containerH - MIN_MAP_SECTION_HEIGHT - dividerHeight - GRID_ROW_GAP_PX; // keep map visible and respect grid gap
+    const maxH = Math.max(minH, maxAvailable);
     if (newH < minH) newH = minH;
     if (newH > maxH) newH = maxH;
     container.style.setProperty('--top-height', `${newH}px`);
@@ -1795,7 +1800,7 @@ if (regenPolarBtn) {
       const headerH = headerBar ? headerBar.getBoundingClientRect().height : 0;
       const headH = thead ? thead.getBoundingClientRect().height : 0;
       const bodyH = tbody ? tbody.scrollHeight : 0;
-      const requiredTop = Math.ceil(headerH + headH + bodyH + borders + paddings + 2);
+      const requiredTop = Math.max(MIN_TOP_SECTION_HEIGHT, Math.ceil(headerH + headH + bodyH + borders + paddings + 2));
       const containerRect = container.getBoundingClientRect();
       const currentTop = top.getBoundingClientRect().height;
       const delta = Math.max(0, requiredTop - currentTop);
@@ -1805,8 +1810,8 @@ if (regenPolarBtn) {
       btn.textContent = 'Restore';
       btn.setAttribute('aria-pressed', 'true');
     } else {
-      container.style.height = ''; // back to CSS (95vh)
-      container.style.setProperty('--top-height', '25%');
+      container.style.height = ''; // back to CSS defaults
+      container.style.removeProperty('--top-height');
       btn.textContent = 'Maximize';
       btn.setAttribute('aria-pressed', 'false');
     }

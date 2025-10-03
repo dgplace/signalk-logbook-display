@@ -4,6 +4,7 @@
 body, html {
   height: 100%;
   margin: 0;
+  min-width: 800px;
   background: linear-gradient(180deg, #f8fafc 0%, #e0f2fe 100%);
   color: var(--text-color, #1f2937);
   font-family: var(--font-family, 'Inter', sans-serif);
@@ -13,9 +14,9 @@ html, body { height: 100%; }
 .container {
   width: 95%;
   margin: 0 auto;
-  height: 95vh;            /* slightly shorter to avoid vertical scrollbar */
+  min-height: 95vh;        /* allow layout to scroll when content exceeds viewport */
   display: grid;
-  grid-template-rows: var(--top-height, 25%) 6px 1fr; /* header/table, divider, map/panel */
+  grid-template-rows: minmax(230px, var(--top-height, 25vh)) 6px minmax(400px, 1fr); /* header/table, divider, map/panel */
   gap: 12px;
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(148, 163, 184, 0.35);
@@ -108,7 +109,7 @@ html, body { height: 100%; }
 }
 .table-wrapper {
   flex: 1 1 auto;
-  min-height: 0;           /* important for flex children to allow overflow */
+  min-height: 150px;       /* keep voyage table usable on short viewports */
   overflow-y: scroll;      /* always show scroll bar */
   overflow-x: hidden;
   border: 1px solid rgba(148, 163, 184, 0.35);
