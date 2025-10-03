@@ -1374,270 +1374,287 @@ function updateSelectedPoint(sel, neighbors = {}) {
 /**
  * Function: load
  * Description: Fetch voyages data, rebuild map overlays, and refresh the voyage table UI.
- * Parameters: None.
+ * Parameters:
+ *   options (object): Optional flags controlling progress display.
+ *     showProgress (boolean): When true and no overlay is active, display loading status.
+ *     message (string): Custom loading message displayed while fetching voyage data.
  * Returns: Promise<void> - Resolves when the interface has been refreshed.
  */
-async function load() {
-  const res  = await fetch('voyages.json');
-  const data = await res.json();
+async function load(options = {}) {
+  const showProgress = options.showProgress !== undefined ? Boolean(options.showProgress) : true;
+  const overlayActive = Boolean(loadingOverlay && loadingOverlay.classList.contains('is-active'));
+  const shouldManageOverlay = showProgress && !overlayActive;
+  const loadingMessage = typeof options.message === 'string' && options.message.trim() !== ''
+    ? options.message
+    : 'Loading voyages...';
+  if (shouldManageOverlay) {
+    showLoading(loadingMessage);
+  }
+  try {
+    const res  = await fetch('voyages.json');
+    const data = await res.json();
 
-  if (map) { map.off(); map.remove(); }
-  polylines = [];
-  maxMarker = null;
-  windIntensityLayer = null;
-  allVoyagesBounds = null;
+    if (map) { map.off(); map.remove(); }
+    polylines = [];
+    maxMarker = null;
+    windIntensityLayer = null;
+    allVoyagesBounds = null;
 
-  map = L.map('map').setView([0, 0], 2);
-  createBaseLayer().addTo(map);
-  map.on('click', onMapBackgroundClick);
-  map.on('tap', onMapBackgroundClick);
+    map = L.map('map').setView([0, 0], 2);
+    createBaseLayer().addTo(map);
+    map.on('click', onMapBackgroundClick);
+    map.on('tap', onMapBackgroundClick);
 
-  const tbody = document.querySelector('#voyTable tbody');
-  tbody.innerHTML = '';
-  voyageRows = [];
-  voyageData = [];
+    const tbody = document.querySelector('#voyTable tbody');
+    tbody.innerHTML = '';
+    voyageRows = [];
+    voyageData = [];
 
-  // Track overall bounds to fit all voyages when nothing is selected
-  let allBounds = null;
-  const totals = computeVoyageTotals(data.voyages);
+    // Track overall bounds to fit all voyages when nothing is selected
+    let allBounds = null;
+    const totals = computeVoyageTotals(data.voyages);
 
-  data.voyages.forEach((v, i) => {
-    v._tripIndex = i + 1;
-    const avgWindDir = (v.avgWindHeading !== undefined && v.avgWindHeading !== null) ? degToCompass(v.avgWindHeading) : '';
-    const row = tbody.insertRow();
-    row.dataset.tripIndex = String(i + 1);
-    voyageRows.push(row);
-    voyageData.push(v);
+    data.voyages.forEach((v, i) => {
+      v._tripIndex = i + 1;
+      const avgWindDir = (v.avgWindHeading !== undefined && v.avgWindHeading !== null) ? degToCompass(v.avgWindHeading) : '';
+      const row = tbody.insertRow();
+      row.dataset.tripIndex = String(i + 1);
+      voyageRows.push(row);
+      voyageData.push(v);
 
-    const segments = computeDaySegments(v);
-    v._segments = segments;
-    const isMultiDay = segments.length > 1;
-    const expander = isMultiDay ? `<button class="expander-btn" aria-label="Toggle days">[+]</button>` : '';
+      const segments = computeDaySegments(v);
+      v._segments = segments;
+      const isMultiDay = segments.length > 1;
+      const expander = isMultiDay ? `<button class="expander-btn" aria-label="Toggle days">[+]</button>` : '';
 
-    row.innerHTML =
-      `<td class="exp-cell">${expander}</td><td class="idx-cell">${i+1}</td><td>${dateHourLabel(v.startTime)}</td>
-        <td class="end-col">${dateHourLabel(v.endTime)}</td>
-        <td>${v.nm.toFixed(1)}</td>
-        <td class="max-speed-cell" tabindex="0">${v.maxSpeed.toFixed(1)}<span class="unit-kn"> kn</span></td>
-        <td class="avg-speed-col">${v.avgSpeed.toFixed(1)} kn</td>
-        <td class="max-wind-cell">${v.maxWind.toFixed(1)}<span class="unit-kn"> kn</span></td>
-        <td class="avg-wind-col">${v.avgWindSpeed.toFixed(1)} kn</td>
-        <td>${avgWindDir}</td>`;
+      row.innerHTML =
+        `<td class="exp-cell">${expander}</td><td class="idx-cell">${i+1}</td><td>${dateHourLabel(v.startTime)}</td>
+          <td class="end-col">${dateHourLabel(v.endTime)}</td>
+          <td>${v.nm.toFixed(1)}</td>
+          <td class="max-speed-cell" tabindex="0">${v.maxSpeed.toFixed(1)}<span class="unit-kn"> kn</span></td>
+          <td class="avg-speed-col">${v.avgSpeed.toFixed(1)} kn</td>
+          <td class="max-wind-cell">${v.maxWind.toFixed(1)}<span class="unit-kn"> kn</span></td>
+          <td class="avg-wind-col">${v.avgWindSpeed.toFixed(1)} kn</td>
+          <td>${avgWindDir}</td>`;
 
-    const maxSpeedCell = row.querySelector('.max-speed-cell');
-    if (maxSpeedCell) {
-      const activateMaxSpeedCell = () => {
-        const wasSelected = row.classList.contains('selected-row');
-        const previousSuppress = suppressHistoryUpdate;
-        if (wasSelected) suppressHistoryUpdate = true;
-        try {
-          selectVoyage(v, row, { fit: wasSelected ? false : true });
-        } finally {
-          suppressHistoryUpdate = previousSuppress;
-        }
-        drawMaxSpeedMarkerFromCoord(v.maxSpeedCoord, v.maxSpeed);
-      };
-      maxSpeedCell.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        activateMaxSpeedCell();
-      });
-      maxSpeedCell.addEventListener('keydown', (ev) => {
-        if (ev.key === 'Enter' || ev.key === ' ') {
-          ev.preventDefault();
+      const maxSpeedCell = row.querySelector('.max-speed-cell');
+      if (maxSpeedCell) {
+        const activateMaxSpeedCell = () => {
+          const wasSelected = row.classList.contains('selected-row');
+          const previousSuppress = suppressHistoryUpdate;
+          if (wasSelected) suppressHistoryUpdate = true;
+          try {
+            selectVoyage(v, row, { fit: wasSelected ? false : true });
+          } finally {
+            suppressHistoryUpdate = previousSuppress;
+          }
+          drawMaxSpeedMarkerFromCoord(v.maxSpeedCoord, v.maxSpeed);
+        };
+        maxSpeedCell.addEventListener('click', (ev) => {
           ev.stopPropagation();
           activateMaxSpeedCell();
-        }
-      });
-    }
-
-    let voyageBounds = null;
-    if (segments.length > 0) {
-      segments.forEach(seg => {
-        const latLngs = seg.points.map(p => [p.lat, p.lon]);
-        const pl = L.polyline(latLngs, { color: 'blue', weight: 2 }).addTo(map);
-        seg.polyline = pl;
-        polylines.push(pl);
-        const b = pl.getBounds();
-        voyageBounds = voyageBounds ? voyageBounds.extend(b) : b;
-        const voySelect = (ev) => { L.DomEvent.stopPropagation(ev); selectVoyage(v, row, { fit: false, scrollIntoView: true }); };
-        pl.on('click', voySelect);
-        pl._voySelect = voySelect;
-      });
-    } else {
-      const latLngs = v.coords.map(([lon, lat]) => [lat, lon]);
-      const line = L.polyline(latLngs, { color: 'blue', weight: 2 }).addTo(map);
-      polylines.push(line);
-      v._fallbackPolyline = line;
-      voyageBounds = line.getBounds();
-      const voySelect = (ev) => { L.DomEvent.stopPropagation(ev); selectVoyage(v, row, { fit: false, scrollIntoView: true }); };
-      line.on('click', voySelect);
-      line._voySelect = voySelect;
-    }
-    // Accumulate global bounds
-    if (voyageBounds) allBounds = allBounds ? allBounds.extend(voyageBounds) : voyageBounds;
-
-    row.addEventListener('click', (ev) => {
-      // Ignore clicks on the expander button; those toggle day rows only
-      if (ev.target && ev.target.classList && ev.target.classList.contains('expander-btn')) return;
-      selectVoyage(v, row, { fit: true });
-    });
-
-    if (isMultiDay) {
-      const dayRows = [];
-      let insertIndex = row.sectionRowIndex + 1;
-      segments.forEach((seg, idx) => {
-        const dr = tbody.insertRow(insertIndex);
-        dr.classList.add('day-row', 'hidden');
-          const avgWindDirDay = (seg.avgWindHeading !== undefined && seg.avgWindHeading !== null) ? degToCompass(seg.avgWindHeading) : '';
-          const dayLbl = weekdayShort(seg.startTime);
-          dr.innerHTML = `
-          <td class="exp-cell"></td>
-          <td class="idx-cell">${dayLbl}</td>
-          <td>${dateHourLabel(seg.startTime)}</td>
-          <td class="end-col">${dateHourLabel(seg.endTime)}</td>
-          <td>${seg.nm.toFixed(1)}</td>
-          <td class="max-speed-cell" tabindex="0">${seg.maxSpeed.toFixed(1)}<span class="unit-kn"> kn</span></td>
-          <td class="avg-speed-col">${seg.avgSpeed.toFixed(1)} kn</td>
-          <td class="max-wind-cell">${seg.maxWind.toFixed(1)}<span class="unit-kn"> kn</span></td>
-          <td class="avg-wind-col">${seg.avgWindSpeed.toFixed(1)} kn</td>
-          <td>${avgWindDirDay}</td>
-          `;
-
-        const handleDayRowClick = () => {
-          ensureMobileLayoutReadiness();
-          ensureMobileMapView();
-          clearMaxSpeedMarker();
-          polylines.forEach(pl => pl.setStyle({ color: 'blue', weight: 2 }));
-          detachActiveClickers();
-          clearActivePointMarkers();
-          clearSelectedWindGraphics();
-          removeActivePolylines();
-          const dayPoints = Array.isArray(seg.points) ? seg.points : [];
-          let dayHighlights = dayPoints.length >= 2 ? createActivityHighlightPolylines(dayPoints, { weight: 5 }) : [];
-          if (!dayHighlights.length && seg.polyline) {
-            seg.polyline.setStyle({ color: SAILING_HIGHLIGHT_COLOR, weight: DEFAULT_HIGHLIGHT_WEIGHT });
-            dayHighlights = [seg.polyline];
-          }
-          activePolylines = dayHighlights;
-          if (activePolylines.length > 0) {
-            let bounds = activePolylines[0].getBounds();
-            for (let i = 1; i < activePolylines.length; i++) bounds = bounds.extend(activePolylines[i].getBounds());
-            fitMapToBounds(bounds, { deferForMobile: true });
-          }
-          if (selectedPointMarker) { map.removeLayer(selectedPointMarker); selectedPointMarker = null; }
-          if (activePolylines.length && seg.points && seg.points.length) {
-            const onLineClick = (e) => onPolylineClick(e, seg.points);
-            activePolylines.forEach(pl => {
-              if (pl._voySelect) { try { pl.off('click', pl._voySelect); } catch (_) {} }
-              pl.on('click', onLineClick);
-              pl.on('tap', onLineClick);
-              activeLineClickers.push({ pl, onLineClick });
-            });
-            activePointMarkersGroup = L.layerGroup();
-            seg.points.forEach((p, idx) => {
-              if (typeof p.lat === 'number' && typeof p.lon === 'number') {
-                const icon = createPointMarkerIcon(p);
-                const m = L.marker([p.lat, p.lon], { icon });
-                m.on('click', (ev) => {
-                  L.DomEvent.stopPropagation(ev);
-                  updateSelectedPoint(p, { prev: seg.points[idx-1], next: seg.points[idx+1] });
-                });
-                m.addTo(activePointMarkersGroup);
-              }
-            });
-            activePointMarkersGroup.addTo(map);
-          }
-          currentVoyagePoints = seg.points || [];
-          refreshWindOverlay(dayPoints);
-          setWindOverlayToggleAvailability(true);
-          setDetailsHint('Click on the highlighted track to inspect a point.');
-        };
-        dr.addEventListener('click', handleDayRowClick);
-
-        const dayMaxSpeedCell = dr.querySelector('.max-speed-cell');
-        if (dayMaxSpeedCell) {
-          const activateDayMaxSpeedCell = () => {
-            handleDayRowClick();
-            drawMaxSpeedMarkerFromCoord(seg.maxSpeedCoord, seg.maxSpeed);
-          };
-          dayMaxSpeedCell.addEventListener('click', (ev) => {
+        });
+        maxSpeedCell.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter' || ev.key === ' ') {
+            ev.preventDefault();
             ev.stopPropagation();
-            activateDayMaxSpeedCell();
-          });
-          dayMaxSpeedCell.addEventListener('keydown', (ev) => {
-            if (ev.key === 'Enter' || ev.key === ' ') {
-              ev.preventDefault();
-              ev.stopPropagation();
-              activateDayMaxSpeedCell();
-            }
-          });
-        }
-
-        dayRows.push(dr);
-        insertIndex += 1;
-      });
-
-      const btn = row.querySelector('.expander-btn');
-      if (btn) {
-        let expanded = false;
-        btn.addEventListener('click', (ev) => {
-          ev.stopPropagation();
-          expanded = !expanded;
-          btn.textContent = expanded ? '[-]' : '[+]';
-          dayRows.forEach(r => r.classList.toggle('hidden', !expanded));
-          if (expanded && dayRows.length) {
-            const wrapper = row.closest('.table-wrapper');
-            if (wrapper) {
-              // Scroll just enough so the day rows are visible
-              requestAnimationFrame(() => {
-                const first = dayRows[0];
-                const last = dayRows[dayRows.length - 1];
-                const wr = wrapper.getBoundingClientRect();
-                const fr = first.getBoundingClientRect();
-                const lr = last.getBoundingClientRect();
-                const pad = 8;
-                if (fr.top < wr.top) {
-                  wrapper.scrollTop += (fr.top - wr.top) - pad;
-                } else if (lr.bottom > wr.bottom) {
-                  wrapper.scrollTop += (lr.bottom - wr.bottom) + pad;
-                }
-              });
-            }
+            activateMaxSpeedCell();
           }
         });
       }
+
+      let voyageBounds = null;
+      if (segments.length > 0) {
+        segments.forEach(seg => {
+          const latLngs = seg.points.map(p => [p.lat, p.lon]);
+          const pl = L.polyline(latLngs, { color: 'blue', weight: 2 }).addTo(map);
+          seg.polyline = pl;
+          polylines.push(pl);
+          const b = pl.getBounds();
+          voyageBounds = voyageBounds ? voyageBounds.extend(b) : b;
+          const voySelect = (ev) => { L.DomEvent.stopPropagation(ev); selectVoyage(v, row, { fit: false, scrollIntoView: true }); };
+          pl.on('click', voySelect);
+          pl._voySelect = voySelect;
+        });
+      } else {
+        const latLngs = v.coords.map(([lon, lat]) => [lat, lon]);
+        const line = L.polyline(latLngs, { color: 'blue', weight: 2 }).addTo(map);
+        polylines.push(line);
+        v._fallbackPolyline = line;
+        voyageBounds = line.getBounds();
+        const voySelect = (ev) => { L.DomEvent.stopPropagation(ev); selectVoyage(v, row, { fit: false, scrollIntoView: true }); };
+        line.on('click', voySelect);
+        line._voySelect = voySelect;
+      }
+      // Accumulate global bounds
+      if (voyageBounds) allBounds = allBounds ? allBounds.extend(voyageBounds) : voyageBounds;
+
+      row.addEventListener('click', (ev) => {
+        // Ignore clicks on the expander button; those toggle day rows only
+        if (ev.target && ev.target.classList && ev.target.classList.contains('expander-btn')) return;
+        selectVoyage(v, row, { fit: true });
+      });
+
+      if (isMultiDay) {
+        const dayRows = [];
+        let insertIndex = row.sectionRowIndex + 1;
+        segments.forEach((seg, idx) => {
+          const dr = tbody.insertRow(insertIndex);
+          dr.classList.add('day-row', 'hidden');
+            const avgWindDirDay = (seg.avgWindHeading !== undefined && seg.avgWindHeading !== null) ? degToCompass(seg.avgWindHeading) : '';
+            const dayLbl = weekdayShort(seg.startTime);
+            dr.innerHTML = `
+            <td class="exp-cell"></td>
+            <td class="idx-cell">${dayLbl}</td>
+            <td>${dateHourLabel(seg.startTime)}</td>
+            <td class="end-col">${dateHourLabel(seg.endTime)}</td>
+            <td>${seg.nm.toFixed(1)}</td>
+            <td class="max-speed-cell" tabindex="0">${seg.maxSpeed.toFixed(1)}<span class="unit-kn"> kn</span></td>
+            <td class="avg-speed-col">${seg.avgSpeed.toFixed(1)} kn</td>
+            <td class="max-wind-cell">${seg.maxWind.toFixed(1)}<span class="unit-kn"> kn</span></td>
+            <td class="avg-wind-col">${seg.avgWindSpeed.toFixed(1)} kn</td>
+            <td>${avgWindDirDay}</td>
+            `;
+
+          const handleDayRowClick = () => {
+            ensureMobileLayoutReadiness();
+            ensureMobileMapView();
+            clearMaxSpeedMarker();
+            polylines.forEach(pl => pl.setStyle({ color: 'blue', weight: 2 }));
+            detachActiveClickers();
+            clearActivePointMarkers();
+            clearSelectedWindGraphics();
+            removeActivePolylines();
+            const dayPoints = Array.isArray(seg.points) ? seg.points : [];
+            let dayHighlights = dayPoints.length >= 2 ? createActivityHighlightPolylines(dayPoints, { weight: 5 }) : [];
+            if (!dayHighlights.length && seg.polyline) {
+              seg.polyline.setStyle({ color: SAILING_HIGHLIGHT_COLOR, weight: DEFAULT_HIGHLIGHT_WEIGHT });
+              dayHighlights = [seg.polyline];
+            }
+            activePolylines = dayHighlights;
+            if (activePolylines.length > 0) {
+              let bounds = activePolylines[0].getBounds();
+              for (let i = 1; i < activePolylines.length; i++) bounds = bounds.extend(activePolylines[i].getBounds());
+              fitMapToBounds(bounds, { deferForMobile: true });
+            }
+            if (selectedPointMarker) { map.removeLayer(selectedPointMarker); selectedPointMarker = null; }
+            if (activePolylines.length && seg.points && seg.points.length) {
+              const onLineClick = (e) => onPolylineClick(e, seg.points);
+              activePolylines.forEach(pl => {
+                if (pl._voySelect) { try { pl.off('click', pl._voySelect); } catch (_) {} }
+                pl.on('click', onLineClick);
+                pl.on('tap', onLineClick);
+                activeLineClickers.push({ pl, onLineClick });
+              });
+              activePointMarkersGroup = L.layerGroup();
+              seg.points.forEach((p, idx) => {
+                if (typeof p.lat === 'number' && typeof p.lon === 'number') {
+                  const icon = createPointMarkerIcon(p);
+                  const m = L.marker([p.lat, p.lon], { icon });
+                  m.on('click', (ev) => {
+                    L.DomEvent.stopPropagation(ev);
+                    updateSelectedPoint(p, { prev: seg.points[idx-1], next: seg.points[idx+1] });
+                  });
+                  m.addTo(activePointMarkersGroup);
+                }
+              });
+              activePointMarkersGroup.addTo(map);
+            }
+            currentVoyagePoints = seg.points || [];
+            refreshWindOverlay(dayPoints);
+            setWindOverlayToggleAvailability(true);
+            setDetailsHint('Click on the highlighted track to inspect a point.');
+          };
+          dr.addEventListener('click', handleDayRowClick);
+
+          const dayMaxSpeedCell = dr.querySelector('.max-speed-cell');
+          if (dayMaxSpeedCell) {
+            const activateDayMaxSpeedCell = () => {
+              handleDayRowClick();
+              drawMaxSpeedMarkerFromCoord(seg.maxSpeedCoord, seg.maxSpeed);
+            };
+            dayMaxSpeedCell.addEventListener('click', (ev) => {
+              ev.stopPropagation();
+              activateDayMaxSpeedCell();
+            });
+            dayMaxSpeedCell.addEventListener('keydown', (ev) => {
+              if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault();
+                ev.stopPropagation();
+                activateDayMaxSpeedCell();
+              }
+            });
+          }
+
+          dayRows.push(dr);
+          insertIndex += 1;
+        });
+
+        const btn = row.querySelector('.expander-btn');
+        if (btn) {
+          let expanded = false;
+          btn.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            expanded = !expanded;
+            btn.textContent = expanded ? '[-]' : '[+]';
+            dayRows.forEach(r => r.classList.toggle('hidden', !expanded));
+            if (expanded && dayRows.length) {
+              const wrapper = row.closest('.table-wrapper');
+              if (wrapper) {
+                // Scroll just enough so the day rows are visible
+                requestAnimationFrame(() => {
+                  const first = dayRows[0];
+                  const last = dayRows[dayRows.length - 1];
+                  const wr = wrapper.getBoundingClientRect();
+                  const fr = first.getBoundingClientRect();
+                  const lr = last.getBoundingClientRect();
+                  const pad = 8;
+                  if (fr.top < wr.top) {
+                    wrapper.scrollTop += (fr.top - wr.top) - pad;
+                  } else if (lr.bottom > wr.bottom) {
+                    wrapper.scrollTop += (lr.bottom - wr.bottom) + pad;
+                  }
+                });
+              }
+            }
+          });
+        }
+      }
+    });
+
+    renderTotalsRow(tbody, totals);
+
+    if (allBounds && typeof allBounds.isValid === 'function' && allBounds.isValid()) {
+      allVoyagesBounds = allBounds;
+    } else {
+      allVoyagesBounds = null;
     }
-  });
 
-  renderTotalsRow(tbody, totals);
+    const selectedFromPath = syncVoyageSelectionWithPath({ updateHistory: historyUpdatesEnabled });
 
-  if (allBounds && typeof allBounds.isValid === 'function' && allBounds.isValid()) {
-    allVoyagesBounds = allBounds;
-  } else {
-    allVoyagesBounds = null;
-  }
+    // On initial load/refresh with no selection, fit all voyages
+    if (!selectedFromPath && allVoyagesBounds) fitMapToBounds(allVoyagesBounds, { deferForMobile: true });
 
-  const selectedFromPath = syncVoyageSelectionWithPath({ updateHistory: historyUpdatesEnabled });
-
-  // On initial load/refresh with no selection, fit all voyages
-  if (!selectedFromPath && allVoyagesBounds) fitMapToBounds(allVoyagesBounds, { deferForMobile: true });
-
-  // Scroll table to bottom on initial load
-  const tableWrapper = document.querySelector('.table-wrapper');
-  if (tableWrapper) {
-    if (!selectedFromPath) {
-      tableWrapper.scrollTop = tableWrapper.scrollHeight;
+    // Scroll table to bottom on initial load
+    const tableWrapper = document.querySelector('.table-wrapper');
+    if (tableWrapper) {
+      if (!selectedFromPath) {
+        tableWrapper.scrollTop = tableWrapper.scrollHeight;
+      }
     }
-  }
 
-  const initializingMobileView = !hasInitializedMobileView;
-  applyMobileLayout();
-  if (initializingMobileView) {
-    hasInitializedMobileView = true;
-    setActiveMobileView('map');
+    const initializingMobileView = !hasInitializedMobileView;
+    applyMobileLayout();
+    if (initializingMobileView) {
+      hasInitializedMobileView = true;
+      setActiveMobileView('map');
+    }
+  } finally {
+    if (shouldManageOverlay) {
+      hideLoading();
+    }
   }
 }
-
 // Details panel helpers
 /**
  * Function: setDetailsHint
