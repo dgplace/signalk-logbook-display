@@ -103,13 +103,26 @@ function getActiveMobileView() {
 
 /**
  * Function: ensureMobileMapView
- * Description: Activate the map tab when the mobile layout is active.
+ * Description: Activate the map tab when the mobile layout is active and scroll to the top when switching.
  * Parameters: None.
  * Returns: void.
  */
 function ensureMobileMapView() {
   if (!isMobileLayoutActive()) return;
+  const previousView = getActiveMobileView();
   setActiveMobileView('map');
+  if (previousView === 'map') return;
+  if (typeof window === 'undefined') return;
+  const scrollToTop = () => {
+    if (typeof window.scrollTo === 'function') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+  if (typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(scrollToTop);
+  } else {
+    scrollToTop();
+  }
 }
 
 /**
