@@ -64,3 +64,5 @@
 - Show the global loading overlay while voyages.json loads so progress feedback matches the voyage generation workflow.
 - Honour browser caching headers for static assets, including conditional requests for voyages.json to avoid unnecessary
   downloads on reload.
+- Taught the standalone dev server to emit strong ETags for static files so voyages.json is served with proper conditional
+  caching and avoids full transfers after the first request.
