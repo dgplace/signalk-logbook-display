@@ -8,11 +8,17 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <br>
   <div class="container">
     <div class="top-section">
       <div class="header-bar">
         <h2 style="margin: 16px 0;">Logbook SV Tequila Mockingbird</h2>
         <div class="header-actions">
+          <label class="toggle-switch" id="windOverlayToggleWrapper">
+            <input type="checkbox" id="windOverlayToggle" aria-label="Toggle wind overlay">
+            <span class="toggle-slider" aria-hidden="true"></span>
+            <span class="toggle-text">Wind overlay</span>
+          </label>
           <button id="toggleMaxBtn" aria-pressed="false">Maximize</button>
           <button id="regenBtn">Regenerate voyages</button>
           <!--<button id="regenPolarBtn">Regenerate polar</button>-->

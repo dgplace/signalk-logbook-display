@@ -19,16 +19,39 @@ let map, polylines = [], maxMarker;
 let activePolylines = [];
 let activeLineClickers = [];
 let selectedPointMarker = null;
-let squareIcon = L.divIcon({ className: 'square-marker', iconSize: [10,10] });
-let tinySquareIcon = L.divIcon({ className: 'tiny-square-marker', iconSize: [6,6] });
 let activePointMarkersGroup = null;
 let selectedWindGroup = null;
+let windIntensityLayer = null;
 let currentVoyagePoints = [];
 let voyageRows = [];
 let voyageData = [];
 let suppressHistoryUpdate = false;
+let allVoyagesBounds = null;
+
+const BASE_TILESET_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+const BASE_TILESET_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const WIND_SPEED_COLOR_STOPS = [
+  { limit: 0, color: '#0b4f6c' },
+  { limit: 6, color: '#1565c0' },
+  { limit: 12, color: '#1e88e5' },
+  { limit: 18, color: '#00acc1' },
+  { limit: 24, color: '#26a69a' },
+  { limit: 30, color: '#66bb6a' },
+  { limit: 36, color: '#ffee58' },
+  { limit: 42, color: '#f9a825' },
+  { limit: 48, color: '#f4511e' },
+  { limit: Infinity, color: '#d81b60' }
+];
+const MIN_WIND_RADIUS_PX = 6;
+const MAX_WIND_RADIUS_PX = 24;
+const POINT_MARKER_SIZE = 5;
+const POINT_MARKER_DARKEN_FACTOR = 0.75;
 const loadingOverlay = document.getElementById('loadingOverlay');
 const loadingMessageEl = loadingOverlay ? loadingOverlay.querySelector('.loading-message') : null;
+const windOverlayToggleInput = document.getElementById('windOverlayToggle');
+const windOverlayToggleWrapper = windOverlayToggleInput ? windOverlayToggleInput.closest('.toggle-switch') : null;
+
+let windOverlayEnabled = false;
 
 /**
  * Function: showLoading
@@ -59,6 +82,243 @@ function hideLoading() {
   if (loadingMessageEl) {
     loadingMessageEl.textContent = 'Working...';
   }
+}
+
+/**
+ * Function: createBaseLayer
+ * Description: Instantiate the Leaflet tile layer using CARTO's default Voyager basemap.
+ * Parameters: None.
+ * Returns: L.TileLayer - Tile layer configured with balanced-toned cartography.
+ */
+function createBaseLayer() {
+  return L.tileLayer(BASE_TILESET_URL, {
+    maxZoom: 20,
+    subdomains: 'abcd',
+    attribution: BASE_TILESET_ATTRIBUTION
+  });
+}
+
+/**
+ * Function: extractWindSpeed
+ * Description: Resolve the wind speed in knots for a voyage point if available.
+ * Parameters:
+ *   point (object): Voyage point with optional wind metadata.
+ * Returns: number|null - Wind speed in knots or null when missing.
+ */
+function extractWindSpeed(point) {
+  if (!point || typeof point !== 'object') return null;
+  if (typeof point.windSpeed === 'number') return point.windSpeed;
+  const windObj = point.entry?.wind;
+  if (windObj && typeof windObj.speed === 'number') return windObj.speed;
+  return null;
+}
+
+/**
+ * Function: windSpeedToColor
+ * Description: Map a wind speed to a Windy-inspired colour stop.
+ * Parameters:
+ *   speed (number): Wind speed in knots.
+ * Returns: string - Hex colour representing the supplied wind speed.
+ */
+function windSpeedToColor(speed) {
+  if (typeof speed !== 'number' || Number.isNaN(speed)) return '#0b4f6c';
+  let selected = WIND_SPEED_COLOR_STOPS[0].color;
+  for (let i = 0; i < WIND_SPEED_COLOR_STOPS.length; i++) {
+    const stop = WIND_SPEED_COLOR_STOPS[i];
+    selected = stop.color;
+    if (speed <= stop.limit) break;
+  }
+  return selected;
+}
+
+/**
+ * Function: normalizeHexColor
+ * Description: Normalize a hex colour string into a 6-character RGB representation without the leading hash.
+ * Parameters:
+ *   hex (string): Hex colour in shorthand or full form.
+ * Returns: string|null - Normalised hexadecimal string or null when invalid.
+ */
+function normalizeHexColor(hex) {
+  if (typeof hex !== 'string') return null;
+  let value = hex.trim();
+  if (value.startsWith('#')) value = value.slice(1);
+  if (value.length === 3) {
+    value = value.split('').map(ch => ch + ch).join('');
+  }
+  if (value.length !== 6 || !/^[0-9a-f]{6}$/i.test(value)) return null;
+  return value.toLowerCase();
+}
+
+/**
+ * Function: darkenHexColor
+ * Description: Apply a scalar multiplier to each RGB component of a hex colour to produce a darker shade.
+ * Parameters:
+ *   hex (string): Base hex colour.
+ *   factor (number): Multiplier between 0 and 1 controlling darkness intensity.
+ * Returns: string - Darkened hex colour including the leading hash.
+ */
+function darkenHexColor(hex, factor = 0.5) {
+  const norm = normalizeHexColor(hex);
+  if (!norm) return '#000000';
+  const clampFactor = Math.max(0, Math.min(1, factor));
+  const r = Math.round(parseInt(norm.slice(0, 2), 16) * clampFactor).toString(16).padStart(2, '0');
+  const g = Math.round(parseInt(norm.slice(2, 4), 16) * clampFactor).toString(16).padStart(2, '0');
+  const b = Math.round(parseInt(norm.slice(4, 6), 16) * clampFactor).toString(16).padStart(2, '0');
+  return `#${r}${g}${b}`;
+}
+
+/**
+ * Function: createPointMarkerIcon
+ * Description: Generate a Leaflet divIcon for a voyage point using a darker variant of its segment colour.
+ * Parameters:
+ *   point (object): Voyage point supplying activity metadata.
+ * Returns: L.DivIcon - Icon suitable for map markers.
+ */
+function createPointMarkerIcon(point) {
+  const activity = getPointActivity(point);
+  const baseColor = activity === 'sailing' ? SAILING_HIGHLIGHT_COLOR : NON_SAIL_HIGHLIGHT_COLOR;
+  const fillColor = darkenHexColor(baseColor, POINT_MARKER_DARKEN_FACTOR);
+  const size = POINT_MARKER_SIZE;
+  const anchor = Math.ceil(size / 2);
+  return L.divIcon({
+    className: 'point-square-icon',
+    iconSize: [size, size],
+    iconAnchor: [anchor, anchor],
+    html: `<span class="point-square-fill" style="background:${fillColor};"></span>`
+  });
+}
+
+/**
+ * Function: windSpeedToRadiusPx
+ * Description: Convert a wind speed to a circle radius in pixels for the intensity overlay.
+ * Parameters:
+ *   speed (number): Wind speed in knots.
+ * Returns: number - Radius in pixels applied to the circle marker.
+ */
+function windSpeedToRadiusPx(speed) {
+  if (typeof speed !== 'number' || Number.isNaN(speed)) return MIN_WIND_RADIUS_PX;
+  const clamped = Math.max(0, Math.min(50, speed));
+  const fraction = clamped / 50;
+  return MIN_WIND_RADIUS_PX + Math.round((MAX_WIND_RADIUS_PX - MIN_WIND_RADIUS_PX) * fraction);
+}
+
+/**
+ * Function: clearWindIntensityLayer
+ * Description: Remove the wind intensity overlay from the map when present.
+ * Parameters: None.
+ * Returns: void.
+ */
+function clearWindIntensityLayer() {
+  if (windIntensityLayer) {
+    map.removeLayer(windIntensityLayer);
+    windIntensityLayer = null;
+  }
+}
+
+/**
+ * Function: updateWindOverlayToggleUI
+ * Description: Sync the wind overlay toggle button label and pressed state with the current setting.
+ * Parameters: None.
+ * Returns: void.
+ */
+function updateWindOverlayToggleUI() {
+  if (!windOverlayToggleInput) return;
+  windOverlayToggleInput.checked = windOverlayEnabled;
+  if (windOverlayToggleWrapper) {
+    windOverlayToggleWrapper.classList.toggle('is-active', windOverlayEnabled && !windOverlayToggleInput.disabled);
+  }
+}
+
+/**
+ * Function: setWindOverlayToggleAvailability
+ * Description: Enable or disable the wind overlay toggle control.
+ * Parameters:
+ *   available (boolean): When true the toggle is enabled for interaction.
+ * Returns: void.
+ */
+function setWindOverlayToggleAvailability(available) {
+  if (!windOverlayToggleInput) return;
+  windOverlayToggleInput.disabled = !available;
+  if (windOverlayToggleWrapper) {
+    windOverlayToggleWrapper.classList.toggle('is-disabled', !available);
+  }
+  if (!available) {
+    windOverlayEnabled = false;
+    clearWindIntensityLayer();
+    updateWindOverlayToggleUI();
+  } else {
+    updateWindOverlayToggleUI();
+  }
+}
+
+/**
+ * Function: refreshWindOverlay
+ * Description: Rebuild the wind intensity overlay for the supplied voyage points when enabled.
+ * Parameters:
+ *   points (object[]): Voyage points providing wind data; defaults to the current voyage.
+ * Returns: void.
+ */
+function refreshWindOverlay(points = currentVoyagePoints) {
+  clearWindIntensityLayer();
+  if (!windOverlayEnabled) return;
+  if (!Array.isArray(points) || points.length === 0) return;
+  const layer = buildWindIntensityOverlay(points);
+  if (!layer) return;
+  windIntensityLayer = layer;
+  windIntensityLayer.addTo(map);
+}
+
+/**
+ * Function: setWindOverlayEnabled
+ * Description: Toggle the wind overlay visibility and update related UI state.
+ * Parameters:
+ *   enabled (boolean): When true the overlay renders for the active voyage.
+ * Returns: void.
+ */
+function setWindOverlayEnabled(enabled) {
+  windOverlayEnabled = Boolean(enabled);
+  updateWindOverlayToggleUI();
+  if (!windOverlayEnabled) {
+    clearWindIntensityLayer();
+    return;
+  }
+  refreshWindOverlay();
+}
+
+if (windOverlayToggleInput) {
+  windOverlayToggleInput.addEventListener('change', (event) => {
+    setWindOverlayEnabled(event.target.checked);
+  });
+  setWindOverlayToggleAvailability(false);
+}
+
+/**
+ * Function: buildWindIntensityOverlay
+ * Description: Create a layer group visualising per-point wind speed with Windy-style colouring.
+ * Parameters:
+ *   points (object[]): Voyage points considered for rendering.
+ * Returns: L.Layer|null - Leaflet layer group containing the wind markers, or null when none apply.
+ */
+function buildWindIntensityOverlay(points) {
+  if (!Array.isArray(points) || points.length === 0) return null;
+  const layer = L.layerGroup();
+  let rendered = 0;
+  points.forEach((point) => {
+    const speed = extractWindSpeed(point);
+    if (speed === null) return;
+    if (typeof point.lat !== 'number' || typeof point.lon !== 'number') return;
+    const marker = L.circleMarker([point.lat, point.lon], {
+      radius: windSpeedToRadiusPx(speed),
+      color: 'rgba(17, 24, 39, 0.35)',
+      weight: 1,
+      fillColor: windSpeedToColor(speed),
+      fillOpacity: 0.45,
+      interactive: false
+    });
+    marker.addTo(layer);
+    rendered += 1;
+  });
+  return rendered > 0 ? layer : null;
 }
 
 // Allow a bit of tolerance when selecting voyages by clicking the map background
@@ -395,12 +655,14 @@ function renderTotalsRow(tbody, totals) {
   const row = tbody.insertRow();
   row.classList.add('totals-row');
   row.innerHTML = `
-    <td class="exp-cell"></td>
-    <td class="idx-cell totals-label">Totals</td>
+    <td colspan="2" class="idx-cell totals-label">&nbspTotals</td>
     <td colspan="2" class="totals-active">Active Time: ${formatDurationMs(totalActiveMs)}</td>
-    <td class="totals-distance">${totalDistanceNm.toFixed(1)}</td>
-    <td colspan="2" class="totals-sailing">Sailing Time: ${formatDurationMs(totalSailingMs)} (${sailingPct.toFixed(1)}%)</td>
-    <td colspan="3"></td>`;
+    <td colspan="2" class="totals-distance">${totalDistanceNm.toFixed(1)} NM</td>
+    <td colspan="4" class="totals-sailing">Sailing Time: ${formatDurationMs(totalSailingMs)} (${sailingPct.toFixed(1)}%)</td>
+    `;
+  row.addEventListener('click', () => {
+    resetVoyageSelection();
+  });
 }
 
 /**
@@ -522,7 +784,8 @@ function selectVoyage(v, row, opts = {}) {
     activePointMarkersGroup = L.layerGroup();
     voyagePoints.forEach((p, idx) => {
       if (typeof p.lat !== 'number' || typeof p.lon !== 'number') return;
-      const m = L.marker([p.lat, p.lon], { icon: tinySquareIcon });
+      const icon = createPointMarkerIcon(p);
+      const m = L.marker([p.lat, p.lon], { icon });
       m.on('click', (ev) => {
         L.DomEvent.stopPropagation(ev);
         updateSelectedPoint(p, { prev: voyagePoints[idx-1], next: voyagePoints[idx+1] });
@@ -531,6 +794,9 @@ function selectVoyage(v, row, opts = {}) {
     });
     activePointMarkersGroup.addTo(map);
   }
+
+  refreshWindOverlay(voyagePoints);
+  setWindOverlayToggleAvailability(true);
 
   if (!suppressHistoryUpdate && historyUpdatesEnabled && typeof v._tripIndex === 'number') {
     updateHistoryForTrip(v._tripIndex, { replace: false });
@@ -600,6 +866,40 @@ function onMapBackgroundClick(ev) {
 function setSelectedTableRow(row) {
   document.querySelectorAll('#voyTable tr.selected-row').forEach(r => r.classList.remove('selected-row'));
   if (row) row.classList.add('selected-row');
+}
+
+/**
+ * Function: resetVoyageSelection
+ * Description: Clear any active voyage selection and restore the map to show all voyages.
+ * Parameters: None.
+ * Returns: void.
+ */
+function resetVoyageSelection() {
+  setSelectedTableRow(null);
+  detachActiveClickers();
+  clearActivePointMarkers();
+  clearSelectedWindGraphics();
+  clearWindIntensityLayer();
+  removeActivePolylines();
+  clearMaxSpeedMarker();
+  if (selectedPointMarker && map) {
+    try { map.removeLayer(selectedPointMarker); } catch (_) {}
+  }
+  selectedPointMarker = null;
+  currentVoyagePoints = [];
+  polylines.forEach(pl => {
+    try { pl.setStyle({ color: 'blue', weight: 2 }); } catch (_) {}
+  });
+  if (map && allVoyagesBounds && typeof allVoyagesBounds.isValid === 'function' && allVoyagesBounds.isValid()) {
+    map.fitBounds(allVoyagesBounds);
+  }
+  setWindOverlayToggleAvailability(false);
+  if (historyUpdatesEnabled && window.history && typeof window.history.replaceState === 'function') {
+    const search = window.location.search || '';
+    const hash = window.location.hash || '';
+    window.history.replaceState({}, '', `${basePathname}${search}${hash}`);
+  }
+  setDetailsHint('Select a voyage, then click the highlighted track to inspect points.');
 }
 
 /**
@@ -831,9 +1131,11 @@ async function load() {
   if (map) { map.off(); map.remove(); }
   polylines = [];
   maxMarker = null;
+  windIntensityLayer = null;
+  allVoyagesBounds = null;
 
   map = L.map('map').setView([0, 0], 2);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+  createBaseLayer().addTo(map);
   map.on('click', onMapBackgroundClick);
   map.on('tap', onMapBackgroundClick);
 
@@ -979,7 +1281,8 @@ async function load() {
             activePointMarkersGroup = L.layerGroup();
             seg.points.forEach((p, idx) => {
               if (typeof p.lat === 'number' && typeof p.lon === 'number') {
-                const m = L.marker([p.lat, p.lon], { icon: tinySquareIcon });
+                const icon = createPointMarkerIcon(p);
+                const m = L.marker([p.lat, p.lon], { icon });
                 m.on('click', (ev) => {
                   L.DomEvent.stopPropagation(ev);
                   updateSelectedPoint(p, { prev: seg.points[idx-1], next: seg.points[idx+1] });
@@ -990,6 +1293,8 @@ async function load() {
             activePointMarkersGroup.addTo(map);
           }
           currentVoyagePoints = seg.points || [];
+          refreshWindOverlay(dayPoints);
+          setWindOverlayToggleAvailability(true);
           setDetailsHint('Click on the highlighted track to inspect a point.');
         };
         dr.addEventListener('click', handleDayRowClick);
@@ -1051,10 +1356,16 @@ async function load() {
 
   renderTotalsRow(tbody, totals);
 
+  if (allBounds && typeof allBounds.isValid === 'function' && allBounds.isValid()) {
+    allVoyagesBounds = allBounds;
+  } else {
+    allVoyagesBounds = null;
+  }
+
   const selectedFromPath = syncVoyageSelectionWithPath({ updateHistory: historyUpdatesEnabled });
 
   // On initial load/refresh with no selection, fit all voyages
-  if (!selectedFromPath && allBounds) map.fitBounds(allBounds);
+  if (!selectedFromPath && allVoyagesBounds) map.fitBounds(allVoyagesBounds);
 
   // Scroll table to bottom on initial load
   const tableWrapper = document.querySelector('.table-wrapper');

@@ -32,6 +32,10 @@ A Signal K plugin/webapp that provides a voyage summary and map viewer.
 
 For architectural details and file responsibilities, see `LOG.md`.
 
+## Map Theme
+
+The voyage viewer renders voyages on CARTO's Voyager basemap, which balances land/water contrast for all lighting conditions. The UI adopts a light palette to match: tables, details drawers, and overlays now use soft neutrals so tracks and the coloured wind intensity overlay remain prominent. A slider-style “Wind overlay” control in the header starts off (and stays disabled until a voyage/day is selected) so you can enable the circles only when you need them. Ensure the browser can reach the CARTO basemap endpoint (`https://{s}.basemaps.cartocdn.com/`) when running the app.
+
 ## Build and Package
 
 - Prerequisites: Node.js and npm available in your PATH.
