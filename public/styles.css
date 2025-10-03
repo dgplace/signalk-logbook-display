@@ -202,6 +202,7 @@ table {
 th, td {
   padding: 8px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  font-size: 0.90rem;
 }
 th {
   background: rgba(226, 232, 240, 0.95);
@@ -446,6 +447,10 @@ body.is-loading * {
   min-height: 100vh;
   grid-template-rows: none;
   gap: 16px;
+}
+
+.container.mobile-layout #toggleMaxBtn {
+  display: none;
 }
 
 .container.mobile-layout .mobile-tab-bar {

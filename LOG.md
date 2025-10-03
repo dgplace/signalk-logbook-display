@@ -56,3 +56,4 @@
 - Replaced the previous 700px minimum width requirement with a mobile breakpoint that swaps the grid for accessible tabs, letting phone users toggle between the voyage table and the map.
 - Default the mobile layout to the Map tab on load and automatically switch back to the map whenever a voyage or day segment is selected from the table.
 - Ensure the mobile layout is applied before selections so reloading with an active voyage keeps the highlighted track visible and refits the map immediately.
+- Hide the table maximize control when the responsive mobile layout is active and reduce the voyage table font size slightly for consistency across viewports.
