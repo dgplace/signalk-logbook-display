@@ -47,3 +47,13 @@
 
 ## Change Log
 - Updated deployment helper (now `scripts/deploy-to-signalk.sh`) to copy root-level `.js` files into the Signal K module directory alongside the public asset sync.
+- Introduced a Windy-themed Leaflet experience with dark CARTO basemap tiles, a wind intensity overlay, and refreshed UI styling for the voyage viewer.
+- Swapped the map tiles to the CARTO Light basemap so OpenStreetMap content appears brighter while keeping the wind overlays unchanged.
+- Adopted the CARTO Voyager basemap and rethemed the front-end with a light palette for balanced contrast across the app.
+- Fixed day-segment selection so wind/point highlight circles refresh with the chosen segment instead of lingering from previous voyages.
+- Wind intensity circles now scale with map zoom by using meter-based radii derived from wind speed.
+- Added a header toggle for the wind overlay and reduced circle radii so the view stays clear when zoomed out.
+- Simplified voyage point markers to slim blue squares that stay aligned with track thickness.
+- Resized point markers to roughly 1.5× the route weight and restored wind circles to fixed pixel sizing for consistent visibility.
+- Tuned point markers to about 1.1× the polyline thickness, colouring them as a darker shade of their segment while doubling wind circle radii and replacing the wind overlay button with an off-by-default slider toggle that only activates once a voyage/day is selected.
+- Clicking the totals row now clears any voyage selection and refits the map to display every voyage.
