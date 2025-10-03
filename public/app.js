@@ -54,7 +54,242 @@ const loadingMessageEl = loadingOverlay ? loadingOverlay.querySelector('.loading
 const windOverlayToggleInput = document.getElementById('windOverlayToggle');
 const windOverlayToggleWrapper = windOverlayToggleInput ? windOverlayToggleInput.closest('.toggle-switch') : null;
 
+const MOBILE_BREAKPOINT_PX = 700;
+const containerEl = document.querySelector('.container');
+const mobileTabBar = document.getElementById('mobileTabBar');
+const mobileTabButtons = {
+  table: document.getElementById('mobileTabTable'),
+  map: document.getElementById('mobileTabMap')
+};
+const tablePanel = document.getElementById('tablePanel');
+const mapPanel = document.getElementById('mapPanel');
+
+let pendingMobileResizeFrame = null;
+let hasInitializedMobileView = false;
+
 let windOverlayEnabled = false;
+
+/**
+ * Function: isMobileViewport
+ * Description: Determine whether the viewport width is below the mobile breakpoint.
+ * Parameters: None.
+ * Returns: boolean - True when the viewport should use the mobile layout.
+ */
+function isMobileViewport() {
+  const width = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth || 0;
+  return width > 0 && width < MOBILE_BREAKPOINT_PX;
+}
+
+/**
+ * Function: isMobileLayoutActive
+ * Description: Determine whether the responsive mobile layout is currently applied.
+ * Parameters: None.
+ * Returns: boolean - True when the container is in mobile layout mode.
+ */
+function isMobileLayoutActive() {
+  return Boolean(containerEl && containerEl.classList.contains('mobile-layout'));
+}
+
+/**
+ * Function: getActiveMobileView
+ * Description: Read the currently selected mobile view from the container dataset.
+ * Parameters: None.
+ * Returns: string - Either 'table' or 'map'.
+ */
+function getActiveMobileView() {
+  if (!containerEl) return 'table';
+  return containerEl.dataset.mobileView === 'map' ? 'map' : 'table';
+}
+
+/**
+ * Function: ensureMobileMapView
+ * Description: Activate the map tab when the mobile layout is active.
+ * Parameters: None.
+ * Returns: void.
+ */
+function ensureMobileMapView() {
+  if (!isMobileLayoutActive()) return;
+  setActiveMobileView('map');
+}
+
+/**
+ * Function: ensureMobileLayoutReadiness
+ * Description: Apply the mobile layout when the viewport qualifies and it has not yet been activated.
+ * Parameters: None.
+ * Returns: void.
+ */
+function ensureMobileLayoutReadiness() {
+  if (!isMobileViewport()) return;
+  if (isMobileLayoutActive()) return;
+  applyMobileLayout();
+}
+
+/**
+ * Function: fitMapToBounds
+ * Description: Fit the Leaflet map to the supplied bounds, optionally deferring until the mobile layout stabilises.
+ * Parameters:
+ *   bounds (L.LatLngBounds): Geographic bounds representing the region to display.
+ *   options (object): Optional flags controlling scheduling behaviour.
+ * Returns: void.
+ */
+function fitMapToBounds(bounds, options = {}) {
+  if (!map || !bounds || typeof bounds.isValid !== 'function' || !bounds.isValid()) return;
+  const { deferForMobile = false } = options;
+  const performFit = () => {
+    if (map && bounds && typeof bounds.isValid === 'function' && bounds.isValid()) {
+      map.fitBounds(bounds);
+    }
+  };
+  if (deferForMobile && isMobileLayoutActive()) {
+    requestAnimationFrame(() => {
+      if (map) map.invalidateSize();
+      requestAnimationFrame(performFit);
+    });
+    return;
+  }
+  performFit();
+}
+
+/**
+ * Function: setActiveMobileView
+ * Description: Activate the requested mobile panel, update tab styling, and manage visibility.
+ * Parameters:
+ *   view (string): Target view identifier, accepts 'table' or 'map'.
+ * Returns: void.
+ */
+function setActiveMobileView(view) {
+  if (!containerEl) return;
+  const normalized = view === 'map' ? 'map' : 'table';
+  containerEl.dataset.mobileView = normalized;
+  const inMobileLayout = containerEl.classList.contains('mobile-layout');
+
+  const tableButton = mobileTabButtons.table;
+  const mapButton = mobileTabButtons.map;
+  if (tableButton) {
+    const isActive = normalized === 'table' && inMobileLayout;
+    tableButton.classList.toggle('is-active', isActive);
+    tableButton.setAttribute('aria-selected', String(isActive));
+    tableButton.setAttribute('tabindex', inMobileLayout ? (normalized === 'table' ? '0' : '-1') : '0');
+  }
+  if (mapButton) {
+    const isActive = normalized === 'map' && inMobileLayout;
+    mapButton.classList.toggle('is-active', isActive);
+    mapButton.setAttribute('aria-selected', String(isActive));
+    mapButton.setAttribute('tabindex', inMobileLayout ? (normalized === 'map' ? '0' : '-1') : '0');
+  }
+
+  if (tablePanel) {
+    tablePanel.hidden = inMobileLayout ? normalized !== 'table' : false;
+  }
+  if (mapPanel) {
+    mapPanel.hidden = inMobileLayout ? normalized !== 'map' : false;
+  }
+
+  if (normalized === 'map' && typeof map !== 'undefined' && map) {
+    requestAnimationFrame(() => {
+      if (map) map.invalidateSize();
+    });
+  }
+}
+
+/**
+ * Function: applyMobileLayout
+ * Description: Toggle the responsive layout class and associated UI affordances based on viewport width.
+ * Parameters: None.
+ * Returns: void.
+ */
+function applyMobileLayout() {
+  if (!containerEl) return;
+  const shouldUseMobile = isMobileViewport();
+  if (shouldUseMobile) {
+    containerEl.classList.add('mobile-layout');
+    if (mobileTabBar) {
+      mobileTabBar.hidden = false;
+      mobileTabBar.setAttribute('aria-hidden', 'false');
+    }
+    containerEl.style.removeProperty('--top-height');
+    containerEl.style.height = '';
+    setActiveMobileView(getActiveMobileView());
+  } else {
+    containerEl.classList.remove('mobile-layout');
+    if (mobileTabBar) {
+      mobileTabBar.hidden = true;
+      mobileTabBar.setAttribute('aria-hidden', 'true');
+    }
+    if (mobileTabButtons.table) {
+      mobileTabButtons.table.classList.remove('is-active');
+      mobileTabButtons.table.setAttribute('aria-selected', 'false');
+      mobileTabButtons.table.setAttribute('tabindex', '0');
+    }
+    if (mobileTabButtons.map) {
+      mobileTabButtons.map.classList.remove('is-active');
+      mobileTabButtons.map.setAttribute('aria-selected', 'false');
+      mobileTabButtons.map.setAttribute('tabindex', '0');
+    }
+    if (tablePanel) tablePanel.hidden = false;
+    if (mapPanel) mapPanel.hidden = false;
+    if (typeof map !== 'undefined' && map) {
+      requestAnimationFrame(() => {
+        if (map) map.invalidateSize();
+      });
+    }
+  }
+}
+
+/**
+ * Function: handleMobileTabKeyNavigation
+ * Description: Support left and right arrow key navigation between mobile tabs.
+ * Parameters:
+ *   event (KeyboardEvent): Key event triggered within the mobile tab bar.
+ * Returns: void.
+ */
+function handleMobileTabKeyNavigation(event) {
+  if (!containerEl || !containerEl.classList.contains('mobile-layout')) return;
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+  const currentView = getActiveMobileView();
+  let nextView = currentView;
+  if (event.key === 'ArrowLeft') {
+    nextView = currentView === 'map' ? 'table' : 'map';
+  } else if (event.key === 'ArrowRight') {
+    nextView = currentView === 'table' ? 'map' : 'table';
+  }
+  if (nextView === currentView) return;
+  event.preventDefault();
+  setActiveMobileView(nextView);
+  const nextButton = mobileTabButtons[nextView];
+  if (nextButton) nextButton.focus();
+}
+
+/**
+ * Function: initMobileLayoutControls
+ * Description: Wire up mobile tab interactions and monitor viewport changes.
+ * Parameters: None.
+ * Returns: void.
+ */
+function initMobileLayoutControls() {
+  if (!containerEl) return;
+  if (mobileTabButtons.table) {
+    mobileTabButtons.table.addEventListener('click', () => setActiveMobileView('table'));
+  }
+  if (mobileTabButtons.map) {
+    mobileTabButtons.map.addEventListener('click', () => setActiveMobileView('map'));
+  }
+  if (mobileTabBar) {
+    mobileTabBar.addEventListener('keydown', handleMobileTabKeyNavigation);
+  }
+  window.addEventListener('resize', () => {
+    if (pendingMobileResizeFrame) {
+      cancelAnimationFrame(pendingMobileResizeFrame);
+    }
+    pendingMobileResizeFrame = requestAnimationFrame(() => {
+      pendingMobileResizeFrame = null;
+      applyMobileLayout();
+    });
+  });
+  applyMobileLayout();
+}
+
+initMobileLayoutControls();
 
 /**
  * Function: showLoading
@@ -728,6 +963,8 @@ function drawMaxSpeedMarkerFromCoord(coord, speed) {
  */
 function selectVoyage(v, row, opts = {}) {
   const { fit = true, scrollIntoView = false } = opts;
+  ensureMobileLayoutReadiness();
+  ensureMobileMapView();
   // highlight table row
   setSelectedTableRow(row);
   if (scrollIntoView && row && typeof row.scrollIntoView === 'function') {
@@ -763,7 +1000,7 @@ function selectVoyage(v, row, opts = {}) {
   if (fit && activePolylines.length > 0) {
     let bounds = activePolylines[0].getBounds();
     for (let i = 1; i < activePolylines.length; i++) bounds = bounds.extend(activePolylines[i].getBounds());
-    if (bounds && bounds.isValid && bounds.isValid()) map.fitBounds(bounds);
+    fitMapToBounds(bounds, { deferForMobile: true });
   }
 
   // update max speed marker
@@ -1254,6 +1491,8 @@ async function load() {
           `;
 
         const handleDayRowClick = () => {
+          ensureMobileLayoutReadiness();
+          ensureMobileMapView();
           clearMaxSpeedMarker();
           polylines.forEach(pl => pl.setStyle({ color: 'blue', weight: 2 }));
           detachActiveClickers();
@@ -1270,7 +1509,7 @@ async function load() {
           if (activePolylines.length > 0) {
             let bounds = activePolylines[0].getBounds();
             for (let i = 1; i < activePolylines.length; i++) bounds = bounds.extend(activePolylines[i].getBounds());
-            if (bounds && bounds.isValid && bounds.isValid()) map.fitBounds(bounds);
+            fitMapToBounds(bounds, { deferForMobile: true });
           }
           if (selectedPointMarker) { map.removeLayer(selectedPointMarker); selectedPointMarker = null; }
           if (activePolylines.length && seg.points && seg.points.length) {
@@ -1368,7 +1607,7 @@ async function load() {
   const selectedFromPath = syncVoyageSelectionWithPath({ updateHistory: historyUpdatesEnabled });
 
   // On initial load/refresh with no selection, fit all voyages
-  if (!selectedFromPath && allVoyagesBounds) map.fitBounds(allVoyagesBounds);
+  if (!selectedFromPath && allVoyagesBounds) fitMapToBounds(allVoyagesBounds, { deferForMobile: true });
 
   // Scroll table to bottom on initial load
   const tableWrapper = document.querySelector('.table-wrapper');
@@ -1376,6 +1615,13 @@ async function load() {
     if (!selectedFromPath) {
       tableWrapper.scrollTop = tableWrapper.scrollHeight;
     }
+  }
+
+  const initializingMobileView = !hasInitializedMobileView;
+  applyMobileLayout();
+  if (initializingMobileView) {
+    hasInitializedMobileView = true;
+    setActiveMobileView('map');
   }
 }
 

@@ -9,8 +9,16 @@
 </head>
 <body>
   <br>
-  <div class="container">
-    <div class="top-section">
+  <div class="container" data-mobile-view="table">
+    <div class="mobile-tab-bar" id="mobileTabBar" role="tablist" aria-label="View toggle">
+      <button id="mobileTabTable" class="mobile-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="tablePanel">
+        Voyages
+      </button>
+      <button id="mobileTabMap" class="mobile-tab" type="button" role="tab" aria-selected="false" aria-controls="mapPanel">
+        Map
+      </button>
+    </div>
+    <div class="top-section" id="tablePanel" role="tabpanel" aria-labelledby="mobileTabTable">
       <div class="header-bar">
         <h2 style="margin: 16px 0;">Logbook SV Tequila Mockingbird</h2>
         <div class="header-actions">
@@ -45,7 +53,7 @@
       </div>
     </div>
     <div id="hDivider" class="h-divider" role="separator" aria-orientation="horizontal" aria-label="Resize panels"></div>
-    <div class="map-row">
+    <div class="map-row" id="mapPanel" role="tabpanel" aria-labelledby="mobileTabMap">
       <div id="map"></div>
       <div id="pointDetails" class="details-panel" aria-live="polite"></div>
     </div>

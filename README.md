@@ -36,6 +36,10 @@ For architectural details and file responsibilities, see `LOG.md`.
 
 The voyage viewer renders voyages on CARTO's Voyager basemap, which balances land/water contrast for all lighting conditions. The UI adopts a light palette to match: tables, details drawers, and overlays now use soft neutrals so tracks and the coloured wind intensity overlay remain prominent. A slider-style “Wind overlay” control in the header starts off (and stays disabled until a voyage/day is selected) so you can enable the circles only when you need them. Ensure the browser can reach the CARTO basemap endpoint (`https://{s}.basemaps.cartocdn.com/`) when running the app.
 
+## Mobile Layout
+
+When the viewport drops below 700 px wide the app automatically switches to a tabbed interface tailored for phones. Use the **Voyages** and **Map** tabs above the content to flip between the table and the Leaflet view; the point details drawer moves beneath the map so it remains readable on smaller screens. The mobile layout now opens on the Map tab by default, recentres the view when the page loads with a trip URL, and jumps back to the map whenever you select a voyage or day from the table so the highlighted track is visible straight away. Wider displays continue to use the side-by-side grid without any extra interaction.
+
 ## Build and Package
 
 - Prerequisites: Node.js and npm available in your PATH.

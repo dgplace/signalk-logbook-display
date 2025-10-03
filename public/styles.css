@@ -4,7 +4,7 @@
 body, html {
   height: 100%;
   margin: 0;
-  min-width: 800px;
+  min-width: 320px;
   background: linear-gradient(180deg, #f8fafc 0%, #e0f2fe 100%);
   color: var(--text-color, #1f2937);
   font-family: var(--font-family, 'Inter', sans-serif);
@@ -24,6 +24,36 @@ html, body { height: 100%; }
   backdrop-filter: blur(10px);
   padding: 16px;
   box-shadow: 0 20px 45px rgba(30, 64, 175, 0.14);
+}
+
+.mobile-tab-bar {
+  display: none;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.mobile-tab {
+  flex: 1 1 0;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: rgba(191, 219, 254, 0.35);
+  color: #1e293b;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mobile-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.45);
+}
+
+.mobile-tab.is-active {
+  background: linear-gradient(135deg, #3b82f6 0%, #0ea5e9 100%);
+  color: #f8fafc;
+  border-color: transparent;
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.32);
 }
 .top-section {
   display: flex;
@@ -406,4 +436,66 @@ body.is-loading * {
 
 @keyframes loading-spin {
   to { transform: rotate(360deg); }
+}
+
+.container.mobile-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin: 0;
+  min-height: 100vh;
+  grid-template-rows: none;
+  gap: 16px;
+}
+
+.container.mobile-layout .mobile-tab-bar {
+  display: flex;
+}
+
+.container.mobile-layout #hDivider {
+  display: none;
+}
+
+.container.mobile-layout #tablePanel,
+.container.mobile-layout #mapPanel {
+  display: none;
+}
+
+.container.mobile-layout[data-mobile-view="table"] #tablePanel {
+  display: flex;
+}
+
+.container.mobile-layout[data-mobile-view="map"] #mapPanel {
+  display: flex;
+}
+
+.container.mobile-layout #tablePanel {
+  flex: 1 1 auto;
+}
+
+.container.mobile-layout #mapPanel {
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 12px;
+  overflow: visible;
+}
+
+.container.mobile-layout #map {
+  min-height: 320px;
+  height: 60vh;
+}
+
+.container.mobile-layout .details-panel {
+  position: static;
+  width: 100%;
+  max-width: none;
+  box-shadow: 0 12px 28px rgba(148, 163, 184, 0.3);
+}
+
+.container.mobile-layout .top-section {
+  min-height: 0;
+}
+
+.container.mobile-layout .table-wrapper {
+  max-height: none;
 }

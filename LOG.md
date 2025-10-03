@@ -53,3 +53,6 @@
 - Enforced a 700px minimum page width to preserve layout integrity on narrow viewports.
 - Set a 150px minimum height on the voyage table wrapper to maintain legibility when space is constrained.
 - Let the main layout exceed the viewport when necessary so the page scrolls instead of shrinking the map, keeping the map row at least 400px tall and ensuring the table row never compresses below 230px even when the window is short.
+- Replaced the previous 700px minimum width requirement with a mobile breakpoint that swaps the grid for accessible tabs, letting phone users toggle between the voyage table and the map.
+- Default the mobile layout to the Map tab on load and automatically switch back to the map whenever a voyage or day segment is selected from the table.
+- Ensure the mobile layout is applied before selections so reloading with an active voyage keeps the highlighted track visible and refits the map immediately.
