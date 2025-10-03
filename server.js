@@ -90,6 +90,43 @@ function send(res, status, headers, body) {
 }
 
 /**
+ * Function: normalizeEtag
+ * Description: Strip weak validators and wrapping quotes from an ETag value for comparison purposes.
+ * Parameters:
+ *   value (string): Raw ETag header value that may include weak validators or quotes.
+ * Returns: string - Normalised ETag token suitable for equality checks.
+ */
+function normalizeEtag(value) {
+  if (typeof value !== 'string') return '';
+  let token = value.trim();
+  if (token.startsWith('W/')) {
+    token = token.slice(2);
+  }
+  if (token.startsWith('"') && token.endsWith('"') && token.length >= 2) {
+    token = token.slice(1, -1);
+  }
+  return token;
+}
+
+/**
+ * Function: etagMatches
+ * Description: Evaluate whether the If-None-Match header matches the provided entity tag, accounting for weak validators.
+ * Parameters:
+ *   headerValue (string): Raw If-None-Match header string supplied by the client.
+ *   entityTag (string): The strong entity tag generated for the requested resource.
+ * Returns: boolean - True when the header indicates the cached representation is still valid.
+ */
+function etagMatches(headerValue, entityTag) {
+  if (!headerValue) return false;
+  if (headerValue.trim() === '*') return true;
+  const comparisonTag = normalizeEtag(entityTag);
+  return headerValue
+    .split(',')
+    .map(part => normalizeEtag(part))
+    .some(candidate => candidate !== '' && candidate === comparisonTag);
+}
+
+/**
  * Function: serveFile
  * Description: Stream a static file to the HTTP client, applying appropriate MIME type headers and cache validation using
  *              Last-Modified and ETag headers.
@@ -111,16 +148,17 @@ function serveFile(req, res, filePath) {
     const cacheControl = ext === '.json'
       ? 'public, max-age=60, must-revalidate'
       : 'public, max-age=86400, must-revalidate';
-    const etag = `"${stats.size.toString(16)}-${Math.floor(stats.mtimeMs).toString(16)}"`;
+    const entityTag = `${stats.size.toString(16)}-${Math.floor(stats.mtimeMs).toString(16)}`;
+    const quotedEtag = `"${entityTag}"`;
 
     const ifModifiedSince = req.headers['if-modified-since'];
     const ifNoneMatch = req.headers['if-none-match'];
 
-    if (ifNoneMatch && ifNoneMatch === etag) {
+    if (etagMatches(ifNoneMatch, entityTag)) {
       return send(res, 304, {
         'Cache-Control': cacheControl,
         'Last-Modified': lastModified,
-        'ETag': etag
+        'ETag': quotedEtag
       }, undefined);
     }
 
@@ -133,7 +171,7 @@ function serveFile(req, res, filePath) {
           return send(res, 304, {
             'Cache-Control': cacheControl,
             'Last-Modified': lastModified,
-            'ETag': etag
+            'ETag': quotedEtag
           }, undefined);
         }
       }
@@ -148,7 +186,7 @@ function serveFile(req, res, filePath) {
       'Content-Type': type,
       'Cache-Control': cacheControl,
       'Last-Modified': lastModified,
-      'ETag': etag,
+      'ETag': quotedEtag,
     }, stream);
   });
 }

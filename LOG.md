@@ -66,3 +66,5 @@
   downloads on reload.
 - Taught the standalone dev server to emit strong ETags for static files so voyages.json is served with proper conditional
   caching and avoids full transfers after the first request.
+- Updated the dev server's ETag handling to accept weak validators from browsers so voyages.json reuses cached copies instead
+  of re-downloading on reload.
