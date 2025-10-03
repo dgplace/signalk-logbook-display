@@ -319,8 +319,8 @@ body.resizing {
 }
 
 /* Fixed width for index column to avoid shifting */
-th.idx-col { width: 64px; }
-td.idx-cell { width: 64px; white-space: nowrap; }
+th.idx-col { width: 48px; }
+td.idx-cell { width: 48px; white-space: nowrap; }
 .expander-btn {
   border: none;
   background: transparent;
@@ -494,6 +494,11 @@ body.is-loading * {
 .container.mobile-layout td.avg-speed-col,
 .container.mobile-layout th.avg-wind-col,
 .container.mobile-layout td.avg-wind-col {
+  display: none;
+}
+
+.container.mobile-layout .max-speed-cell .unit-kn,
+.container.mobile-layout .max-wind-cell .unit-kn {
   display: none;
 }
 

@@ -1418,9 +1418,9 @@ async function load() {
       `<td class="exp-cell">${expander}</td><td class="idx-cell">${i+1}</td><td>${dateHourLabel(v.startTime)}</td>
         <td>${dateHourLabel(v.endTime)}</td>
         <td>${v.nm.toFixed(1)}</td>
-        <td class="max-speed-cell" tabindex="0">${v.maxSpeed.toFixed(1)} kn</td>
+        <td class="max-speed-cell" tabindex="0">${v.maxSpeed.toFixed(1)}<span class="unit-kn"> kn</span></td>
         <td class="avg-speed-col">${v.avgSpeed.toFixed(1)} kn</td>
-        <td>${v.maxWind.toFixed(1)} kn</td>
+        <td class="max-wind-cell">${v.maxWind.toFixed(1)}<span class="unit-kn"> kn</span></td>
         <td class="avg-wind-col">${v.avgWindSpeed.toFixed(1)} kn</td>
         <td>${avgWindDir}</td>`;
 
@@ -1496,9 +1496,9 @@ async function load() {
           <td>${dateHourLabel(seg.startTime)}</td>
           <td>${dateHourLabel(seg.endTime)}</td>
           <td>${seg.nm.toFixed(1)}</td>
-          <td class="max-speed-cell" tabindex="0">${seg.maxSpeed.toFixed(1)} kn</td>
+          <td class="max-speed-cell" tabindex="0">${seg.maxSpeed.toFixed(1)}<span class="unit-kn"> kn</span></td>
           <td class="avg-speed-col">${seg.avgSpeed.toFixed(1)} kn</td>
-          <td>${seg.maxWind.toFixed(1)} kn</td>
+          <td class="max-wind-cell">${seg.maxWind.toFixed(1)}<span class="unit-kn"> kn</span></td>
           <td class="avg-wind-col">${seg.avgWindSpeed.toFixed(1)} kn</td>
           <td>${avgWindDirDay}</td>
           `;
