@@ -122,10 +122,13 @@ function serveFile(req, res, filePath) {
     const etag = buildEtag(stats);
     const clientEtagsHeader = req.headers['if-none-match'];
     const clientEtags = clientEtagsHeader ? clientEtagsHeader.split(',').map(tag => tag.trim()) : [];
+    const modifiedSinceHeader = req.headers['if-modified-since'];
+    const modifiedSinceTs = modifiedSinceHeader ? Date.parse(modifiedSinceHeader) : Number.NaN;
+    const fileMtimeMs = Math.floor(stats.mtimeMs / 1000) * 1000;
     const cacheHeaders = {
       'Cache-Control': 'public, max-age=0, must-revalidate',
       'ETag': etag,
-      'Last-Modified': stats.mtime.toUTCString()
+      'Last-Modified': new Date(fileMtimeMs).toUTCString()
     };
 
     const etagMatched = clientEtags.some(tag => {
@@ -139,7 +142,9 @@ function serveFile(req, res, filePath) {
       return normalized === etag;
     });
 
-    if (etagMatched) {
+    const lastModifiedMatched = Number.isFinite(modifiedSinceTs) && fileMtimeMs <= modifiedSinceTs;
+
+    if (etagMatched || lastModifiedMatched) {
       return send(res, 304, cacheHeaders);
     }
 
