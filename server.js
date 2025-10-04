@@ -90,14 +90,28 @@ function send(res, status, headers, body) {
 }
 
 /**
- * Function: serveFile
- * Description: Stream a static file to the HTTP client, applying appropriate MIME type headers.
+ * Function: buildEtag
+ * Description: Construct a deterministic ETag token using file size and modification time metadata.
  * Parameters:
+ *   stats (fs.Stats): File system metadata describing the file being served.
+ * Returns: string - Quoted ETag value suitable for HTTP headers.
+ */
+function buildEtag(stats) {
+  const sizeHex = stats.size.toString(16);
+  const mtimeHex = Math.floor(stats.mtimeMs).toString(16);
+  return '"' + sizeHex + '-' + mtimeHex + '"';
+}
+
+/**
+ * Function: serveFile
+ * Description: Stream a static file to the HTTP client, applying appropriate MIME type and cache headers.
+ * Parameters:
+ *   req (http.IncomingMessage): Request object supplying conditional header values.
  *   res (http.ServerResponse): Response object used to transmit the file contents.
  *   filePath (string): Absolute path to the file that should be served.
  * Returns: void.
  */
-function serveFile(res, filePath) {
+function serveFile(req, res, filePath) {
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
       return send(res, 404, { 'Content-Type': 'text/plain; charset=utf-8' }, 'Not Found');
@@ -105,6 +119,29 @@ function serveFile(res, filePath) {
 
     const ext = path.extname(filePath).toLowerCase();
     const type = MIME[ext] || 'application/octet-stream';
+    const etag = buildEtag(stats);
+    const clientEtagsHeader = req.headers['if-none-match'];
+    const clientEtags = clientEtagsHeader ? clientEtagsHeader.split(',').map(tag => tag.trim()) : [];
+    const cacheHeaders = {
+      'Cache-Control': 'public, max-age=0, must-revalidate',
+      'ETag': etag,
+      'Last-Modified': stats.mtime.toUTCString()
+    };
+
+    const etagMatched = clientEtags.some(tag => {
+      if (!tag) {
+        return false;
+      }
+      if (tag === '*') {
+        return true;
+      }
+      const normalized = tag.startsWith('W/') ? tag.slice(2) : tag;
+      return normalized === etag;
+    });
+
+    if (etagMatched) {
+      return send(res, 304, cacheHeaders);
+    }
 
     const stream = fs.createReadStream(filePath);
     stream.on('error', () => {
@@ -112,8 +149,9 @@ function serveFile(res, filePath) {
     });
 
     send(res, 200, {
+      ...cacheHeaders,
       'Content-Type': type,
-      'Cache-Control': 'no-cache',
+      'Content-Length': stats.size,
     }, stream);
   });
 }
@@ -210,16 +248,16 @@ const server = http.createServer((req, res) => {
   fs.stat(unsafePath, (err, stats) => {
     if (!err && stats.isDirectory()) {
       const indexPath = path.join(unsafePath, 'index.html');
-      return serveFile(res, indexPath);
+      return serveFile(req, res, indexPath);
     }
     if (!err && stats.isFile()) {
-      return serveFile(res, unsafePath);
+      return serveFile(req, res, unsafePath);
     }
 
     // For routes without file extensions (e.g. /8), fall back to SPA index
     if (!path.extname(pathname)) {
       const indexPath = path.join(PUBLIC_DIR, 'index.html');
-      return serveFile(res, indexPath);
+      return serveFile(req, res, indexPath);
     }
 
     return send(res, 404, { 'Content-Type': 'text/plain; charset=utf-8' }, 'Not Found');
