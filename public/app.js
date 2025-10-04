@@ -1378,7 +1378,9 @@ function updateSelectedPoint(sel, neighbors = {}) {
  * Returns: Promise<void> - Resolves when the interface has been refreshed.
  */
 async function load() {
-  const res  = await fetch('voyages.json');
+  const res = await fetch('voyages.json', {
+    cache: 'no-cache'
+  });
   const data = await res.json();
 
   if (map) { map.off(); map.remove(); }

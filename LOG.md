@@ -61,4 +61,5 @@
 - In the mobile layout hide the voyage table's Avg Speed and Avg Wind columns to keep the table readable on small screens.
 - Suppress the `kn` units for Max Speed and Max Wind cells when the mobile layout is active to reduce visual clutter on phones.
 - Hide the End column and the totals summary row from the mobile voyage table to keep the layout focused on primary metrics.
-- Add strong conditional caching to `server.js`, emitting ETags and `Last-Modified` headers (with `If-Modified-Since` handling) so reloading the web app avoids retransferring unchanged `voyages.json`.
+- Add strong conditional caching to `server.js`, emitting ETags and `Last-Modified` headers (including Safari-specific `; length=` suffix parsing and unquoted validator matches on conditional headers) so reloading the web app avoids retransferring unchanged `voyages.json`.
+- Update the SPA fetch logic to request `voyages.json` with `cache: 'no-cache'`, ensuring browsers send conditional requests even on manual reloads.

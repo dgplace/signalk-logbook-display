@@ -76,7 +76,8 @@ Restart the Signal K server after installation if necessary.
 
 - The repository `.gitignore` excludes `__pycache__/` and `voyage-webapp-*.tgz` artifacts.
 - To release a new tarball, bump the `version` in `package.json` and rerun the build script.
-- The development server (`server.js`) returns `ETag` and `Last-Modified` headers (including `If-Modified-Since` support) with `must-revalidate` caching so browsers reuse existing `voyages.json` unless it changes.
+- The development server (`server.js`) returns `ETag` and `Last-Modified` headers (handling Safari’s `; length=` suffixes and unquoted validators on conditional headers) with `must-revalidate` caching so browsers reuse existing `voyages.json` unless it changes.
+- The front-end fetches `voyages.json` with `cache: 'no-cache'` so browsers revalidate rather than bypassing the cache during reloads.
 - Publishing to npm is not covered here; this script only creates a local package tarball.
 
 ## Local Deploy for Testing

@@ -121,9 +121,31 @@ function serveFile(req, res, filePath) {
     const type = MIME[ext] || 'application/octet-stream';
     const etag = buildEtag(stats);
     const clientEtagsHeader = req.headers['if-none-match'];
-    const clientEtags = clientEtagsHeader ? clientEtagsHeader.split(',').map(tag => tag.trim()) : [];
+    let hasWildcardEtag = false;
+    const clientEtags = clientEtagsHeader
+      ? clientEtagsHeader.split(',')
+          .map(raw => raw.trim())
+          .filter(Boolean)
+          .map(raw => {
+            if (raw === '*') {
+              hasWildcardEtag = true;
+              return null;
+            }
+            const token = raw.split(';')[0].trim();
+            const strippedWeak = token.startsWith('W/') ? token.slice(2) : token;
+            if (!strippedWeak) {
+              return null;
+            }
+            const unquoted = strippedWeak.startsWith('"') && strippedWeak.endsWith('"') && strippedWeak.length >= 2
+              ? strippedWeak.slice(1, -1)
+              : strippedWeak;
+            return { quoted: strippedWeak, unquoted };
+          })
+          .filter(Boolean)
+      : [];
     const modifiedSinceHeader = req.headers['if-modified-since'];
-    const modifiedSinceTs = modifiedSinceHeader ? Date.parse(modifiedSinceHeader) : Number.NaN;
+    const normalizedModifiedSince = modifiedSinceHeader ? modifiedSinceHeader.split(';')[0].trim() : '';
+    const modifiedSinceTs = normalizedModifiedSince ? Date.parse(normalizedModifiedSince) : Number.NaN;
     const fileMtimeMs = Math.floor(stats.mtimeMs / 1000) * 1000;
     const cacheHeaders = {
       'Cache-Control': 'public, max-age=0, must-revalidate',
@@ -131,18 +153,11 @@ function serveFile(req, res, filePath) {
       'Last-Modified': new Date(fileMtimeMs).toUTCString()
     };
 
-    const etagMatched = clientEtags.some(tag => {
-      if (!tag) {
-        return false;
-      }
-      if (tag === '*') {
-        return true;
-      }
-      const normalized = tag.startsWith('W/') ? tag.slice(2) : tag;
-      return normalized === etag;
-    });
+    const normalizedEtag = etag.startsWith('"') && etag.endsWith('"') && etag.length >= 2 ? etag.slice(1, -1) : etag;
+    const etagMatched = hasWildcardEtag || clientEtags.some(entry => entry.quoted === etag || entry.unquoted === normalizedEtag);
 
-    const lastModifiedMatched = Number.isFinite(modifiedSinceTs) && fileMtimeMs <= modifiedSinceTs;
+    const clientModifiedMs = Number.isFinite(modifiedSinceTs) ? Math.floor(modifiedSinceTs / 1000) * 1000 : Number.NaN;
+    const lastModifiedMatched = Number.isFinite(clientModifiedMs) && fileMtimeMs <= clientModifiedMs;
 
     if (etagMatched || lastModifiedMatched) {
       return send(res, 304, cacheHeaders);
