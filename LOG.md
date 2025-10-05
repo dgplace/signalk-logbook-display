@@ -72,3 +72,6 @@
 - Centralised formatting and heading helpers inside `public/util.js`, keeping map and table modules focused on orchestration.
 - Dedicated `public/table.js` now owns voyage table state, DOM rendering, row selection, and accessor helpers to keep table concerns separate from map rendering.
 - Moved the map background selection logic into `public/map.js` so the map controller owns its event handlers.
+- Normalised voyage, segment, max-speed, and reset workflows through a shared pub/sub bus (`public/events.js`), letting map, table, and history listeners coordinate via event emission instead of bespoke callbacks.
+- Extracted overlay and icon builders into `public/overlays.js`, leaving `public/map.js` focused on Leaflet lifecycle, history updates, and event wiring while reusing the overlay helpers across voyage and segment selections.
+- Documented cross-module voyage structures in `public/types.js` and added module-level API summaries to aid future maintenance.

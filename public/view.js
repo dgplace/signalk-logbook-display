@@ -1,3 +1,17 @@
+/**
+ * Module Responsibilities:
+ * - Manage responsive layout rules and viewport detection for the voyage interface.
+ * - Provide utilities for switching between table and map panels in mobile layouts.
+ * - Expose initialisation helpers for splitters and maximize controls used on larger screens.
+ *
+ * Exported API:
+ * - Layout state: `registerMapResizeCallback`, `isMobileViewport`, `isMobileLayoutActive`,
+ *   `getActiveMobileView`, `setActiveMobileView`, `ensureMobileLayoutReadiness`, `applyMobileLayout`.
+ * - Interaction helpers: `ensureMobileMapView`.
+ * - Initialisers: `initMobileLayoutControls`, `syncInitialMobileView`, `initSplitters`,
+ *   `initMaximizeControl`.
+ */
+
 const MOBILE_BREAKPOINT_PX = 700;
 const MIN_TOP_SECTION_HEIGHT = 230;
 const MIN_MAP_SECTION_HEIGHT = 400;

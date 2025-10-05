@@ -1,8 +1,33 @@
+/**
+ * Module Responsibilities:
+ * - Manage the Leaflet map lifecycle, including base layers, overlay construction, and responsive resizing.
+ * - Synchronise voyage selection state with the event bus, browser history, and table interactions.
+ * - Provide helper APIs for point highlighting, wind overlays, and max-speed markers used across the app.
+ *
+ * Exported API:
+ * - Constants: `apiBasePath`, `historyUpdatesEnabled`.
+ * - Map lifecycle: `initializeMap`, `fitMapToBounds`, `getMapInstance`, `getMapClickThreshold`,
+ *   `setAllVoyagesBounds`, `getAllVoyagesBounds`.
+ * - Selection state: `selectVoyage`, `resetVoyageSelection`, `updateSelectedPoint`,
+ *   `handleMapBackgroundClick`, `updateHistoryForTrip`, `setDetailsHint`.
+ * - Overlay management: `addVoyageToMap`, `removeActivePolylines`, `setActivePolylines`,
+ *   `wirePolylineSelectionHandlers`, `refreshWindOverlay`, `setWindOverlayEnabled`,
+ *   `setWindOverlayToggleAvailability`, `clearWindIntensityLayer`, `clearActivePointMarkers`,
+ *   `renderActivePointMarkers`, `clearSelectedWindGraphics`, `restoreBasePolylineStyles`,
+ *   `clearMaxSpeedMarker`, `setCurrentVoyagePoints`, `detachActiveClickers`.
+ * - Highlight helpers: `drawMaxSpeedMarkerFromCoord`.
+ *
+ * @typedef {import('./types.js').Voyage} Voyage
+ * @typedef {import('./types.js').VoyageSegment} VoyageSegment
+ * @typedef {import('./types.js').VoyagePoint} VoyagePoint
+ * @typedef {import('./types.js').VoyageSelectionPayload} VoyageSelectionPayload
+ * @typedef {import('./types.js').SegmentSelectionPayload} SegmentSelectionPayload
+ * @typedef {import('./types.js').MaxSpeedPayload} MaxSpeedPayload
+ */
+
 import {
-  extractWindSpeed,
   getPointActivity,
-  getVoyagePoints,
-  shouldSkipConnection
+  getVoyagePoints
 } from './data.js';
 import {
   ensureMobileLayoutReadiness,
@@ -10,12 +35,23 @@ import {
   isMobileLayoutActive,
   registerMapResizeCallback
 } from './view.js';
-import { getVoyageData, getVoyageRows, setSelectedTableRow } from './table.js';
+import { getVoyageData, getVoyageRows } from './table.js';
 import {
   degToCompassLocal,
   extractHeadingDegrees,
   formatPosition
 } from './util.js';
+import { emit, on, EVENTS } from './events.js';
+import {
+  calculateWindArrowSize,
+  createActivityHighlightPolylines,
+  createBoatIcon,
+  createPointMarkerIcon,
+  createWindIntensityLayer,
+  DEFAULT_ACTIVITY_WEIGHT,
+  NON_SAIL_HIGHLIGHT_COLOR,
+  SAILING_HIGHLIGHT_COLOR
+} from './overlays.js';
 
 // Map state and configuration
 let mapInstance = null;
@@ -34,22 +70,6 @@ let windOverlayEnabled = false;
 
 const BASE_TILESET_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 const BASE_TILESET_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
-const WIND_SPEED_COLOR_STOPS = [
-  { limit: 0, color: '#0b4f6c' },
-  { limit: 6, color: '#1565c0' },
-  { limit: 12, color: '#1e88e5' },
-  { limit: 18, color: '#00acc1' },
-  { limit: 24, color: '#26a69a' },
-  { limit: 30, color: '#66bb6a' },
-  { limit: 36, color: '#ffee58' },
-  { limit: 42, color: '#f9a825' },
-  { limit: 48, color: '#f4511e' },
-  { limit: Infinity, color: '#d81b60' }
-];
-const MIN_WIND_RADIUS_PX = 6;
-const MAX_WIND_RADIUS_PX = 24;
-const POINT_MARKER_SIZE = 5;
-const POINT_MARKER_DARKEN_FACTOR = 0.75;
 
 const windOverlayToggleInput = document.getElementById('windOverlayToggle');
 const windOverlayToggleWrapper = windOverlayToggleInput ? windOverlayToggleInput.closest('.toggle-switch') : null;
@@ -75,11 +95,6 @@ export const apiBasePath = (() => {
 export const historyUpdatesEnabled = apiBasePath === '';
 
 const MAP_CLICK_SELECT_THRESHOLD_METERS = 1500;
-
-const SAILING_HIGHLIGHT_COLOR = '#ef4444';
-const NON_SAIL_HIGHLIGHT_COLOR = '#facc15';
-const DEFAULT_HIGHLIGHT_WEIGHT = 4;
-const DEFAULT_HIGHLIGHT_OPACITY = 0.95;
 
 /**
  * Function: createBaseLayer
@@ -121,94 +136,6 @@ export function fitMapToBounds(bounds, options = {}) {
   performFit();
 }
 
-/**
- * Function: normalizeHexColor
- * Description: Normalize a hex colour string into a 6-character RGB representation without the leading hash.
- * Parameters:
- *   hex (string): Hex colour in shorthand or full form.
- * Returns: string|null - Normalised hexadecimal string or null when invalid.
- */
-function normalizeHexColor(hex) {
-  if (typeof hex !== 'string') return null;
-  let value = hex.trim();
-  if (value.startsWith('#')) value = value.slice(1);
-  if (value.length === 3) {
-    value = value.split('').map(ch => ch + ch).join('');
-  }
-  if (value.length !== 6 || !/^[0-9a-f]{6}$/i.test(value)) return null;
-  return value.toLowerCase();
-}
-
-/**
- * Function: darkenHexColor
- * Description: Apply a scalar multiplier to each RGB component of a hex colour to produce a darker shade.
- * Parameters:
- *   hex (string): Base hex colour.
- *   factor (number): Multiplier between 0 and 1 controlling darkness intensity.
- * Returns: string - Darkened hex colour including the leading hash.
- */
-function darkenHexColor(hex, factor = 0.5) {
-  const norm = normalizeHexColor(hex);
-  if (!norm) return '#000000';
-  const clampFactor = Math.max(0, Math.min(1, factor));
-  const r = Math.round(parseInt(norm.slice(0, 2), 16) * clampFactor).toString(16).padStart(2, '0');
-  const g = Math.round(parseInt(norm.slice(2, 4), 16) * clampFactor).toString(16).padStart(2, '0');
-  const b = Math.round(parseInt(norm.slice(4, 6), 16) * clampFactor).toString(16).padStart(2, '0');
-  return `#${r}${g}${b}`;
-}
-
-/**
- * Function: createPointMarkerIcon
- * Description: Generate a Leaflet divIcon for a voyage point using a darker variant of its segment colour.
- * Parameters:
- *   point (object): Voyage point supplying activity metadata.
- * Returns: L.DivIcon - Icon suitable for map markers.
- */
-function createPointMarkerIcon(point) {
-  const activity = getPointActivity(point);
-  const baseColor = activity === 'sailing' ? SAILING_HIGHLIGHT_COLOR : NON_SAIL_HIGHLIGHT_COLOR;
-  const fillColor = darkenHexColor(baseColor, POINT_MARKER_DARKEN_FACTOR);
-  const size = POINT_MARKER_SIZE;
-  const anchor = Math.ceil(size / 2);
-  return L.divIcon({
-    className: 'point-square-icon',
-    iconSize: [size, size],
-    iconAnchor: [anchor, anchor],
-    html: `<span class="point-square-fill" style="background:${fillColor};"></span>`
-  });
-}
-
-/**
- * Function: windSpeedToColor
- * Description: Map a wind speed to a Windy-inspired colour stop.
- * Parameters:
- *   speed (number): Wind speed in knots.
- * Returns: string - Hex colour representing the supplied wind speed.
- */
-function windSpeedToColor(speed) {
-  if (typeof speed !== 'number' || Number.isNaN(speed)) return '#0b4f6c';
-  let selected = WIND_SPEED_COLOR_STOPS[0].color;
-  for (let i = 0; i < WIND_SPEED_COLOR_STOPS.length; i += 1) {
-    const stop = WIND_SPEED_COLOR_STOPS[i];
-    selected = stop.color;
-    if (speed <= stop.limit) break;
-  }
-  return selected;
-}
-
-/**
- * Function: windSpeedToRadiusPx
- * Description: Convert a wind speed to a circle radius in pixels for the intensity overlay.
- * Parameters:
- *   speed (number): Wind speed in knots.
- * Returns: number - Radius in pixels applied to the circle marker.
- */
-function windSpeedToRadiusPx(speed) {
-  if (typeof speed !== 'number' || Number.isNaN(speed)) return MIN_WIND_RADIUS_PX;
-  const clamped = Math.max(0, Math.min(50, speed));
-  const fraction = clamped / 50;
-  return MIN_WIND_RADIUS_PX + Math.round((MAX_WIND_RADIUS_PX - MIN_WIND_RADIUS_PX) * fraction);
-}
 
 /**
  * Function: clearWindIntensityLayer
@@ -260,35 +187,6 @@ export function setWindOverlayToggleAvailability(available) {
 }
 
 /**
- * Function: buildWindIntensityOverlay
- * Description: Create a layer group visualising per-point wind speed with Windy-style colouring.
- * Parameters:
- *   points (object[]): Voyage points considered for rendering.
- * Returns: L.Layer|null - Leaflet layer group containing the wind markers, or null when none apply.
- */
-function buildWindIntensityOverlay(points) {
-  if (!Array.isArray(points) || points.length === 0) return null;
-  const layer = L.layerGroup();
-  let rendered = 0;
-  points.forEach((point) => {
-    const speed = extractWindSpeed(point);
-    if (speed === null) return;
-    if (typeof point.lat !== 'number' || typeof point.lon !== 'number') return;
-    const marker = L.circleMarker([point.lat, point.lon], {
-      radius: windSpeedToRadiusPx(speed),
-      color: 'rgba(17, 24, 39, 0.35)',
-      weight: 1,
-      fillColor: windSpeedToColor(speed),
-      fillOpacity: 0.45,
-      interactive: false
-    });
-    marker.addTo(layer);
-    rendered += 1;
-  });
-  return rendered > 0 ? layer : null;
-}
-
-/**
  * Function: refreshWindOverlay
  * Description: Rebuild the wind intensity overlay for the supplied voyage points when enabled.
  * Parameters:
@@ -299,7 +197,7 @@ export function refreshWindOverlay(points = currentVoyagePoints) {
   clearWindIntensityLayer();
   if (!windOverlayEnabled) return;
   if (!Array.isArray(points) || points.length === 0) return;
-  const layer = buildWindIntensityOverlay(points);
+  const layer = createWindIntensityLayer(points);
   if (!layer) return;
   windIntensityLayer = layer;
   if (mapInstance) {
@@ -329,81 +227,6 @@ if (windOverlayToggleInput) {
     setWindOverlayEnabled(event.target.checked);
   });
   setWindOverlayToggleAvailability(false);
-}
-
-/**
- * Function: segmentPointsByActivity
- * Description: Split voyage points into coloured segments based on activity transitions.
- * Parameters:
- *   points (object[]): Voyage points with activity metadata.
- * Returns: object[] - Segment definitions with colour and lat/lon arrays.
- */
-function segmentPointsByActivity(points) {
-  if (!Array.isArray(points) || points.length < 2) return [];
-  const segments = [];
-  let current = null;
-
-  const flush = () => {
-    if (current && Array.isArray(current.latLngs) && current.latLngs.length >= 2) segments.push(current);
-    current = null;
-  };
-
-  for (let i = 0; i < points.length - 1; i += 1) {
-    const start = points[i];
-    const end = points[i + 1];
-    const startValid = typeof start?.lat === 'number' && typeof start?.lon === 'number';
-    const endValid = typeof end?.lat === 'number' && typeof end?.lon === 'number';
-    if (!startValid || !endValid) {
-      flush();
-      continue;
-    }
-    if (shouldSkipConnection(start, end)) {
-      flush();
-      continue;
-    }
-    const startLL = [start.lat, start.lon];
-    const endLL = [end.lat, end.lon];
-    const startAct = getPointActivity(start);
-    const endAct = getPointActivity(end);
-    const color = (startAct === 'sailing' && endAct === 'sailing') ? SAILING_HIGHLIGHT_COLOR : NON_SAIL_HIGHLIGHT_COLOR;
-    if (!current || current.color !== color) {
-      flush();
-      current = { color, latLngs: [startLL] };
-    } else {
-      const last = current.latLngs[current.latLngs.length - 1];
-      if (!last || last[0] !== startLL[0] || last[1] !== startLL[1]) current.latLngs.push(startLL);
-    }
-    current.latLngs.push(endLL);
-  }
-  flush();
-  return segments;
-}
-
-/**
- * Function: createActivityHighlightPolylines
- * Description: Build polylines that visually highlight voyage activity segments on the map.
- * Parameters:
- *   points (object[]): Voyage points used to generate highlighted polylines.
- *   options (object): Optional styling overrides for line weight and opacity.
- * Returns: object[] - Array of Leaflet polylines added to the map.
- */
-export function createActivityHighlightPolylines(points, options = {}) {
-  if (!mapInstance || !Array.isArray(points) || points.length < 2) return [];
-  const weight = typeof options.weight === 'number' ? options.weight : DEFAULT_HIGHLIGHT_WEIGHT;
-  const opacity = typeof options.opacity === 'number' ? options.opacity : DEFAULT_HIGHLIGHT_OPACITY;
-  const segments = segmentPointsByActivity(points);
-  return segments.map(seg => {
-    const polyline = L.polyline(seg.latLngs, {
-      color: seg.color,
-      weight,
-      opacity,
-      lineCap: 'round',
-      lineJoin: 'round'
-    }).addTo(mapInstance);
-    polyline._activityHighlight = true;
-    if (polyline.bringToFront) polyline.bringToFront();
-    return polyline;
-  });
 }
 
 /**
@@ -504,7 +327,12 @@ export function addVoyageToMap(voyage, row) {
       voyageBounds = voyageBounds ? voyageBounds.extend(bounds) : bounds;
       const voySelect = (ev) => {
         L.DomEvent.stopPropagation(ev);
-        selectVoyage(voyage, row, { fit: false, scrollIntoView: true });
+        emit(EVENTS.VOYAGE_SELECT_REQUESTED, {
+          voyage,
+          row,
+          source: 'polyline',
+          options: { fit: false, scrollIntoView: true }
+        });
       };
       polyline.on('click', voySelect);
       polyline.on('tap', voySelect);
@@ -518,7 +346,12 @@ export function addVoyageToMap(voyage, row) {
     voyageBounds = line.getBounds();
     const voySelect = (ev) => {
       L.DomEvent.stopPropagation(ev);
-      selectVoyage(voyage, row, { fit: false, scrollIntoView: true });
+      emit(EVENTS.VOYAGE_SELECT_REQUESTED, {
+        voyage,
+        row,
+        source: 'polyline',
+        options: { fit: false, scrollIntoView: true }
+      });
     };
     line.on('click', voySelect);
     line.on('tap', voySelect);
@@ -657,43 +490,6 @@ export function clearSelectedWindGraphics() {
 }
 
 /**
- * Function: arrowSizeFromSpeed
- * Description: Determine a wind arrow icon size scaled by wind speed for readability.
- * Parameters:
- *   kn (number): Wind speed in knots.
- * Returns: number - Size in pixels for the arrow visual.
- */
-function arrowSizeFromSpeed(kn) {
-  const small = 60;
-  const mid = 180;
-  const large = 240;
-  if (!(typeof kn === 'number') || Number.isNaN(kn)) return small;
-  if (kn <= 5) return small;
-  if (kn >= 25) return large;
-  const t = (kn - 5) / 20;
-  return Math.round(small + t * (mid - small));
-}
-
-/**
- * Function: makeBoatIcon
- * Description: Create a Leaflet div icon representing the selected vessel at a specific bearing.
- * Parameters:
- *   bearingDeg (number): Heading in degrees for icon rotation.
- * Returns: L.DivIcon - Configured boat icon instance.
- */
-function makeBoatIcon(bearingDeg) {
-  const w = 18;
-  const h = 36;
-  const html = `
-    <div class="boat-icon" style="width:${w}px;height:${h}px;transform: rotate(${bearingDeg.toFixed(1)}deg);">
-      <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-        <polygon points="${w / 2},2 2,${h - 2} ${w - 2},${h - 2}" fill="var(--accent-color, #ef4444)" stroke="#ffffff" stroke-width="1.5" />
-      </svg>
-    </div>`;
-  return L.divIcon({ className: '', html, iconSize: [w, h], iconAnchor: [w / 2, h / 2] });
-}
-
-/**
  * Function: bearingBetween
  * Description: Calculate the initial bearing from the first coordinate to the second.
  * Parameters:
@@ -791,10 +587,10 @@ export function updateSelectedPoint(sel, neighbors = {}) {
     ? storedHeading
     : courseFromNeighbors(neighbors.prev, sel, neighbors.next);
   if (!selectedPointMarker) {
-    selectedPointMarker = L.marker([lat, lon], { icon: makeBoatIcon(bearing), zIndexOffset: 1000 }).addTo(mapInstance);
+    selectedPointMarker = L.marker([lat, lon], { icon: createBoatIcon(bearing), zIndexOffset: 1000 }).addTo(mapInstance);
   } else {
     selectedPointMarker.setLatLng([lat, lon]);
-    selectedPointMarker.setIcon(makeBoatIcon(bearing));
+    selectedPointMarker.setIcon(createBoatIcon(bearing));
   }
   clearSelectedWindGraphics();
   const windSpd = entry?.wind?.speed;
@@ -802,7 +598,7 @@ export function updateSelectedPoint(sel, neighbors = {}) {
   if (typeof windSpd === 'number' && typeof windDir === 'number') {
     windDir = (windDir + 180) % 360;
     const angle = windDir.toFixed(1);
-    const size = arrowSizeFromSpeed(windSpd);
+    const size = calculateWindArrowSize(windSpd);
     const center = size / 2;
     const tipY = size * 0.10;
     const headBaseY = tipY + size * 0.125;
@@ -861,7 +657,6 @@ export function restoreBasePolylineStyles() {
  * Returns: void.
  */
 export function resetVoyageSelection() {
-  setSelectedTableRow(null);
   detachActiveClickers();
   clearActivePointMarkers();
   clearSelectedWindGraphics();
@@ -884,6 +679,7 @@ export function resetVoyageSelection() {
     window.history.replaceState({}, '', `${basePathname}${search}${hash}`);
   }
   setDetailsHint('Select a voyage, then click the highlighted track to inspect points.');
+  emit(EVENTS.SELECTION_RESET_COMPLETE, {});
 }
 
 /**
@@ -926,7 +722,6 @@ export function selectVoyage(voyage, row, options = {}) {
   const { fit = true, scrollIntoView = false, suppressHistory = false } = options;
   ensureMobileLayoutReadiness();
   ensureMobileMapView();
-  setSelectedTableRow(row);
   if (scrollIntoView && row && typeof row.scrollIntoView === 'function') {
     row.scrollIntoView({ block: 'center', inline: 'nearest' });
   }
@@ -938,15 +733,17 @@ export function selectVoyage(voyage, row, options = {}) {
   removeActivePolylines();
   let voyagePoints = getVoyagePoints(voyage);
   if (!Array.isArray(voyagePoints) || voyagePoints.length === 0) voyagePoints = [];
-  let highlightLines = voyagePoints.length >= 2 ? createActivityHighlightPolylines(voyagePoints) : [];
+  let highlightLines = (mapInstance && voyagePoints.length >= 2)
+    ? createActivityHighlightPolylines(mapInstance, voyagePoints)
+    : [];
   if (!highlightLines.length) {
     if (voyage._segments && voyage._segments.length > 0) {
       voyage._segments.forEach(seg => {
-        seg.polyline.setStyle({ color: SAILING_HIGHLIGHT_COLOR, weight: DEFAULT_HIGHLIGHT_WEIGHT });
+        seg.polyline.setStyle({ color: SAILING_HIGHLIGHT_COLOR, weight: DEFAULT_ACTIVITY_WEIGHT });
         highlightLines.push(seg.polyline);
       });
     } else if (voyage._fallbackPolyline) {
-      voyage._fallbackPolyline.setStyle({ color: SAILING_HIGHLIGHT_COLOR, weight: DEFAULT_HIGHLIGHT_WEIGHT });
+      voyage._fallbackPolyline.setStyle({ color: SAILING_HIGHLIGHT_COLOR, weight: DEFAULT_ACTIVITY_WEIGHT });
       highlightLines = [voyage._fallbackPolyline];
     }
   }
@@ -986,6 +783,52 @@ export function selectVoyage(voyage, row, options = {}) {
 }
 
 /**
+ * Function: focusSegment
+ * Description: Highlight a voyage day segment, wiring point interactions and map fitting.
+ * Parameters:
+ *   segment (object): Segment descriptor containing points and optional polyline reference.
+ *   options (object): Optional overrides for highlight styling.
+ * Returns: void.
+ */
+function focusSegment(segment, options = {}) {
+  if (!segment) return;
+  ensureMobileLayoutReadiness();
+  ensureMobileMapView();
+  clearMaxSpeedMarker();
+  restoreBasePolylineStyles();
+  detachActiveClickers();
+  clearActivePointMarkers();
+  clearSelectedWindGraphics();
+  removeActivePolylines();
+
+  const dayPoints = Array.isArray(segment?.points) ? segment.points : [];
+  const highlightWeight = typeof options.weight === 'number' ? options.weight : 5;
+  let dayHighlights = (mapInstance && dayPoints.length >= 2)
+    ? createActivityHighlightPolylines(mapInstance, dayPoints, { weight: highlightWeight })
+    : [];
+  if (!dayHighlights.length && segment?.polyline) {
+    segment.polyline.setStyle({ color: SAILING_HIGHLIGHT_COLOR, weight: DEFAULT_ACTIVITY_WEIGHT });
+    dayHighlights = [segment.polyline];
+  }
+  setActivePolylines(dayHighlights);
+  if (dayHighlights.length > 0) {
+    wirePolylineSelectionHandlers(dayHighlights, dayPoints);
+    let bounds = dayHighlights[0].getBounds();
+    for (let i = 1; i < dayHighlights.length; i += 1) {
+      bounds = bounds.extend(dayHighlights[i].getBounds());
+    }
+    fitMapToBounds(bounds, { deferForMobile: true });
+  }
+
+  clearWindIntensityLayer();
+  setCurrentVoyagePoints(dayPoints);
+  renderActivePointMarkers(dayPoints);
+  refreshWindOverlay(dayPoints);
+  setWindOverlayToggleAvailability(true);
+  setDetailsHint('Click on the highlighted track to inspect a point.');
+}
+
+/**
  * Function: setAllVoyagesBounds
  * Description: Store the aggregate bounds for all voyages for later reuse.
  * Parameters:
@@ -1012,9 +855,9 @@ export function getAllVoyagesBounds() {
 
 /**
  * Function: initializeMap
- * Description: Reset any existing map instance and create a new Leaflet map with base layers and handlers.
+ * Description: Reset any existing map instance and create a new Leaflet map with base layers and event wiring.
  * Parameters:
- *   onBackgroundClick (Function): Handler invoked when the map background is clicked.
+ *   onBackgroundClick (Function): Optional additional handler invoked when the map background is clicked.
  * Returns: L.Map|null - Map instance when created successfully.
  */
 export function initializeMap(onBackgroundClick) {
@@ -1038,10 +881,14 @@ export function initializeMap(onBackgroundClick) {
       mapInstance.invalidateSize();
     }
   });
-  if (typeof onBackgroundClick === 'function') {
-    mapInstance.on('click', onBackgroundClick);
-    mapInstance.on('tap', onBackgroundClick);
-  }
+  const backgroundHandler = (event) => {
+    handleMapBackgroundClick(event);
+    if (typeof onBackgroundClick === 'function') {
+      onBackgroundClick(event);
+    }
+  };
+  mapInstance.on('click', backgroundHandler);
+  mapInstance.on('tap', backgroundHandler);
   return mapInstance;
 }
 
@@ -1096,15 +943,23 @@ export function handleMapBackgroundClick(event) {
   if (!nearest || !nearest.row) return;
   if (nearest.distance > MAP_CLICK_SELECT_THRESHOLD_METERS) return;
   const alreadySelected = nearest.row.classList.contains('selected-row');
-  selectVoyage(nearest.voyage, nearest.row, {
-    fit: !alreadySelected,
-    scrollIntoView: !alreadySelected
-  });
   const prev = nearest.points[nearest.index - 1];
   const next = nearest.points[nearest.index + 1];
-  if (nearest.point) {
-    updateSelectedPoint(nearest.point, { prev, next });
-  }
+  emit(EVENTS.VOYAGE_SELECT_REQUESTED, {
+    voyage: nearest.voyage,
+    row: nearest.row,
+    source: 'map-background',
+    options: {
+      fit: !alreadySelected,
+      scrollIntoView: !alreadySelected,
+      suppressHistory: false
+    },
+    focusPoint: {
+      point: nearest.point,
+      prev,
+      next
+    }
+  });
 }
 
 /**
@@ -1114,6 +969,115 @@ export function handleMapBackgroundClick(event) {
  *   panel (HTMLElement): Details panel element.
  * Returns: void.
  */
+/**
+ * Function: performVoyageSelection
+ * Description: Execute a voyage selection request and notify listeners of the resulting state.
+ * Parameters:
+ *   payload (object): Selection descriptor including voyage, row, options, and optional focus point.
+ * Returns: object|null - Normalised selection context or null when selection could not be completed.
+ */
+function performVoyageSelection(payload = {}) {
+  const voyage = payload?.voyage;
+  if (!voyage) return null;
+  let row = payload?.row || null;
+  if (!row && typeof voyage._tripIndex === 'number') {
+    const rows = getVoyageRows();
+    row = rows[voyage._tripIndex - 1] || null;
+  }
+  if (!row) return null;
+  const options = {
+    fit: true,
+    scrollIntoView: false,
+    suppressHistory: false,
+    ...(payload.options || {})
+  };
+  selectVoyage(voyage, row, options);
+  const focusPoint = payload.focusPoint;
+  if (focusPoint && focusPoint.point) {
+    updateSelectedPoint(focusPoint.point, {
+      prev: focusPoint.prev,
+      next: focusPoint.next
+    });
+  }
+  emit(EVENTS.VOYAGE_SELECTED, {
+    voyage,
+    row,
+    options,
+    source: payload.source || 'unknown',
+    metadata: payload.metadata || null
+  });
+  return { voyage, row, options };
+}
+
+/**
+ * Function: handleVoyageSelectRequested
+ * Description: Respond to a voyage selection request broadcast on the event bus.
+ * Parameters:
+ *   payload (object): Selection descriptor containing voyage, row, and options.
+ * Returns: void.
+ */
+function handleVoyageSelectRequested(payload = {}) {
+  performVoyageSelection(payload);
+}
+
+/**
+ * Function: handleVoyageMaxSpeedRequested
+ * Description: Respond to a voyage max-speed request by selecting the voyage and placing the marker.
+ * Parameters:
+ *   payload (object): Descriptor including voyage, row, coordinate pair, and speed value.
+ * Returns: void.
+ */
+function handleVoyageMaxSpeedRequested(payload = {}) {
+  performVoyageSelection(payload);
+  if (Array.isArray(payload.coord) && payload.coord.length === 2) {
+    drawMaxSpeedMarkerFromCoord(payload.coord, payload.speed);
+  }
+}
+
+/**
+ * Function: handleSegmentSelectRequested
+ * Description: Handle a segment focus request by selecting the voyage and highlighting the segment.
+ * Parameters:
+ *   payload (object): Descriptor with voyage, row, and segment metadata.
+ * Returns: void.
+ */
+function handleSegmentSelectRequested(payload = {}) {
+  performVoyageSelection(payload);
+  if (payload.segment) {
+    focusSegment(payload.segment, payload.segmentOptions);
+  }
+}
+
+/**
+ * Function: handleSegmentMaxSpeedRequested
+ * Description: Focus a segment and display its maximum speed marker when requested.
+ * Parameters:
+ *   payload (object): Descriptor containing voyage, segment, coordinate, and speed details.
+ * Returns: void.
+ */
+function handleSegmentMaxSpeedRequested(payload = {}) {
+  handleSegmentSelectRequested(payload);
+  if (Array.isArray(payload.coord) && payload.coord.length === 2) {
+    drawMaxSpeedMarkerFromCoord(payload.coord, payload.speed);
+  }
+}
+
+/**
+ * Function: handleSelectionResetRequested
+ * Description: Reset the voyage selection in response to a global reset event.
+ * Parameters: None.
+ * Returns: void.
+ */
+function handleSelectionResetRequested() {
+  resetVoyageSelection();
+}
+
+on(EVENTS.VOYAGE_SELECT_REQUESTED, handleVoyageSelectRequested);
+on(EVENTS.VOYAGE_MAX_SPEED_REQUESTED, handleVoyageMaxSpeedRequested);
+on(EVENTS.SEGMENT_SELECT_REQUESTED, handleSegmentSelectRequested);
+on(EVENTS.SEGMENT_MAX_SPEED_REQUESTED, handleSegmentMaxSpeedRequested);
+on(EVENTS.SELECTION_RESET_REQUESTED, handleSelectionResetRequested);
+
 function wireDetailsControls(panel) {
   if (!panel) return;
   const closeBtn = panel.querySelector('.close-details');

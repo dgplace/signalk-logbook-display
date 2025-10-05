@@ -78,7 +78,7 @@ Restart the Signal K server after installation if necessary.
 - To release a new tarball, bump the `version` in `package.json` and rerun the build script.
 - The development server (`server.js`) returns `ETag` and `Last-Modified` headers (handling Safari’s `; length=` suffixes and unquoted validators on conditional headers) with `must-revalidate` caching so browsers reuse existing `voyages.json` unless it changes.
 - The front-end fetches `voyages.json` with `cache: 'no-cache'` so browsers revalidate rather than bypassing the cache during reloads.
-- Front-end JavaScript now uses ES modules: `public/app.js` handles UI wiring, `public/map.js` manages Leaflet interactions, `public/view.js` owns responsive layout and tab controls, `public/table.js` encapsulates voyage table state and rendering, `public/util.js` centralises formatting/heading helpers, and `public/data.js` exposes voyage data utilities.
+- Front-end JavaScript now uses ES modules: `public/app.js` orchestrates data loading and event wiring, `public/events.js` provides the shared pub/sub bus, `public/map.js` manages Leaflet lifecycle plus history updates, `public/overlays.js` builds map overlays and icons, `public/view.js` owns responsive layout and tab controls, `public/table.js` renders voyage rows while emitting events, `public/util.js` centralises formatting helpers, `public/data.js` exposes voyage data utilities, and `public/types.js` documents shared voyage typedefs for tooling.
 - Publishing to npm is not covered here; this script only creates a local package tarball.
 
 ## Local Deploy for Testing

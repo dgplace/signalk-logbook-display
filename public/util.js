@@ -1,4 +1,14 @@
 /**
+ * Module Responsibilities:
+ * - Provide presentation helpers for formatting coordinates, headings, and timestamps.
+ * - Supply shared utilities consumed by both the map and table modules.
+ *
+ * Exported API:
+ * - Formatting helpers: `toDMS`, `formatPosition`, `degToCompass`, `degToCompassLocal`,
+ *   `extractHeadingDegrees`, `nearestHour`, `dateHourLabel`, `weekdayShort`.
+ */
+
+/**
  * Function: toDMS
  * Description: Format a latitude or longitude value as degrees, minutes, and seconds.
  * Parameters:

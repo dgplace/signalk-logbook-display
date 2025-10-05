@@ -1,36 +1,28 @@
+/**
+ * Module Responsibilities:
+ * - Bootstraps the voyage webapp by loading voyage data and rendering the table and map overlays.
+ * - Coordinates event bus interactions so URL navigation, selections, and regeneration stay in sync.
+ * - Initialises responsive layout controls for mobile/desktop experiences.
+ *
+ * Exported API:
+ * - (none) This module performs side effects during evaluation.
+ *
+ * @typedef {import('./types.js').Voyage} Voyage
+ * @typedef {import('./types.js').VoyageTotals} VoyageTotals
+ */
+
 import {
   addVoyageToMap,
   apiBasePath,
-  clearActivePointMarkers,
-  clearMaxSpeedMarker,
-  clearSelectedWindGraphics,
-  clearWindIntensityLayer,
-  createActivityHighlightPolylines,
-  detachActiveClickers,
-  drawMaxSpeedMarkerFromCoord,
   fitMapToBounds,
   getAllVoyagesBounds,
-  handleMapBackgroundClick,
   historyUpdatesEnabled,
   initializeMap,
-  refreshWindOverlay,
-  removeActivePolylines,
-  renderActivePointMarkers,
-  resetVoyageSelection,
-  restoreBasePolylineStyles,
-  selectVoyage,
   setAllVoyagesBounds,
-  setActivePolylines,
-  setCurrentVoyagePoints,
   setDetailsHint,
-  setWindOverlayToggleAvailability,
-  updateHistoryForTrip,
-  updateSelectedPoint,
-  wirePolylineSelectionHandlers
+  updateHistoryForTrip
 } from './map.js';
 import {
-  ensureMobileLayoutReadiness,
-  ensureMobileMapView,
   initMobileLayoutControls,
   initSplitters,
   initMaximizeControl,
@@ -48,6 +40,7 @@ import {
   fetchVoyagesData,
   formatDurationMs
 } from './data.js';
+import { emit, EVENTS } from './events.js';
 
 // DOM references
 const loadingOverlay = document.getElementById('loadingOverlay');
@@ -120,7 +113,12 @@ function syncVoyageSelectionWithPath(options = {}) {
   const voyage = getVoyageByIndex(idx);
   const row = getVoyageRowByIndex(idx);
   if (!voyage || !row) return false;
-  selectVoyage(voyage, row, { fit: true, scrollIntoView: true, suppressHistory: true });
+  emit(EVENTS.VOYAGE_SELECT_REQUESTED, {
+    voyage,
+    row,
+    source: 'history',
+    options: { fit: true, scrollIntoView: true, suppressHistory: true }
+  });
   if (updateHistory && historyUpdatesEnabled) {
     updateHistoryForTrip(tripId, { replace: true });
   }
@@ -131,38 +129,6 @@ window.addEventListener('popstate', () => {
   syncVoyageSelectionWithPath({ updateHistory: false });
 });
 
-function focusSegment(segment) {
-  ensureMobileLayoutReadiness();
-  ensureMobileMapView();
-  clearMaxSpeedMarker();
-  restoreBasePolylineStyles();
-  detachActiveClickers();
-  clearActivePointMarkers();
-  clearSelectedWindGraphics();
-  removeActivePolylines();
-  const dayPoints = Array.isArray(segment?.points) ? segment.points : [];
-  let dayHighlights = dayPoints.length >= 2 ? createActivityHighlightPolylines(dayPoints, { weight: 5 }) : [];
-  if (!dayHighlights.length && segment?.polyline) {
-    segment.polyline.setStyle({ color: '#ef4444', weight: 4 });
-    dayHighlights = [segment.polyline];
-  }
-  setActivePolylines(dayHighlights);
-  if (dayHighlights.length > 0) {
-    wirePolylineSelectionHandlers(dayHighlights, dayPoints);
-    let bounds = dayHighlights[0].getBounds();
-    for (let i = 1; i < dayHighlights.length; i += 1) {
-      bounds = bounds.extend(dayHighlights[i].getBounds());
-    }
-    fitMapToBounds(bounds, { deferForMobile: true });
-  }
-  clearWindIntensityLayer();
-  setCurrentVoyagePoints(dayPoints);
-  renderActivePointMarkers(dayPoints);
-  refreshWindOverlay(dayPoints);
-  setWindOverlayToggleAvailability(true);
-  setDetailsHint('Click on the highlighted track to inspect a point.');
-}
-
 /**
  * Function: load
  * Description: Fetch voyages data, rebuild map overlays, and refresh the voyage table UI.
@@ -172,7 +138,7 @@ function focusSegment(segment) {
 async function load() {
   const data = await fetchVoyagesData();
 
-  initializeMap(handleMapBackgroundClick);
+  initializeMap();
   const tbody = document.querySelector('#voyTable tbody');
   if (!tbody) return;
   const voyages = data.voyages.map((voyage, index) => {
@@ -181,27 +147,10 @@ async function load() {
     return voyage;
   });
 
-  const tableHandlers = {
-    onVoyageSelect: (voyage, row, { wasSelected }) => {
-      selectVoyage(voyage, row, { fit: true, suppressHistory: false });
-    },
-    onVoyageMaxSpeed: (voyage, row, { wasSelected }) => {
-      selectVoyage(voyage, row, { fit: !wasSelected, suppressHistory: wasSelected });
-      drawMaxSpeedMarkerFromCoord(voyage.maxSpeedCoord, voyage.maxSpeed);
-    },
-    onDaySelect: (voyage, segment) => {
-      focusSegment(segment);
-    },
-    onDayMaxSpeed: (voyage, segment) => {
-      focusSegment(segment);
-      drawMaxSpeedMarkerFromCoord(segment.maxSpeedCoord, segment.maxSpeed);
-    }
-  };
-
-  renderVoyageTable(tbody, voyages, tableHandlers);
+  renderVoyageTable(tbody, voyages);
 
   const totals = computeVoyageTotals(data.voyages);
-  renderTotalsRow(tbody, totals, formatDurationMs, resetVoyageSelection);
+  renderTotalsRow(tbody, totals, formatDurationMs);
 
   let allBounds = null;
   voyages.forEach((voyage, index) => {

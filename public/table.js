@@ -1,4 +1,22 @@
+/**
+ * Module Responsibilities:
+ * - Render the voyage summary table, including per-day expansion rows and totals.
+ * - Track table row references so other modules can coordinate selections.
+ * - Publish voyage and segment selection events for map consumers while reflecting active state.
+ *
+ * Exported API:
+ * - Data accessors: `setVoyageTableData`, `getVoyageRows`, `getVoyageRowByIndex`, `getVoyageByIndex`,
+ *   `getVoyageData`, `clearVoyageTableData`.
+ * - Selection helpers: `setSelectedTableRow`.
+ * - Rendering helpers: `renderVoyageTable`, `renderTotalsRow`.
+ *
+ * @typedef {import('./types.js').Voyage} Voyage
+ * @typedef {import('./types.js').VoyageSegment} VoyageSegment
+ * @typedef {import('./types.js').VoyageTotals} VoyageTotals
+ */
+
 import { degToCompass, dateHourLabel, weekdayShort } from './util.js';
+import { emit, on, EVENTS } from './events.js';
 
 let voyageRows = [];
 let voyageData = [];
@@ -89,9 +107,8 @@ export function setSelectedTableRow(row) {
  *   totals (object): Aggregated voyage totals including distance and activity durations.
  *   formatDuration (Function): Helper that formats durations for display.
  * Returns: void.
- * Notes: Invokes the supplied `onReset` callback when the totals row is activated.
  */
-export function renderTotalsRow(tbody, totals, formatDuration, onReset) {
+export function renderTotalsRow(tbody, totals, formatDuration) {
   if (!tbody || !totals) return;
   const totalDistanceNm = Number.isFinite(totals.totalDistanceNm) ? totals.totalDistanceNm : 0;
   const totalActiveMs = Number.isFinite(totals.totalActiveMs) ? totals.totalActiveMs : 0;
@@ -107,9 +124,7 @@ export function renderTotalsRow(tbody, totals, formatDuration, onReset) {
     <td colspan="4" class="totals-sailing">Sailing Time: ${formatFn(totalSailingMs)} (${sailingPct.toFixed(1)}%)</td>
     `;
   row.addEventListener('click', () => {
-    if (typeof onReset === 'function') {
-      onReset();
-    }
+    emit(EVENTS.SELECTION_RESET_REQUESTED, { source: 'table-totals' });
   });
 }
 
@@ -149,16 +164,20 @@ function createDayRowHTML(segment) {
     <td>${avgWindDirDay}</td>`;
 }
 
-function attachVoyageRowHandlers(row, voyage, handlers) {
+function attachVoyageRowHandlers(row, voyage) {
   row.addEventListener('click', (event) => {
     const target = event.target;
     if (target && target.classList && target.classList.contains('expander-btn')) {
       return;
     }
     const wasSelected = row.classList.contains('selected-row');
-    if (typeof handlers.onVoyageSelect === 'function') {
-      handlers.onVoyageSelect(voyage, row, { event, wasSelected });
-    }
+    emit(EVENTS.VOYAGE_SELECT_REQUESTED, {
+      voyage,
+      row,
+      source: 'table-row',
+      options: { fit: true, suppressHistory: false },
+      metadata: { wasSelected }
+    });
   });
 
   const maxSpeedCell = row.querySelector('.max-speed-cell');
@@ -166,9 +185,18 @@ function attachVoyageRowHandlers(row, voyage, handlers) {
     const activate = (event) => {
       event.stopPropagation();
       const wasSelected = row.classList.contains('selected-row');
-      if (typeof handlers.onVoyageMaxSpeed === 'function') {
-        handlers.onVoyageMaxSpeed(voyage, row, { event, wasSelected });
-      }
+      emit(EVENTS.VOYAGE_MAX_SPEED_REQUESTED, {
+        voyage,
+        row,
+        source: 'table-row-max-speed',
+        coord: voyage.maxSpeedCoord,
+        speed: voyage.maxSpeed,
+        options: {
+          fit: !wasSelected,
+          suppressHistory: wasSelected
+        },
+        metadata: { wasSelected }
+      });
     };
     maxSpeedCell.addEventListener('click', activate);
     maxSpeedCell.addEventListener('keydown', (event) => {
@@ -180,21 +208,37 @@ function attachVoyageRowHandlers(row, voyage, handlers) {
   }
 }
 
-function attachDayRowHandlers(dayRow, voyage, segment, handlers) {
+function attachDayRowHandlers(dayRow, voyage, segment, voyageRow) {
   dayRow.addEventListener('click', (event) => {
     event.stopPropagation();
-    if (typeof handlers.onDaySelect === 'function') {
-      handlers.onDaySelect(voyage, segment, { event, row: dayRow });
-    }
+    emit(EVENTS.SEGMENT_SELECT_REQUESTED, {
+      voyage,
+      row: voyageRow,
+      segment,
+      source: 'table-day-row',
+      options: {
+        fit: false,
+        suppressHistory: true
+      }
+    });
   });
 
   const maxSpeedCell = dayRow.querySelector('.max-speed-cell');
   if (maxSpeedCell) {
     const activate = (event) => {
       event.stopPropagation();
-      if (typeof handlers.onDayMaxSpeed === 'function') {
-        handlers.onDayMaxSpeed(voyage, segment, { event, row: dayRow });
-      }
+      emit(EVENTS.SEGMENT_MAX_SPEED_REQUESTED, {
+        voyage,
+        row: voyageRow,
+        segment,
+        source: 'table-day-max-speed',
+        coord: segment.maxSpeedCoord,
+        speed: segment.maxSpeed,
+        options: {
+          fit: false,
+          suppressHistory: true
+        }
+      });
     };
     maxSpeedCell.addEventListener('click', activate);
     maxSpeedCell.addEventListener('keydown', (event) => {
@@ -235,7 +279,7 @@ function attachExpanderHandler(row, dayRows) {
   });
 }
 
-export function renderVoyageTable(tbody, voyages, handlers = {}) {
+export function renderVoyageTable(tbody, voyages) {
   if (!tbody) return;
   tbody.innerHTML = '';
   clearVoyageTableData();
@@ -249,7 +293,7 @@ export function renderVoyageTable(tbody, voyages, handlers = {}) {
     row.innerHTML = createVoyageRowHTML(voyage, index, isMultiDay);
     rows.push(row);
 
-    attachVoyageRowHandlers(row, voyage, handlers);
+    attachVoyageRowHandlers(row, voyage);
 
     const dayRows = [];
     if (segments.length > 0) {
@@ -260,7 +304,7 @@ export function renderVoyageTable(tbody, voyages, handlers = {}) {
         dayRow.classList.add('day-row', 'hidden');
         dayRow.innerHTML = createDayRowHTML(segment);
         dayRows.push(dayRow);
-        attachDayRowHandlers(dayRow, voyage, segment, handlers);
+        attachDayRowHandlers(dayRow, voyage, segment, row);
       });
     }
 
@@ -272,3 +316,39 @@ export function renderVoyageTable(tbody, voyages, handlers = {}) {
   setVoyageTableData(voyages, rows);
   return { rows };
 }
+
+/**
+ * Function: handleVoyageSelectedEvent
+ * Description: Apply table row selection styling when a voyage selection event is received.
+ * Parameters:
+ *   payload (object): Event payload containing voyage and row references.
+ * Returns: void.
+ */
+function handleVoyageSelectedEvent(payload = {}) {
+  const explicitRow = payload?.row;
+  if (explicitRow instanceof HTMLTableRowElement) {
+    setSelectedTableRow(explicitRow);
+    return;
+  }
+  const voyage = payload?.voyage;
+  if (voyage && typeof voyage._tripIndex === 'number') {
+    const idx = voyage._tripIndex - 1;
+    const row = getVoyageRowByIndex(idx);
+    if (row) {
+      setSelectedTableRow(row);
+    }
+  }
+}
+
+/**
+ * Function: handleSelectionResetComplete
+ * Description: Clear table selection styling after a reset completes.
+ * Parameters: None.
+ * Returns: void.
+ */
+function handleSelectionResetComplete() {
+  setSelectedTableRow(null);
+}
+
+on(EVENTS.VOYAGE_SELECTED, handleVoyageSelectedEvent);
+on(EVENTS.SELECTION_RESET_COMPLETE, handleSelectionResetComplete);

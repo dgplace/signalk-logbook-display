@@ -1,4 +1,20 @@
-// Voyage data utilities
+/**
+ * Module Responsibilities:
+ * - Provide utilities for normalising voyage datasets returned by the back-end.
+ * - Calculate derived metrics such as voyage totals, per-day segments, and wind statistics.
+ * - Expose fetch helpers with consistent caching behaviour for the front-end.
+ *
+ * Exported API:
+ * - Extraction helpers: `getVoyagePoints`, `getPointActivity`, `shouldSkipConnection`, `extractWindSpeed`.
+ * - Aggregation helpers: `computeVoyageTotals`, `computeDaySegments`, `circularMean`.
+ * - Formatting helpers: `formatDurationMs`.
+ * - Data loading: `fetchVoyagesData`.
+ *
+ * @typedef {import('./types.js').Voyage} Voyage
+ * @typedef {import('./types.js').VoyagePoint} VoyagePoint
+ * @typedef {import('./types.js').VoyageSegment} VoyageSegment
+ * @typedef {import('./types.js').VoyageTotals} VoyageTotals
+ */
 
 /**
  * Function: getVoyagePoints
