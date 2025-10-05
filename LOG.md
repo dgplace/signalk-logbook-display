@@ -18,7 +18,12 @@
 - `server.js`: Lightweight development server for the `public/` directory. Mirrors the plugin endpoints to regenerate voyage and polar data locally.
 - `parse_logbook.js`: Node.js CLI tool that ingests daily YAML logs, classifies activity, computes voyage statistics, and emits structured voyage data.
 - `parse_polar.js`: Helper module that derives polar performance points from voyage data, normalising headings and wind metrics.
-- `public/app.js`: Front-end SPA built on Leaflet. Manages voyage selection, table rendering, map overlays, wind visualisation, and user interactions.
+- `public/app.js`: Front-end orchestrator that wires data fetching, module initialisation, and high-level user interactions.
+- `public/map.js`: Leaflet controller that builds voyage overlays, handles map/background interactions, and coordinates selection state with other modules.
+- `public/view.js`: Responsive layout utility that manages mobile/desktop toggles, tab behaviour, and layout-driven map resizing.
+- `public/table.js`: Table controller responsible for rendering voyage/day rows, maintaining row state, and raising callbacks for row events.
+- `public/data.js`: Data helpers focused on voyage datasets, totals aggregation, and low-level voyage point utilities.
+- `public/util.js`: Shared presentation helpers including heading/DMS formatting and datetime labelling.
 - `public/index.html`: Base HTML shell loading the SPA, styles, and UI scaffolding.
 - `public/styles.css`: Styling for the logbook UI, including map layout, table presentation, and responsive behaviour.
 - `public/voyages.json`: Generated voyage dataset consumed by the SPA (overwritten via parser runs).
@@ -63,3 +68,7 @@
 - Hide the End column and the totals summary row from the mobile voyage table to keep the layout focused on primary metrics.
 - Add strong conditional caching to `server.js`, emitting ETags and `Last-Modified` headers (including Safari-specific `; length=` suffix parsing and unquoted validator matches on conditional headers) so reloading the web app avoids retransferring unchanged `voyages.json`.
 - Update the SPA fetch logic to request `voyages.json` with `cache: 'no-cache'`, ensuring browsers send conditional requests even on manual reloads.
+- Split the SPA into modular files (`public/app.js`, `public/map.js`, `public/view.js`, `public/table.js`, `public/util.js`, `public/data.js`) so map controls, layout behaviour, table state, shared utilities, and data utilities are isolated for clearer maintenance and reuse.
+- Centralised formatting and heading helpers inside `public/util.js`, keeping map and table modules focused on orchestration.
+- Dedicated `public/table.js` now owns voyage table state, DOM rendering, row selection, and accessor helpers to keep table concerns separate from map rendering.
+- Moved the map background selection logic into `public/map.js` so the map controller owns its event handlers.
