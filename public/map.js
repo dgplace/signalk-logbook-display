@@ -67,9 +67,15 @@ let currentVoyagePoints = [];
 let allVoyagesBounds = null;
 let suppressHistoryUpdate = false;
 let windOverlayEnabled = false;
+let baseTileLayer = null;
+let themeListenerRegistered = false;
 
-const BASE_TILESET_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+const BASE_TILESET_URL_LIGHT = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+const BASE_TILESET_URL_DARK = BASE_TILESET_URL_LIGHT;
 const BASE_TILESET_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const prefersColorSchemeQuery = (typeof window !== 'undefined' && typeof window.matchMedia === 'function')
+  ? window.matchMedia('(prefers-color-scheme: dark)')
+  : null;
 
 const windOverlayToggleInput = document.getElementById('windOverlayToggle');
 const windOverlayToggleWrapper = windOverlayToggleInput ? windOverlayToggleInput.closest('.toggle-switch') : null;
@@ -97,17 +103,89 @@ export const historyUpdatesEnabled = apiBasePath === '';
 const MAP_CLICK_SELECT_THRESHOLD_METERS = 1500;
 
 /**
- * Function: createBaseLayer
- * Description: Instantiate the Leaflet tile layer using CARTO's default Voyager basemap.
+ * Function: getPreferredColorMode
+ * Description: Determine the preferred color scheme based on OS/browser settings.
  * Parameters: None.
+ * Returns: string - 'dark' when the user prefers a dark theme, otherwise 'light'.
+ */
+function getPreferredColorMode() {
+  if (prefersColorSchemeQuery && typeof prefersColorSchemeQuery.matches === 'boolean') {
+    return prefersColorSchemeQuery.matches ? 'dark' : 'light';
+  }
+  return 'light';
+}
+
+/**
+ * Function: getCssVariableValue
+ * Description: Resolve the computed value of a CSS custom property on the root element.
+ * Parameters:
+ *   name (string): CSS variable name including the leading double hyphen.
+ * Returns: string - Trimmed value for the variable or an empty string when unavailable.
+ */
+function getCssVariableValue(name) {
+  if (typeof window === 'undefined' || !window.getComputedStyle) return '';
+  const root = document.documentElement;
+  if (!root) return '';
+  const styles = window.getComputedStyle(root);
+  return (styles.getPropertyValue(name) || '').trim();
+}
+
+/**
+ * Function: createBaseLayer
+ * Description: Instantiate the Leaflet tile layer using the appropriate basemap for the theme.
+ * Parameters:
+ *   mode (string): Target color mode, accepts 'light' or 'dark'.
  * Returns: L.TileLayer - Tile layer configured with balanced-toned cartography.
  */
-function createBaseLayer() {
-  return L.tileLayer(BASE_TILESET_URL, {
+function createBaseLayer(mode = 'light') {
+  const useDark = mode === 'dark';
+  const url = useDark ? BASE_TILESET_URL_DARK : BASE_TILESET_URL_LIGHT;
+  const layer = L.tileLayer(url, {
     maxZoom: 20,
     subdomains: 'abcd',
     attribution: BASE_TILESET_ATTRIBUTION
   });
+  layer._colorMode = useDark ? 'dark' : 'light';
+  return layer;
+}
+
+/**
+ * Function: applyBaseLayerForMode
+ * Description: Ensure the map uses a base layer that matches the supplied color mode.
+ * Parameters:
+ *   mode (string): Target color mode, defaults to light when unrecognised.
+ * Returns: void.
+ */
+function applyBaseLayerForMode(mode) {
+  if (!mapInstance) return;
+  const targetMode = mode === 'dark' ? 'dark' : 'light';
+  const currentMode = baseTileLayer ? baseTileLayer._colorMode : null;
+  if (currentMode === targetMode) return;
+  const nextLayer = createBaseLayer(targetMode);
+  if (baseTileLayer) {
+    try { mapInstance.removeLayer(baseTileLayer); } catch (_) {}
+  }
+  nextLayer.addTo(mapInstance);
+  baseTileLayer = nextLayer;
+}
+
+/**
+ * Function: registerThemeChangeHandler
+ * Description: Listen for OS theme changes so the base map updates automatically.
+ * Parameters: None.
+ * Returns: void.
+ */
+function registerThemeChangeHandler() {
+  if (themeListenerRegistered || !prefersColorSchemeQuery) return;
+  const handler = (event) => {
+    applyBaseLayerForMode(event.matches ? 'dark' : 'light');
+  };
+  if (typeof prefersColorSchemeQuery.addEventListener === 'function') {
+    prefersColorSchemeQuery.addEventListener('change', handler);
+  } else if (typeof prefersColorSchemeQuery.addListener === 'function') {
+    prefersColorSchemeQuery.addListener(handler);
+  }
+  themeListenerRegistered = true;
 }
 
 /**
@@ -605,11 +683,12 @@ export function updateSelectedPoint(sel, neighbors = {}) {
     const halfHead = size * 0.075;
     const shaftTopY = tipY + size * 0.075;
     const strokeW = Math.max(2, Math.round(size / 40));
+    const windStroke = getCssVariableValue('--wind-arrow-color') || '#111827';
     const html = `
       <div class="wind-arrow" style="width:${size}px;height:${size}px;transform: rotate(${angle}deg);">
         <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-          <line x1="${center}" y1="${center}" x2="${center}" y2="${shaftTopY}" stroke="#111827" stroke-width="${strokeW}" />
-          <polygon points="${center},${tipY} ${center - halfHead},${headBaseY} ${center + halfHead},${headBaseY}" fill="#111827" />
+          <line x1="${center}" y1="${center}" x2="${center}" y2="${shaftTopY}" stroke="${windStroke}" stroke-width="${strokeW}" />
+          <polygon points="${center},${tipY} ${center - halfHead},${headBaseY} ${center + halfHead},${headBaseY}" fill="${windStroke}" />
         </svg>
         <div class="wind-speed-label" style="position:absolute;top:0;left:50%;transform:translate(-50%,-4px);">${windSpd.toFixed(1)} kn</div>
       </div>`;
@@ -874,8 +953,10 @@ export function initializeMap(onBackgroundClick) {
   selectedWindGroup = null;
   windIntensityLayer = null;
   currentVoyagePoints = [];
+  baseTileLayer = null;
   mapInstance = L.map('map').setView([0, 0], 2);
-  createBaseLayer().addTo(mapInstance);
+  applyBaseLayerForMode(getPreferredColorMode());
+  registerThemeChangeHandler();
   registerMapResizeCallback(() => {
     if (mapInstance) {
       mapInstance.invalidateSize();

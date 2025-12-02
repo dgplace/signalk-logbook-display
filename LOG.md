@@ -75,3 +75,5 @@
 - Normalised voyage, segment, max-speed, and reset workflows through a shared pub/sub bus (`public/events.js`), letting map, table, and history listeners coordinate via event emission instead of bespoke callbacks.
 - Extracted overlay and icon builders into `public/overlays.js`, leaving `public/map.js` focused on Leaflet lifecycle, history updates, and event wiring while reusing the overlay helpers across voyage and segment selections.
 - Documented cross-module voyage structures in `public/types.js` and added module-level API summaries to aid future maintenance.
+- Added prefers-color-scheme driven theming with CSS custom properties, automatically swapping the UI palette while keeping the Leaflet base tiles on CARTO Voyager in both modes so dark theme users still get a readable map.
+- Lowered dark-mode Voyager tile brightness further and increased contrast more so the basemap stays legible without overpowering the darker UI.
