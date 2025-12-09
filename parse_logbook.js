@@ -511,10 +511,18 @@ function groupVoyages(entries) {
   let current = null;
   let lastDate = null;
 
+  /**
+   * Function: isConsecutiveDay
+   * Description: Determine whether two UTC-normalised dates fall within the same or next calendar day.
+   * Parameters:
+   *   d1 (Date): Reference date for the prior log entry.
+   *   d2 (Date): Date of the current log entry.
+   * Returns: boolean - True when the entries should be grouped into the same voyage.
+   */
   function isConsecutiveDay(d1, d2) {
-    const oneDay = 48 * 60 * 60 * 1000;
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
     const diff = d2.getTime() - d1.getTime();
-    return diff >= 0 && diff <= oneDay;
+    return diff >= 0 && diff <= ONE_DAY_MS;
   }
 
   for (const entry of entries) {
