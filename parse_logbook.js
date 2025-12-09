@@ -6,6 +6,30 @@ const path = require('path');
 const yaml = require('yaml');
 
 /**
+ * @typedef {Object} Position
+ * @property {number} longitude - Longitude in decimal degrees.
+ * @property {number} latitude - Latitude in decimal degrees.
+ * @property {string} [source] - Optional position source identifier.
+ *
+ * @typedef {Object} SpeedMetrics
+ * @property {number} [sog] - Speed over ground in knots.
+ * @property {number} [stw] - Speed through water in knots.
+ *
+ * @typedef {Object} WindMetrics
+ * @property {number} [speedTrue] - True wind speed in knots.
+ * @property {number} [speed] - Reported wind speed in knots.
+ * @property {number} [speedApparent] - Apparent wind speed in knots.
+ * @property {number} [direction] - Wind direction in degrees.
+ *
+ * @typedef {Object} LogEntry
+ * @property {Date|string} datetime - ISO datetime string or Date instance.
+ * @property {Position} [position] - Vessel position for the entry.
+ * @property {SpeedMetrics} [speed] - Speed metrics recorded for the entry.
+ * @property {WindMetrics} [wind] - Wind metrics recorded for the entry.
+ * @property {string} [text] - Free-form log text content.
+ */
+
+/**
  * Function: degToRad
  * Description: Convert an angle in degrees to radians.
  * Parameters:
@@ -130,6 +154,22 @@ function parseEntryDate(entry) {
   if (!raw) return null;
   const d = new Date(raw);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Function: getPositionCoord
+ * Description: Extract a [longitude, latitude] pair when the entry includes numeric position data.
+ * Parameters:
+ *   entry (object): Log entry that may contain a position object.
+ * Returns: number[]|null - Coordinate tuple or null when unavailable.
+ */
+function getPositionCoord(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const pos = entry.position;
+  if (!pos || typeof pos !== 'object') return null;
+  const { longitude, latitude } = pos;
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return null;
+  return [longitude, latitude];
 }
 
 /**
@@ -478,7 +518,11 @@ function groupVoyages(entries) {
   }
 
   for (const entry of entries) {
-    const entryDate = new Date(entry.datetime.getFullYear(), entry.datetime.getMonth(), entry.datetime.getDate());
+    const entryDate = new Date(Date.UTC(
+      entry.datetime.getUTCFullYear(),
+      entry.datetime.getUTCMonth(),
+      entry.datetime.getUTCDate()
+    ));
 
     if (!current) {
       current = createVoyageAccumulator(entry);
@@ -501,10 +545,8 @@ function groupVoyages(entries) {
       }
     }
 
-    let coord = null;
-    if (entry.position && typeof entry.position.longitude === 'number' &&
-        typeof entry.position.latitude === 'number') {
-      coord = [entry.position.longitude, entry.position.latitude];
+    const coord = getPositionCoord(entry);
+    if (coord) {
       if (current.coords.length > 0) {
         current.distance += haversine(current.coords[current.coords.length-1], coord);
       }
@@ -518,27 +560,31 @@ function groupVoyages(entries) {
         sanitized.datetime = entry.datetime.toISOString();
       }
       current.points.push({
-        lon: entry.position.longitude,
-        lat: entry.position.latitude,
+        lon: coord[0],
+        lat: coord[1],
         entry: sanitized
       });
     }
-    if (entry.speed) {
+
+    const hasPosition = Array.isArray(coord);
+    if (hasPosition && entry.speed) {
       const s = entry.speed.sog ?? entry.speed.stw;
-      if (typeof s === 'number') {
+      if (Number.isFinite(s)) {
         if (s > current.maxSpeed) {
           current.maxSpeed = s;
-          if (coord) current.maxSpeedCoord = coord;
+          current.maxSpeedCoord = coord;
         }
         current.speedSum += s;
         current.speedCount++;
       }
     }
-    if (entry.wind && typeof entry.wind.speed === 'number') {
-      if (entry.wind.speed > current.maxWind) current.maxWind = entry.wind.speed;
-      current.windSpeedSum += entry.wind.speed;
+
+    const windSpeed = entry.wind ? getWindSpeed(entry) : null;
+    if (hasPosition && Number.isFinite(windSpeed)) {
+      if (windSpeed > current.maxWind) current.maxWind = windSpeed;
+      current.windSpeedSum += windSpeed;
       current.windSpeedCount++;
-      if (typeof entry.wind.direction === 'number') {
+      if (entry.wind && Number.isFinite(entry.wind.direction)) {
         current.windHeadings.push(entry.wind.direction);
       }
     }

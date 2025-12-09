@@ -8,7 +8,7 @@
 
 ## Data Flow Summary
 1. YAML logbook entries are stored under `~/.signalk/plugin-config-data/signalk-logbook/`.
-2. `parse_logbook.js` processes the YAML files into `public/voyages.json`, enriching points with activity metadata.
+2. `parse_logbook.js` processes the YAML files into `public/voyages.json`, enriching points with activity metadata and ignoring speed/wind readings that lack positional data.
 3. `parse_polar.js` transforms the voyage output into polar performance points saved in `public/Polar.json`.
 4. The `plugin.js` router or standalone `server.js` endpoint triggers regeneration on demand.
 5. `public/app.js` fetches the JSON resources, renders voyages on the map, and exposes UI interactions.
@@ -49,6 +49,8 @@
 - Development server runs at `http://localhost:3645/` via `node server.js` and mirrors plugin regeneration endpoints.
 - Front-end relies on Leaflet globals; ensure assets are served from `public/` for proper styling and script load.
 - Parser scripts expect valid ISO datetimes in YAML and handle anchored/motoring classification via text cues and speed heuristics.
+- Parser max-speed and max-wind statistics ignore entries that do not include a valid GPS position to prevent sensor spikes from inflating voyage summaries.
+- Voyage grouping uses UTC calendar days so legs that cross local timezone offsets remain in the same voyage when dates are consecutive.
 
 ## Change Log
 - Updated deployment helper (now `scripts/deploy-to-signalk.sh`) to copy root-level `.js` files into the Signal K module directory alongside the public asset sync.
@@ -77,3 +79,5 @@
 - Documented cross-module voyage structures in `public/types.js` and added module-level API summaries to aid future maintenance.
 - Added prefers-color-scheme driven theming with CSS custom properties, automatically swapping the UI palette while keeping the Leaflet base tiles on CARTO Voyager in both modes so dark theme users still get a readable map.
 - Lowered dark-mode Voyager tile brightness further and increased contrast more so the basemap stays legible without overpowering the darker UI.
+- Guard voyage max-speed and max-wind calculations by excluding log entries without coordinates so instrument glitches (e.g., 46 kt SOG with no position) cannot distort voyage summaries.
+- Group voyages by UTC day boundaries to avoid splitting a single journey across multiple voyages when entries occur near local midnight in different timezones.

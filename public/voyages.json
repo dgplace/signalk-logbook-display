@@ -97562,11 +97562,11 @@
       "startTime": "2025-12-06T08:34:42.000Z",
       "endTime": "2025-12-07T01:18:56.000Z",
       "nm": 28.4,
-      "maxSpeed": 46,
+      "maxSpeed": 9.7,
       "avgSpeed": 1.784741204722674,
-      "maxWind": 39.8,
-      "avgWindSpeed": 13.41331592689296,
-      "avgWindHeading": 2.2813426392491465,
+      "maxWind": 21.1,
+      "avgWindSpeed": 12.681571815718158,
+      "avgWindHeading": 4.315707367100231,
       "coords": [
         [
           153.19028633333335,
