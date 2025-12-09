@@ -81,3 +81,4 @@
 - Lowered dark-mode Voyager tile brightness further and increased contrast more so the basemap stays legible without overpowering the darker UI.
 - Guard voyage max-speed and max-wind calculations by excluding log entries without coordinates so instrument glitches (e.g., 46 kt SOG with no position) cannot distort voyage summaries.
 - Group voyages by UTC day boundaries to avoid splitting a single journey across multiple voyages when entries occur near local midnight in different timezones.
+- Revert voyage grouping to a strict 24-hour gap so voyages separated by more than a day (e.g., July 1 vs. July 4) are treated as distinct trips.
