@@ -173,6 +173,21 @@ function getPositionCoord(entry) {
 }
 
 /**
+ * Function: isPositionWithinRange
+ * Description: Validate a coordinate against a maximum distance from the last accepted position.
+ * Parameters:
+ *   coord (number[]): Candidate [longitude, latitude] coordinate.
+ *   lastCoord (number[]|null): Previously accepted coordinate or null when unavailable.
+ *   maxDistanceNm (number): Maximum allowed distance in nautical miles.
+ * Returns: boolean - True when the coordinate is within range or no prior coordinate exists.
+ */
+function isPositionWithinRange(coord, lastCoord, maxDistanceNm) {
+  if (!Array.isArray(coord)) return false;
+  if (!Array.isArray(lastCoord)) return true;
+  return haversine(lastCoord, coord) <= maxDistanceNm;
+}
+
+/**
  * Function: classifyVoyagePoints
  * Description: Enrich voyage points with activity metadata such as anchored, motoring, or sailing.
  * Parameters:
@@ -510,6 +525,8 @@ function groupVoyages(entries) {
   const voyages = [];
   let current = null;
   let lastDate = null;
+  const MAX_POSITION_JUMP_NM = 100;
+  let lastKnownCoord = null;
 
   /**
    * Function: isConsecutiveDay
@@ -553,7 +570,12 @@ function groupVoyages(entries) {
       }
     }
 
-    const coord = getPositionCoord(entry);
+    let coord = getPositionCoord(entry);
+    if (coord && !isPositionWithinRange(coord, lastKnownCoord, MAX_POSITION_JUMP_NM)) {
+      coord = null;
+    } else if (coord) {
+      lastKnownCoord = coord;
+    }
     if (coord) {
       if (current.coords.length > 0) {
         current.distance += haversine(current.coords[current.coords.length-1], coord);
