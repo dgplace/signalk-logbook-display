@@ -130,14 +130,14 @@ export function renderTotalsRow(tbody, totals, formatDuration) {
 
 /**
  * Function: formatHours
- * Description: Format a duration in hours for display inside the voyage table.
+ * Description: Format a duration in hours for display inside the voyage table with a unit suffix.
  * Parameters:
  *   hours (number): Duration in hours.
- * Returns: string - Formatted hour string or empty string when unavailable.
+ * Returns: string - Formatted hour string with a unit suffix or empty string when unavailable.
  */
 function formatHours(hours) {
   if (!Number.isFinite(hours)) return '';
-  return hours.toFixed(1);
+  return `${hours.toFixed(1)} h`;
 }
 
 function createVoyageRowHTML(voyage, index, segmentCount) {

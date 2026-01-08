@@ -74,7 +74,7 @@
 /**
  * @typedef {Object} VoyageTotals
  * @property {number} totalDistanceNm Total nautical miles across all voyages.
- * @property {number} totalActiveMs Total active duration in milliseconds.
+ * @property {number} totalActiveMs Total active duration in milliseconds from leg durations.
  * @property {number} totalSailingMs Total sailing duration in milliseconds.
  */
 

@@ -96,7 +96,7 @@ export function extractWindSpeed(point) {
 
 /**
  * Function: computeVoyageTotals
- * Description: Aggregate voyage distance and activity durations across the full voyage list.
+ * Description: Aggregate voyage distance plus leg-driven active time and sailing activity durations.
  * Parameters:
  *   voyages (object[]): Voyage summaries containing point data and statistics.
  * Returns: object - Accumulated totals for distance (NM) and activity durations (milliseconds).
@@ -121,6 +121,14 @@ export function computeVoyageTotals(voyages) {
     if (typeof voyage?.nm === 'number' && Number.isFinite(voyage.nm)) {
       totalDistanceNm += voyage.nm;
     }
+    const segments = Array.isArray(voyage?._segments) ? voyage._segments : [];
+    if (segments.length > 0) {
+      const segmentDurationMs = segments.reduce((sum, segment) => {
+        const hours = Number.isFinite(segment?.totalHours) ? segment.totalHours : 0;
+        return sum + (hours * 60 * 60 * 1000);
+      }, 0);
+      totalActiveMs += segmentDurationMs;
+    }
     const points = getVoyagePoints(voyage);
     if (!Array.isArray(points) || points.length < 2) return;
     for (let idx = 1; idx < points.length; idx += 1) {
@@ -140,7 +148,9 @@ export function computeVoyageTotals(voyages) {
       const prevAct = readActivity(prev);
       const currAct = readActivity(curr);
       if (activeActivities.has(prevAct) && activeActivities.has(currAct)) {
-        totalActiveMs += gap;
+        if (segments.length === 0) {
+          totalActiveMs += gap;
+        }
         if (prevAct === 'sailing' && currAct === 'sailing') {
           totalSailingMs += gap;
         }
