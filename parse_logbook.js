@@ -418,6 +418,152 @@ function markStopGaps(points) {
 }
 
 /**
+ * Function: isAnchoredPoint
+ * Description: Determine whether a voyage point is explicitly marked as anchored.
+ * Parameters:
+ *   point (object): Voyage point containing activity metadata.
+ * Returns: boolean - True when the point activity resolves to "anchored".
+ */
+function isAnchoredPoint(point) {
+  if (!point || typeof point !== 'object') return false;
+  const activity = point.activity ?? point.entry?.activity;
+  return activity === 'anchored';
+}
+
+/**
+ * Function: getPointCoord
+ * Description: Extract a longitude/latitude coordinate pair from a voyage point.
+ * Parameters:
+ *   point (object): Voyage point with lon/lat properties.
+ * Returns: number[]|null - Coordinate tuple or null when invalid.
+ */
+function getPointCoord(point) {
+  if (!point || typeof point !== 'object') return null;
+  const { lon, lat } = point;
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+  return [lon, lat];
+}
+
+/**
+ * Function: pruneAnchoredPoints
+ * Description: Remove repeated anchored points that remain within a distance threshold of the first anchored position.
+ * Parameters:
+ *   points (object[]): Ordered voyage points containing activity metadata.
+ *   maxDistanceNm (number): Maximum anchored drift in nautical miles before keeping a new point.
+ * Returns: object[] - Filtered points with duplicate anchored entries removed.
+ */
+function pruneAnchoredPoints(points, maxDistanceNm) {
+  if (!Array.isArray(points) || points.length === 0) return [];
+  if (!Number.isFinite(maxDistanceNm) || maxDistanceNm <= 0) return [...points];
+
+  const pruned = [];
+  let anchorReference = null;
+  let inAnchoredRun = false;
+
+  for (const point of points) {
+    if (!isAnchoredPoint(point)) {
+      inAnchoredRun = false;
+      anchorReference = null;
+      pruned.push(point);
+      continue;
+    }
+
+    const coord = getPointCoord(point);
+    if (!inAnchoredRun || !anchorReference || !coord) {
+      inAnchoredRun = true;
+      if (coord) anchorReference = coord;
+      pruned.push(point);
+      continue;
+    }
+
+    const distance = haversine(anchorReference, coord);
+    if (distance <= maxDistanceNm) {
+      continue;
+    }
+
+    anchorReference = coord;
+    pruned.push(point);
+  }
+
+  return pruned;
+}
+
+/**
+ * Function: extractCoordsFromPoints
+ * Description: Build an ordered coordinate list from voyage points.
+ * Parameters:
+ *   points (object[]): Voyage points containing lon/lat properties.
+ * Returns: number[][] - Array of [lon, lat] coordinate pairs.
+ */
+function extractCoordsFromPoints(points) {
+  if (!Array.isArray(points) || points.length === 0) return [];
+  return points.reduce((acc, point) => {
+    const coord = getPointCoord(point);
+    if (coord) acc.push(coord);
+    return acc;
+  }, []);
+}
+
+/**
+ * Function: computeVoyageMetrics
+ * Description: Recalculate voyage distance and speed/wind metrics from cleaned points.
+ * Parameters:
+ *   points (object[]): Ordered voyage points containing entry metadata.
+ * Returns: object - Aggregated distance, speed, and wind metrics.
+ */
+function computeVoyageMetrics(points) {
+  const metrics = {
+    distance: 0,
+    maxSpeed: 0,
+    maxWind: 0,
+    maxSpeedCoord: null,
+    speedSum: 0,
+    speedCount: 0,
+    windSpeedSum: 0,
+    windSpeedCount: 0,
+    windHeadings: []
+  };
+
+  if (!Array.isArray(points) || points.length === 0) return metrics;
+
+  let previousCoord = null;
+
+  for (const point of points) {
+    const coord = getPointCoord(point);
+    const hasCoord = Array.isArray(coord);
+    if (hasCoord && previousCoord) {
+      metrics.distance += haversine(previousCoord, coord);
+    }
+    if (hasCoord) {
+      previousCoord = coord;
+    }
+
+    const entry = point?.entry ?? point;
+    const speed = getSog(entry);
+    if (hasCoord && Number.isFinite(speed)) {
+      if (speed > metrics.maxSpeed) {
+        metrics.maxSpeed = speed;
+        metrics.maxSpeedCoord = coord;
+      }
+      metrics.speedSum += speed;
+      metrics.speedCount += 1;
+    }
+
+    const windSpeed = getWindSpeed(entry);
+    if (hasCoord && Number.isFinite(windSpeed)) {
+      if (windSpeed > metrics.maxWind) metrics.maxWind = windSpeed;
+      metrics.windSpeedSum += windSpeed;
+      metrics.windSpeedCount += 1;
+      if (entry?.wind && Number.isFinite(entry.wind.direction)) {
+        metrics.windHeadings.push(entry.wind.direction);
+      }
+    }
+  }
+
+  return metrics;
+}
+
+/**
  * Function: createVoyageAccumulator
  * Description: Initialise a voyage aggregation object using the first entry of a voyage.
  * Parameters:
@@ -455,7 +601,22 @@ function createVoyageAccumulator(entry) {
  */
 function finalizeVoyage(current) {
   classifyVoyagePoints(current.points);
+  const ANCHORED_DUPLICATE_DISTANCE_NM = 100 / 1852;
+  current.points = pruneAnchoredPoints(current.points, ANCHORED_DUPLICATE_DISTANCE_NM);
+  current.coords = extractCoordsFromPoints(current.points);
   markStopGaps(current.points);
+
+  const metrics = computeVoyageMetrics(current.points);
+  current.distance = metrics.distance;
+  current.maxSpeed = metrics.maxSpeed;
+  current.maxSpeedCoord = metrics.maxSpeedCoord;
+  current.speedSum = metrics.speedSum;
+  current.speedCount = metrics.speedCount;
+  current.maxWind = metrics.maxWind;
+  current.windSpeedSum = metrics.windSpeedSum;
+  current.windSpeedCount = metrics.windSpeedCount;
+  current.windHeadings = metrics.windHeadings;
+
   let avgSpeed = 0;
   const movingDurationMs = Math.max(0, current.totalDurationMs - current.stoppedDurationMs);
   if (movingDurationMs > 0) {
@@ -521,7 +682,7 @@ function isVoyageGapExceeded(previousEntry, entry, maxGapHours) {
 
 /**
  * Function: groupVoyages
- * Description: Aggregate chronological entries into voyages separated by inactivity gaps greater than 48 hours.
+ * Description: Aggregate chronological entries into voyages separated by inactivity gaps greater than 48 hours, keeping only voyages that travel at least 1 nm.
  * Parameters:
  *   entries (object[]): Sorted log entries covering one or more logged intervals.
  * Returns: object[] - Array of voyage summaries.
@@ -531,11 +692,15 @@ function groupVoyages(entries) {
   let current = null;
   const MAX_POSITION_JUMP_NM = 100;
   const VOYAGE_GAP_HOURS = 48;
+  const MIN_VOYAGE_DISTANCE_NM = 1;
   let lastKnownCoord = null;
 
   for (const entry of entries) {
     if (current && current.lastEntry && isVoyageGapExceeded(current.lastEntry, entry, VOYAGE_GAP_HOURS)) {
-      voyages.push(finalizeVoyage(current));
+      const summary = finalizeVoyage(current);
+      if (current.distance >= MIN_VOYAGE_DISTANCE_NM) {
+        voyages.push(summary);
+      }
       current = null;
       lastKnownCoord = null;
     }
@@ -618,7 +783,10 @@ function groupVoyages(entries) {
   }
 
   if (current) {
-    voyages.push(finalizeVoyage(current));
+    const summary = finalizeVoyage(current);
+    if (current.distance >= MIN_VOYAGE_DISTANCE_NM) {
+      voyages.push(summary);
+    }
   }
   return voyages;
 }

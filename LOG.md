@@ -2,13 +2,13 @@
 
 ## Application Overview
 - Signal K plugin that exposes a web interface for exploring logbook voyages and generating polar data.
-- Node.js back-end components parse raw YAML log entries into structured JSON consumed by the front-end, splitting voyages on inactivity gaps over 48 hours, segmenting legs on anchored gaps (>= 1 hour) while filtering out legs under 1 nm, and filtering GPS outliers beyond a 100 nm jump threshold.
+- Node.js back-end components parse raw YAML log entries into structured JSON consumed by the front-end, splitting voyages on inactivity gaps over 48 hours, discarding voyages under 1 nm, pruning repeated anchored fixes within 100 meters of the leg-end anchor, segmenting legs on anchored gaps (>= 1 hour) while filtering out legs under 1 nm, and filtering GPS outliers beyond a 100 nm jump threshold.
 - Front-end single-page app (SPA) renders voyage tracks on Leaflet maps and provides rich voyage analytics.
 - Utility scripts support data preparation, polar analysis, and batch log maintenance outside the runtime path.
 
 ## Data Flow Summary
 1. YAML logbook entries are stored under `~/.signalk/plugin-config-data/signalk-logbook/`.
-2. `parse_logbook.js` processes the YAML files into `public/voyages.json`, splitting voyages after inactivity gaps greater than 48 hours and marking anchored gaps (>= 1 hour) for leg segmentation, filtering position jumps greater than 100 nm from the last known fix, enriching points with activity metadata, and ignoring speed/wind readings that lack positional data.
+2. `parse_logbook.js` processes the YAML files into `public/voyages.json`, splitting voyages after inactivity gaps greater than 48 hours, discarding voyages under 1 nm, pruning repeated anchored fixes within 100 meters of the leg-end anchor, and marking anchored gaps (>= 1 hour) for leg segmentation, filtering position jumps greater than 100 nm from the last known fix, enriching points with activity metadata, and ignoring speed/wind readings that lack positional data.
 3. `parse_polar.js` transforms the voyage output into polar performance points saved in `public/Polar.json`.
 4. The `plugin.js` router or standalone `server.js` endpoint triggers regeneration on demand.
 5. `public/app.js` fetches the JSON resources, derives leg segments from anchored activity or skip-connection markers, filters out legs under 1 nm, renders voyages on the map, and exposes UI interactions.
@@ -16,7 +16,7 @@
 ## Core Files
 - `plugin.js`: Signal K plugin entry point. Registers HTTP endpoints, spawns the logbook parser, writes voyage and polar JSON, and integrates with the host router.
 - `server.js`: Lightweight development server for the `public/` directory. Mirrors the plugin endpoints to regenerate voyage and polar data locally.
-- `parse_logbook.js`: Node.js CLI tool that ingests daily YAML logs, splits voyages on 48-hour inactivity gaps, marks anchored stop gaps for leg segmentation, filters GPS outliers, classifies activity, computes voyage statistics, and emits structured voyage data.
+- `parse_logbook.js`: Node.js CLI tool that ingests daily YAML logs, splits voyages on 48-hour inactivity gaps, discards voyages under 1 nm, prunes repeated anchored fixes within 100 meters of the leg-end anchor, marks anchored stop gaps for leg segmentation, filters GPS outliers, classifies activity, computes voyage statistics, and emits structured voyage data.
 - `parse_polar.js`: Helper module that derives polar performance points from voyage data, normalising headings and wind metrics.
 - `public/app.js`: Front-end orchestrator that wires data fetching, module initialisation, and high-level user interactions.
 - `public/map.js`: Leaflet controller that builds voyage overlays, handles map/background interactions, and coordinates selection state with other modules.
@@ -51,9 +51,11 @@
 - Parser scripts expect valid ISO datetimes in YAML and handle anchored/motoring classification via text cues and speed heuristics.
 - Parser drops positions that jump more than 100 nm from the last accepted fix to avoid plotting GPS/AIS outliers.
 - Parser max-speed and max-wind statistics ignore entries that do not include a valid GPS position to prevent sensor spikes from inflating voyage summaries.
-- Voyages split on inactivity gaps over 48 hours, while legs split on anchored gaps (>= 1 hour) flagged via anchored activity or skip-connection markers so legs can span multiple days and multiple legs can occur within a single day, with leg segments under 1 nm removed from the UI.
+- Voyages split on inactivity gaps over 48 hours, with voyages under 1 nm discarded and repeated anchored fixes within 100 meters of the leg-end anchor pruned, while legs split on anchored gaps (>= 1 hour) flagged via anchored activity or skip-connection markers so legs can span multiple days and multiple legs can occur within a single day, with leg segments under 1 nm removed from the UI.
 
 ## Change Log
+- Prune repeated anchored fixes within 100 meters of the leg-end anchor before computing voyage metrics.
+- Filter out voyages that travel less than 1 nm during parsing.
 - Split voyages on inactivity gaps over 36 hours and define legs by anchored gaps (>= 1 hour) instead of day boundaries.
 - Added a 100 nm GPS outlier filter to `parse_logbook.js`, skipping positions that jump too far from the last accepted fix.
 - Updated deployment helper (now `scripts/deploy-to-signalk.sh`) to copy root-level `.js` files into the Signal K module directory alongside the public asset sync.
