@@ -199,9 +199,12 @@ html, body { height: 100%; }
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
   color: var(--header-color);
 }
-.header-actions { display: flex; gap: 8px; align-items: center; }
+.header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.header-actions .toggle-switch { flex-shrink: 0; }
 .toggle-switch {
   display: inline-flex;
   align-items: center;
@@ -260,6 +263,14 @@ html, body { height: 100%; }
 .toggle-text {
   font-size: 0.92rem;
   color: var(--toggle-text);
+}
+.details-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0 8px;
+  border-bottom: 1px solid var(--details-border);
+  margin-bottom: 8px;
 }
 .table-wrapper {
   flex: 1 1 auto;
@@ -397,6 +408,9 @@ tbody tr.selected-row:hover td {
   box-shadow: var(--details-shadow);
   z-index: 1200;
 }
+.details-panel .toggle-switch {
+  margin-right: 0;
+}
 .details-panel .floating-header {
   display: flex;
   align-items: center;
@@ -411,6 +425,19 @@ tbody tr.selected-row:hover td {
   border: none; background: rgba(148, 163, 184, 0.18); cursor: pointer; font-size: 16px; line-height: 1;
   color: var(--details-text);
   border-radius: 999px;
+}
+
+@media (max-width: 520px) {
+  .header-bar {
+    align-items: flex-start;
+  }
+  .header-actions {
+    width: 100%;
+  }
+  .header-actions .toggle-switch {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
 }
 
 /* Form-like grid for point details */

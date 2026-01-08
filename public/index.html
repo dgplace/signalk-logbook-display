@@ -23,10 +23,10 @@
       <div class="header-bar">
         <h3 style="margin: 16px 0;">Logbook SV Tequila Mockingbird</h3>
         <div class="header-actions">
-          <label class="toggle-switch" id="windOverlayToggleWrapper">
-            <input type="checkbox" id="windOverlayToggle" aria-label="Toggle wind overlay">
+          <label class="toggle-switch" id="layoutOverrideToggleWrapper">
+            <input type="checkbox" id="layoutOverrideToggle" aria-label="Force tab layout">
             <span class="toggle-slider" aria-hidden="true"></span>
-            <span class="toggle-text">Wind overlay</span>
+            <span class="toggle-text">Tab View</span>
           </label>
           <button id="toggleMaxBtn" aria-pressed="false">Maximize</button>
           <button id="regenBtn">Regenerate voyages</button>
@@ -56,7 +56,21 @@
     <div id="hDivider" class="h-divider" role="separator" aria-orientation="horizontal" aria-label="Resize panels"></div>
     <div class="map-row" id="mapPanel" role="tabpanel" aria-labelledby="mobileTabMap">
       <div id="map"></div>
-      <div id="pointDetails" class="details-panel" aria-live="polite"></div>
+      <div id="pointDetails" class="details-panel" aria-live="polite">
+        <div class="floating-header">
+          <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+          <span class="floating-title">Point Details</span>
+          <button class="close-details" aria-label="Close">×</button>
+        </div>
+        <div class="details-controls">
+          <label class="toggle-switch" id="windOverlayToggleWrapper">
+            <input type="checkbox" id="windOverlayToggle" aria-label="Toggle wind overlay">
+            <span class="toggle-slider" aria-hidden="true"></span>
+            <span class="toggle-text">Wind overlay</span>
+          </label>
+        </div>
+        <div class="details-body"></div>
+      </div>
     </div>
   </div>
 

@@ -3,7 +3,7 @@
 ## Application Overview
 - Signal K plugin that exposes a web interface for exploring logbook voyages and generating polar data.
 - Node.js back-end components parse raw YAML log entries into structured JSON consumed by the front-end, splitting voyages on inactivity gaps over 48 hours, discarding voyages under 1 nm, pruning repeated anchored fixes within 100 meters of the leg-end anchor, segmenting legs on anchored gaps (>= 1 hour) while filtering out legs under 1 nm, and filtering GPS outliers beyond a 100 nm jump threshold.
-- Front-end single-page app (SPA) renders voyage tracks on Leaflet maps and provides rich voyage analytics.
+- Front-end single-page app (SPA) renders voyage tracks on Leaflet maps, provides rich voyage analytics, and includes responsive layout controls with a tab-view toggle that mirrors the active layout and can override auto switching.
 - Utility scripts support data preparation, polar analysis, and batch log maintenance outside the runtime path.
 
 ## Data Flow Summary
@@ -20,7 +20,7 @@
 - `parse_polar.js`: Helper module that derives polar performance points from voyage data, normalising headings and wind metrics.
 - `public/app.js`: Front-end orchestrator that wires data fetching, module initialisation, and high-level user interactions.
 - `public/map.js`: Leaflet controller that builds voyage overlays, handles map/background interactions, and coordinates selection state with other modules.
-- `public/view.js`: Responsive layout utility that manages mobile/desktop toggles, tab behaviour, and layout-driven map resizing.
+- `public/view.js`: Responsive layout utility that manages mobile/desktop toggles, tab/desktop overrides that sync with auto layout changes, tab behaviour, and layout-driven map resizing.
 - `public/table.js`: Table controller responsible for rendering voyage/leg rows, maintaining row state, and raising callbacks for row events.
 - `public/data.js`: Data helpers focused on voyage datasets, totals aggregation, and leg segmentation based on anchored activity/skip-connection gaps while discarding legs under 1 nm.
 - `public/util.js`: Shared presentation helpers including heading/DMS formatting and datetime labelling.
@@ -51,6 +51,7 @@
 - Parser scripts expect valid ISO datetimes in YAML and handle anchored/motoring classification via text cues and speed heuristics.
 - Parser drops positions that jump more than 100 nm from the last accepted fix to avoid plotting GPS/AIS outliers.
 - Parser max-speed and max-wind statistics ignore entries that do not include a valid GPS position to prevent sensor spikes from inflating voyage summaries.
+- The header includes a tab-view toggle that mirrors the active layout and can force the tab or desktop layout even when the viewport would choose the opposite.
 - Voyages split on inactivity gaps over 48 hours, with voyages under 1 nm discarded and repeated anchored fixes within 100 meters of the leg-end anchor pruned, while legs split on anchored gaps (>= 1 hour) flagged via anchored activity or skip-connection markers so legs can span multiple days and multiple legs can occur within a single day, with leg segments under 1 nm removed from the UI.
 
 ## Change Log
@@ -60,8 +61,17 @@
 - Added a 100 nm GPS outlier filter to `parse_logbook.js`, skipping positions that jump too far from the last accepted fix.
 - Updated deployment helper (now `scripts/deploy-to-signalk.sh`) to copy root-level `.js` files into the Signal K module directory alongside the public asset sync.
 - Adopted the CARTO Voyager basemap and rethemed the front-end with a light palette for balanced contrast across the app.
-- Added a header toggle for the wind overlay.
-- Resized point markers to roughly 1.1× the route weight and size wind circles to fixed pixel sizing for consistent visibility.
+- Added a wind overlay toggle for enabling map wind arrows.
+- Added a tab-view toggle in the header so the mobile tab layout can be forced on demand.
+- Synced the tab-view toggle with automatic layout changes and let unticking force the desktop layout.
+- Moved the wind overlay toggle into the point details panel on the map.
+- Swapped the wind overlay from circles to opaque arrows sized and colored by wind speed.
+- Renamed the header toggle label from Portrait View to Tab View.
+- Matched the wind overlay arrow style and size to the selected-point arrow while keeping color driven by wind speed.
+- Suppressed wind overlay arrows when wind speed is zero.
+- Kept wind arrow stroke and head size constant while scaling arrow length by wind speed.
+- Thinned wind overlay arrows to at least 1 nm spacing between rendered points.
+- Resized point markers to roughly 1.1× the route weight and tuned wind overlay sizing for consistent visibility.
 - Enforced a 700px minimum page width to preserve layout integrity on narrow viewports.
 - Set a 150px minimum height on the voyage table wrapper to maintain legibility when space is constrained.
 - Let the main layout exceed the viewport when necessary so the page scrolls instead of shrinking the map, keeping the map row at least 400px tall and ensuring the table row never compresses below 230px even when the window is short.

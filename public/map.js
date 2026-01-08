@@ -614,6 +614,24 @@ function courseFromNeighbors(prev, sel, next) {
 }
 
 /**
+ * Function: getDetailsPanelElements
+ * Description: Resolve the point details panel and body container for content updates.
+ * Parameters: None.
+ * Returns: object|null - Object containing the panel and body elements or null if unavailable.
+ */
+function getDetailsPanelElements() {
+  const panel = document.getElementById('pointDetails');
+  if (!panel) return null;
+  let body = panel.querySelector('.details-body');
+  if (!body) {
+    body = document.createElement('div');
+    body.className = 'details-body';
+    panel.appendChild(body);
+  }
+  return { panel, body };
+}
+
+/**
  * Function: renderPointDetails
  * Description: Populate the point details panel with data from the selected voyage point.
  * Parameters:
@@ -621,8 +639,9 @@ function courseFromNeighbors(prev, sel, next) {
  * Returns: void.
  */
 function renderPointDetails(point) {
-  const panel = document.getElementById('pointDetails');
-  if (!panel) return;
+  const elements = getDetailsPanelElements();
+  if (!elements) return;
+  const { panel, body } = elements;
   const entry = point.entry || point;
   const when = entry.datetime ? new Date(entry.datetime).toLocaleString() : '—';
   const sog = entry?.speed?.sog;
@@ -641,9 +660,7 @@ function renderPointDetails(point) {
       <div class="row"><dt>Activity</dt><dd>${getPointActivity(point)}</dd></div>
     </dl>`;
   panel.style.display = '';
-  panel.innerHTML = `
-    <div class="floating-header"><span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="floating-title">Point Details</span><button class="close-details" aria-label="Close">×</button></div>
-    <div class="details-body">${summary}</div>`;
+  body.innerHTML = summary;
   wireDetailsControls(panel);
 }
 
@@ -678,11 +695,12 @@ export function updateSelectedPoint(sel, neighbors = {}) {
     const angle = windDir.toFixed(1);
     const size = calculateWindArrowSize(windSpd);
     const center = size / 2;
-    const tipY = size * 0.10;
-    const headBaseY = tipY + size * 0.125;
-    const halfHead = size * 0.075;
-    const shaftTopY = tipY + size * 0.075;
-    const strokeW = Math.max(2, Math.round(size / 40));
+    const tipY = 6;
+    const headLength = 10;
+    const halfHead = 6;
+    const headBaseY = tipY + headLength;
+    const shaftTopY = tipY + Math.round(headLength * 0.6);
+    const strokeW = 2;
     const windStroke = getCssVariableValue('--wind-arrow-color') || '#111827';
     const html = `
       <div class="wind-arrow" style="width:${size}px;height:${size}px;transform: rotate(${angle}deg);">
@@ -708,12 +726,11 @@ export function updateSelectedPoint(sel, neighbors = {}) {
  * Returns: void.
  */
 export function setDetailsHint(msg) {
-  const panel = document.getElementById('pointDetails');
-  if (!panel) return;
+  const elements = getDetailsPanelElements();
+  if (!elements) return;
+  const { panel, body } = elements;
   panel.style.display = '';
-  panel.innerHTML = `
-    <div class="floating-header"><span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="floating-title">Point Details</span><button class="close-details" aria-label="Close">×</button></div>
-    <div class="details-body"><em>${msg}</em></div>`;
+  body.innerHTML = `<em>${msg}</em>`;
   wireDetailsControls(panel);
 }
 
@@ -1161,12 +1178,14 @@ on(EVENTS.SELECTION_RESET_REQUESTED, handleSelectionResetRequested);
 
 function wireDetailsControls(panel) {
   if (!panel) return;
+  if (panel.dataset.controlsWired === 'true') return;
   const closeBtn = panel.querySelector('.close-details');
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
       panel.style.display = 'none';
     });
   }
+  panel.dataset.controlsWired = 'true';
 }
 
 /**

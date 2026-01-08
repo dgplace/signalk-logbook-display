@@ -20,8 +20,7 @@ const WIND_SPEED_COLOR_STOPS = [
   { limit: 48, color: '#f4511e' },
   { limit: Infinity, color: '#d81b60' }
 ];
-const MIN_WIND_RADIUS_PX = 6;
-const MAX_WIND_RADIUS_PX = 24;
+const MIN_WIND_ARROW_SPACING_METERS = 1852;
 const POINT_MARKER_SIZE = 5;
 const POINT_MARKER_DARKEN_FACTOR = 0.75;
 
@@ -57,11 +56,22 @@ function windSpeedToColor(speed) {
   return selected;
 }
 
-function windSpeedToRadiusPx(speed) {
-  if (typeof speed !== 'number' || Number.isNaN(speed)) return MIN_WIND_RADIUS_PX;
-  const clamped = Math.max(0, Math.min(50, speed));
-  const fraction = clamped / 50;
-  return MIN_WIND_RADIUS_PX + Math.round((MAX_WIND_RADIUS_PX - MIN_WIND_RADIUS_PX) * fraction);
+/**
+ * Function: parseWindDirection
+ * Description: Extract a numeric wind direction from a voyage point record.
+ * Parameters:
+ *   point (object): Voyage point containing wind metadata.
+ * Returns: number|null - Wind direction in degrees or null when unavailable.
+ */
+function parseWindDirection(point) {
+  const entry = point?.entry || point || {};
+  const raw = entry?.wind?.direction ?? entry?.windDirection ?? point?.wind?.direction;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  if (typeof raw === 'string') {
+    const parsed = Number.parseFloat(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 /**
@@ -156,7 +166,7 @@ export function createActivityHighlightPolylines(map, points, options = {}) {
 
 /**
  * Function: createWindIntensityLayer
- * Description: Create a non-interactive wind intensity layer for the supplied voyage points.
+ * Description: Create a non-interactive wind arrow layer for the supplied voyage points.
  * Parameters:
  *   points (object[]): Voyage points containing wind speed data.
  * Returns: L.Layer|null - Layer group with per-point wind markers, or null when no markers apply.
@@ -165,20 +175,47 @@ export function createWindIntensityLayer(points) {
   if (!Array.isArray(points) || points.length === 0) return null;
   const layer = L.layerGroup();
   let rendered = 0;
+  let lastArrowLatLng = null;
   points.forEach((point) => {
     const speed = extractWindSpeed(point);
-    if (speed === null) return;
+    if (speed === null || speed <= 0) return;
     if (typeof point.lat !== 'number' || typeof point.lon !== 'number') return;
-    const marker = L.circleMarker([point.lat, point.lon], {
-      radius: windSpeedToRadiusPx(speed),
-      color: 'rgba(17, 24, 39, 0.35)',
-      weight: 1,
-      fillColor: windSpeedToColor(speed),
-      fillOpacity: 0.45,
+    const direction = parseWindDirection(point);
+    if (direction === null) return;
+    const currentLatLng = L.latLng(point.lat, point.lon);
+    if (lastArrowLatLng) {
+      const spacing = currentLatLng.distanceTo(lastArrowLatLng);
+      if (spacing < MIN_WIND_ARROW_SPACING_METERS) return;
+    }
+    const angle = (direction + 180) % 360;
+    const size = calculateWindArrowSize(speed);
+    const center = size / 2;
+    const tipY = 6;
+    const headLength = 10;
+    const headHalf = 6;
+    const headBaseY = tipY + headLength;
+    const shaftTopY = tipY + Math.round(headLength * 0.6);
+    const strokeW = 2;
+    const arrowColor = windSpeedToColor(speed);
+    const html = `
+      <div class="wind-arrow" style="width:${size}px;height:${size}px;transform: rotate(${angle}deg);">
+        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">
+          <line x1="${center}" y1="${center}" x2="${center}" y2="${shaftTopY}" stroke="${arrowColor}" stroke-width="${strokeW}" stroke-linecap="round" />
+          <polygon points="${center},${tipY} ${center - headHalf},${headBaseY} ${center + headHalf},${headBaseY}" fill="${arrowColor}" />
+        </svg>
+      </div>`;
+    const marker = L.marker([point.lat, point.lon], {
+      icon: L.divIcon({
+        className: '',
+        html,
+        iconSize: [size, size],
+        iconAnchor: [center, center]
+      }),
       interactive: false
     });
     marker.addTo(layer);
     rendered += 1;
+    lastArrowLatLng = currentLatLng;
   });
   return rendered > 0 ? layer : null;
 }

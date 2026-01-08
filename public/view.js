@@ -16,6 +16,9 @@ const MOBILE_BREAKPOINT_PX = 700;
 const MIN_TOP_SECTION_HEIGHT = 230;
 const MIN_MAP_SECTION_HEIGHT = 400;
 const GRID_ROW_GAP_PX = 12;
+const LAYOUT_MODE_AUTO = 'auto';
+const LAYOUT_MODE_PORTRAIT = 'portrait';
+const LAYOUT_MODE_LANDSCAPE = 'landscape';
 const containerEl = document.querySelector('.container');
 const mobileTabBar = document.getElementById('mobileTabBar');
 const mobileTabButtons = {
@@ -24,12 +27,19 @@ const mobileTabButtons = {
 };
 const tablePanel = document.getElementById('tablePanel');
 const mapPanel = document.getElementById('mapPanel');
+const layoutOverrideToggleInput = document.getElementById('layoutOverrideToggle');
+const layoutOverrideToggleWrapper = layoutOverrideToggleInput
+  ? layoutOverrideToggleInput.closest('.toggle-switch')
+  : null;
 
 let pendingMobileResizeFrame = null;
 let hasInitializedMobileView = false;
 let mapResizeCallback = null;
 let splittersInitialized = false;
 let maximizeInitialized = false;
+let layoutMode = (layoutOverrideToggleInput && layoutOverrideToggleInput.checked)
+  ? LAYOUT_MODE_PORTRAIT
+  : LAYOUT_MODE_AUTO;
 
 /**
  * Function: invalidateMapSize
@@ -74,6 +84,67 @@ export function registerMapResizeCallback(callback) {
 export function isMobileViewport() {
   const width = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth || 0;
   return width > 0 && width < MOBILE_BREAKPOINT_PX;
+}
+
+/**
+ * Function: getViewportLayoutMode
+ * Description: Resolve the layout mode implied by the current viewport width.
+ * Parameters: None.
+ * Returns: string - 'portrait' when the viewport is below the breakpoint, otherwise 'landscape'.
+ */
+function getViewportLayoutMode() {
+  return isMobileViewport() ? LAYOUT_MODE_PORTRAIT : LAYOUT_MODE_LANDSCAPE;
+}
+
+/**
+ * Function: getRequestedLayoutMode
+ * Description: Determine the active layout mode based on auto or manual selection.
+ * Parameters: None.
+ * Returns: string - 'portrait' or 'landscape'.
+ */
+function getRequestedLayoutMode() {
+  if (layoutMode === LAYOUT_MODE_PORTRAIT || layoutMode === LAYOUT_MODE_LANDSCAPE) {
+    return layoutMode;
+  }
+  return getViewportLayoutMode();
+}
+
+/**
+ * Function: updateLayoutToggleUI
+ * Description: Sync the tab layout toggle styling with the current layout mode.
+ * Parameters: None.
+ * Returns: void.
+ */
+function updateLayoutToggleUI() {
+  if (!layoutOverrideToggleInput) return;
+  const isPortrait = getRequestedLayoutMode() === LAYOUT_MODE_PORTRAIT;
+  layoutOverrideToggleInput.checked = isPortrait;
+  if (layoutOverrideToggleWrapper) {
+    layoutOverrideToggleWrapper.classList.toggle('is-active', isPortrait);
+  }
+}
+
+/**
+ * Function: updateLayoutModeFromToggle
+ * Description: Update the layout mode based on toggle state and viewport-driven auto behaviour.
+ * Parameters:
+ *   wantsPortrait (boolean): True when the tab layout toggle is active.
+ * Returns: void.
+ */
+function updateLayoutModeFromToggle(wantsPortrait) {
+  const requestedMode = wantsPortrait ? LAYOUT_MODE_PORTRAIT : LAYOUT_MODE_LANDSCAPE;
+  const viewportMode = getViewportLayoutMode();
+  layoutMode = requestedMode === viewportMode ? LAYOUT_MODE_AUTO : requestedMode;
+}
+
+/**
+ * Function: shouldUseMobileLayout
+ * Description: Decide whether the mobile layout should be active based on viewport or manual override.
+ * Parameters: None.
+ * Returns: boolean - True when the layout should use the mobile layout.
+ */
+function shouldUseMobileLayout() {
+  return getRequestedLayoutMode() === LAYOUT_MODE_PORTRAIT;
 }
 
 /**
@@ -163,25 +234,26 @@ export function ensureMobileMapView() {
 
 /**
  * Function: ensureMobileLayoutReadiness
- * Description: Apply the mobile layout when the viewport qualifies and it has not yet been activated.
+ * Description: Apply the mobile layout when the viewport qualifies or an override is active.
  * Parameters: None.
  * Returns: void.
  */
 export function ensureMobileLayoutReadiness() {
-  if (!isMobileViewport()) return;
+  if (!shouldUseMobileLayout()) return;
   if (isMobileLayoutActive()) return;
   applyMobileLayout();
 }
 
 /**
  * Function: applyMobileLayout
- * Description: Toggle the responsive layout class and associated UI affordances based on viewport width.
+ * Description: Toggle the responsive layout class and associated UI affordances based on viewport or manual override.
  * Parameters: None.
  * Returns: void.
  */
 export function applyMobileLayout() {
   if (!containerEl) return;
-  const shouldUseMobile = isMobileViewport();
+  const shouldUseMobile = shouldUseMobileLayout();
+  updateLayoutToggleUI();
   if (shouldUseMobile) {
     containerEl.classList.add('mobile-layout');
     if (mobileTabBar) {
@@ -253,6 +325,13 @@ export function initMobileLayoutControls() {
   }
   if (mobileTabBar) {
     mobileTabBar.addEventListener('keydown', handleMobileTabKeyNavigation);
+  }
+  if (layoutOverrideToggleInput) {
+    layoutOverrideToggleInput.addEventListener('change', (event) => {
+      updateLayoutModeFromToggle(event.target.checked);
+      applyMobileLayout();
+    });
+    updateLayoutToggleUI();
   }
   window.addEventListener('resize', () => {
     if (pendingMobileResizeFrame) {
