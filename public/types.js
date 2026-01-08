@@ -47,7 +47,7 @@
  * @property {number} maxWind Highest recorded wind speed for the segment in knots.
  * @property {number} avgWindSpeed Average recorded wind speed in knots.
  * @property {number} [avgWindHeading] Mean wind direction in degrees.
- * @property {string} [dateKey] Derived YYYY-MM-DD string representing the segment date.
+ * @property {string} [dateKey] Optional label used when segments are keyed by date.
  * @property {VoyagePoint[]} points Ordered points belonging to the segment.
  * @property {any} [polyline] Leaflet polyline reference associated with the segment when rendered.
  */
@@ -55,7 +55,7 @@
 /**
  * @typedef {Object} Voyage
  * @property {number} _tripIndex One-based index representing the voyage’s position in the rendered table.
- * @property {VoyageSegment[]} [_segments] Cached day segments prepared for rendering.
+ * @property {VoyageSegment[]} [_segments] Cached trip segments prepared for rendering.
  * @property {any} [_fallbackPolyline] Leaflet polyline created when the voyage lacks explicit segments.
  * @property {number} nm Total nautical miles travelled during the voyage.
  * @property {number} maxSpeed Maximum recorded speed over ground in knots.
@@ -103,7 +103,7 @@
 /**
  * @typedef {Object} SegmentSelectionPayload
  * @property {Voyage} voyage Voyage that contains the target segment.
- * @property {HTMLTableRowElement} [row] Table row associated with the voyage (not the day row).
+ * @property {HTMLTableRowElement} [row] Table row associated with the voyage (not the leg row).
  * @property {VoyageSegment} segment Segment that should be highlighted.
  * @property {VoyageSelectionOptions} [options] Behaviour flags applied to the parent voyage selection.
  * @property {string} [source] Identifier describing the selection trigger.
@@ -114,7 +114,7 @@
  * @typedef {Object} MaxSpeedPayload
  * @property {Voyage} voyage Voyage owning the max-speed point.
  * @property {HTMLTableRowElement} [row] Table row associated with the voyage.
- * @property {VoyageSegment} [segment] Segment containing the max-speed point when scoped to a day.
+ * @property {VoyageSegment} [segment] Segment containing the max-speed point when scoped to a leg.
  * @property {number[]} coord `[lon, lat]` pair marking the max-speed location.
  * @property {number} speed Speed in knots for the tooltip.
  * @property {VoyageSelectionOptions} [options] Behaviour flags applied to the parent selection.

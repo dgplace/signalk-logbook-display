@@ -2,13 +2,13 @@
 
 ## Application Overview
 - Signal K plugin that exposes a web interface for exploring logbook voyages and generating polar data.
-- Node.js back-end components parse raw YAML log entries into structured JSON consumed by the front-end, splitting voyages on anchored stop gaps (>= 1 hour) and filtering GPS outliers beyond a 100 nm jump threshold.
+- Node.js back-end components parse raw YAML log entries into structured JSON consumed by the front-end, splitting voyages on inactivity gaps over 36 hours, segmenting legs on anchored gaps (>= 1 hour), and filtering GPS outliers beyond a 100 nm jump threshold.
 - Front-end single-page app (SPA) renders voyage tracks on Leaflet maps and provides rich voyage analytics.
 - Utility scripts support data preparation, polar analysis, and batch log maintenance outside the runtime path.
 
 ## Data Flow Summary
 1. YAML logbook entries are stored under `~/.signalk/plugin-config-data/signalk-logbook/`.
-2. `parse_logbook.js` processes the YAML files into `public/voyages.json`, splitting voyages after anchored stop gaps of at least one hour, filtering position jumps greater than 100 nm from the last known fix, enriching points with activity metadata, and ignoring speed/wind readings that lack positional data.
+2. `parse_logbook.js` processes the YAML files into `public/voyages.json`, splitting voyages after inactivity gaps greater than 36 hours and marking anchored gaps (>= 1 hour) for leg segmentation, filtering position jumps greater than 100 nm from the last known fix, enriching points with activity metadata, and ignoring speed/wind readings that lack positional data.
 3. `parse_polar.js` transforms the voyage output into polar performance points saved in `public/Polar.json`.
 4. The `plugin.js` router or standalone `server.js` endpoint triggers regeneration on demand.
 5. `public/app.js` fetches the JSON resources, renders voyages on the map, and exposes UI interactions.
@@ -16,12 +16,12 @@
 ## Core Files
 - `plugin.js`: Signal K plugin entry point. Registers HTTP endpoints, spawns the logbook parser, writes voyage and polar JSON, and integrates with the host router.
 - `server.js`: Lightweight development server for the `public/` directory. Mirrors the plugin endpoints to regenerate voyage and polar data locally.
-- `parse_logbook.js`: Node.js CLI tool that ingests daily YAML logs, splits voyages on anchored stop gaps, filters GPS outliers, classifies activity, computes voyage statistics, and emits structured voyage data.
+- `parse_logbook.js`: Node.js CLI tool that ingests daily YAML logs, splits voyages on 36-hour inactivity gaps, marks anchored stop gaps for leg segmentation, filters GPS outliers, classifies activity, computes voyage statistics, and emits structured voyage data.
 - `parse_polar.js`: Helper module that derives polar performance points from voyage data, normalising headings and wind metrics.
 - `public/app.js`: Front-end orchestrator that wires data fetching, module initialisation, and high-level user interactions.
 - `public/map.js`: Leaflet controller that builds voyage overlays, handles map/background interactions, and coordinates selection state with other modules.
 - `public/view.js`: Responsive layout utility that manages mobile/desktop toggles, tab behaviour, and layout-driven map resizing.
-- `public/table.js`: Table controller responsible for rendering voyage/day rows, maintaining row state, and raising callbacks for row events.
+- `public/table.js`: Table controller responsible for rendering voyage/leg rows, maintaining row state, and raising callbacks for row events.
 - `public/data.js`: Data helpers focused on voyage datasets, totals aggregation, and low-level voyage point utilities.
 - `public/util.js`: Shared presentation helpers including heading/DMS formatting and datetime labelling.
 - `public/index.html`: Base HTML shell loading the SPA, styles, and UI scaffolding.
@@ -51,10 +51,10 @@
 - Parser scripts expect valid ISO datetimes in YAML and handle anchored/motoring classification via text cues and speed heuristics.
 - Parser drops positions that jump more than 100 nm from the last accepted fix to avoid plotting GPS/AIS outliers.
 - Parser max-speed and max-wind statistics ignore entries that do not include a valid GPS position to prevent sensor spikes from inflating voyage summaries.
-- Voyage grouping splits on anchored stop gaps (>= 1 hour) so legs can span multiple days and multiple legs can occur within a single day.
+- Voyages split on inactivity gaps over 36 hours, while legs split on anchored gaps (>= 1 hour) so legs can span multiple days and multiple legs can occur within a single day.
 
 ## Change Log
-- Split voyage grouping on anchored stop gaps (>= 1 hour) instead of UTC day boundaries so legs can span days and multiple legs can occur within a day.
+- Split voyages on inactivity gaps over 36 hours and define legs by anchored gaps (>= 1 hour) instead of day boundaries.
 - Added a 100 nm GPS outlier filter to `parse_logbook.js`, skipping positions that jump too far from the last accepted fix.
 - Updated deployment helper (now `scripts/deploy-to-signalk.sh`) to copy root-level `.js` files into the Signal K module directory alongside the public asset sync.
 - Adopted the CARTO Voyager basemap and rethemed the front-end with a light palette for balanced contrast across the app.
@@ -64,10 +64,10 @@
 - Set a 150px minimum height on the voyage table wrapper to maintain legibility when space is constrained.
 - Let the main layout exceed the viewport when necessary so the page scrolls instead of shrinking the map, keeping the map row at least 400px tall and ensuring the table row never compresses below 230px even when the window is short.
 - Replaced the previous 700px minimum width requirement with a mobile breakpoint that swaps the grid for accessible tabs, letting phone users toggle between the voyage table and the map.
-- Default the mobile layout to the Map tab on load and automatically switch back to the map whenever a voyage or day segment is selected from the table.
+- Default the mobile layout to the Map tab on load and automatically switch back to the map whenever a voyage or leg segment is selected from the table.
 - Ensure the mobile layout is applied before selections so reloading with an active voyage keeps the highlighted track visible and refits the map immediately.
 - Hide the table maximize control when the responsive mobile layout is active and reduce the voyage table font size slightly for consistency across viewports.
-- Scroll the page to the top whenever the mobile layout switches back to the Map tab after a voyage or day selection so the map remains in view.
+- Scroll the page to the top whenever the mobile layout switches back to the Map tab after a voyage or leg selection so the map remains in view.
 - In the mobile layout hide the voyage table's Avg Speed and Avg Wind columns to keep the table readable on small screens.
 - Suppress the `kn` units for Max Speed and Max Wind cells when the mobile layout is active to reduce visual clutter on phones.
 - Hide the End column and the totals summary row from the mobile voyage table to keep the layout focused on primary metrics.

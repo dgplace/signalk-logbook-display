@@ -1,7 +1,7 @@
 /**
  * Module Responsibilities:
  * - Provide utilities for normalising voyage datasets returned by the back-end.
- * - Calculate derived metrics such as voyage totals, per-day segments, and wind statistics.
+ * - Calculate derived metrics such as voyage totals, per-leg segments, and wind statistics.
  * - Expose fetch helpers with consistent caching behaviour for the front-end.
  *
  * Exported API:
@@ -177,110 +177,212 @@ export function circularMean(degrees) {
 }
 
 /**
+ * Function: getPointDate
+ * Description: Resolve a Date instance from a voyage point.
+ * Parameters:
+ *   point (object): Voyage point containing a datetime field.
+ * Returns: Date|null - Parsed Date instance or null when unavailable.
+ */
+function getPointDate(point) {
+  const dtStr = point?.entry?.datetime || point?.datetime;
+  if (!dtStr) return null;
+  const dt = new Date(dtStr);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt;
+}
+
+/**
+ * Function: getPointText
+ * Description: Return the lower-cased text content for a voyage point.
+ * Parameters:
+ *   point (object): Voyage point containing a text field.
+ * Returns: string - Lower-cased text or an empty string when unavailable.
+ */
+function getPointText(point) {
+  const text = point?.entry?.text ?? point?.text;
+  if (typeof text !== 'string') return '';
+  return text.toLowerCase();
+}
+
+/**
+ * Function: pointIndicatesStopped
+ * Description: Determine whether a point's text marks the vessel as stopped.
+ * Parameters:
+ *   point (object): Voyage point to inspect.
+ * Returns: boolean - True when the point text includes "stopped".
+ */
+function pointIndicatesStopped(point) {
+  return getPointText(point).includes('stopped');
+}
+
+/**
+ * Function: pointIndicatesSailing
+ * Description: Determine whether a point's text marks the vessel as sailing.
+ * Parameters:
+ *   point (object): Voyage point to inspect.
+ * Returns: boolean - True when the point text includes "sailing".
+ */
+function pointIndicatesSailing(point) {
+  return getPointText(point).includes('sailing');
+}
+
+/**
+ * Function: getPointTimeMs
+ * Description: Return a millisecond timestamp for a voyage point.
+ * Parameters:
+ *   point (object): Voyage point containing a datetime field.
+ * Returns: number|null - Millisecond timestamp or null when unavailable.
+ */
+function getPointTimeMs(point) {
+  const dt = getPointDate(point);
+  return dt ? dt.getTime() : null;
+}
+
+/**
+ * Function: shouldSplitTripAfterPoint
+ * Description: Decide whether a point ends a trip based on an anchored gap to the next point.
+ * Parameters:
+ *   point (object): Current voyage point.
+ *   nextPoint (object|null): Next voyage point when available.
+ *   stopActive (boolean): True when the vessel is in a stopped/anchored state.
+ *   minGapMs (number): Minimum inactivity gap in milliseconds required to split a trip.
+ * Returns: boolean - True when the trip should split after the current point.
+ */
+function shouldSplitTripAfterPoint(point, nextPoint, stopActive, minGapMs) {
+  if (!stopActive || !nextPoint || !Number.isFinite(minGapMs)) return false;
+  const currentMs = getPointTimeMs(point);
+  const nextMs = getPointTimeMs(nextPoint);
+  if (!Number.isFinite(currentMs) || !Number.isFinite(nextMs)) return false;
+  return (nextMs - currentMs) >= minGapMs;
+}
+
+/**
+ * Function: buildSegmentSummary
+ * Description: Compute statistics for a segment made of ordered voyage points.
+ * Parameters:
+ *   segmentPoints (object[]): Ordered points belonging to the segment.
+ * Returns: object|null - Segment summary or null when input points are missing.
+ */
+function buildSegmentSummary(segmentPoints) {
+  if (!Array.isArray(segmentPoints) || segmentPoints.length === 0) return null;
+  const startTime = segmentPoints[0]?.entry?.datetime || segmentPoints[0]?.datetime;
+  const endTime = segmentPoints[segmentPoints.length - 1]?.entry?.datetime || segmentPoints[segmentPoints.length - 1]?.datetime;
+  let nm = 0;
+  let maxSpeed = 0;
+  let maxSpeedCoord = null;
+  let speedSum = 0;
+  let speedCount = 0;
+  let maxWind = 0;
+  let windSpeedSum = 0;
+  let windSpeedCount = 0;
+  const windHeadings = [];
+  let totalDurationMs = 0;
+
+  for (let i = 0; i < segmentPoints.length; i += 1) {
+    if (i > 0) {
+      const prev = segmentPoints[i - 1];
+      const curr = segmentPoints[i];
+      const prevValid = typeof prev?.lat === 'number' && typeof prev?.lon === 'number';
+      const currValid = typeof curr?.lat === 'number' && typeof curr?.lon === 'number';
+      if (prevValid && currValid && !shouldSkipConnection(prev, curr)) {
+        const a = L.latLng(prev.lat, prev.lon);
+        const b = L.latLng(curr.lat, curr.lon);
+        nm += a.distanceTo(b) / 1852;
+      }
+      const prevMs = getPointTimeMs(prev);
+      const currMs = getPointTimeMs(curr);
+      if (Number.isFinite(prevMs) && Number.isFinite(currMs)) {
+        const gap = currMs - prevMs;
+        if (Number.isFinite(gap) && gap > 0) {
+          totalDurationMs += gap;
+        }
+      }
+    }
+    const entry = segmentPoints[i].entry || segmentPoints[i];
+    const speed = entry?.speed?.sog ?? entry?.speed?.stw;
+    if (typeof speed === 'number') {
+      if (speed > maxSpeed) {
+        maxSpeed = speed;
+        maxSpeedCoord = [segmentPoints[i].lon, segmentPoints[i].lat];
+      }
+      speedSum += speed;
+      speedCount += 1;
+    }
+    const windSpeed = entry?.wind?.speed;
+    if (typeof windSpeed === 'number') {
+      if (windSpeed > maxWind) {
+        maxWind = windSpeed;
+      }
+      windSpeedSum += windSpeed;
+      windSpeedCount += 1;
+    }
+    const windDir = entry?.wind?.direction;
+    if (typeof windDir === 'number') {
+      windHeadings.push(windDir);
+    }
+  }
+
+  const totalHours = totalDurationMs > 0 ? (totalDurationMs / (1000 * 60 * 60)) : 0;
+  const avgSpeed = totalHours > 0 ? (nm / totalHours) : (speedCount ? (speedSum / speedCount) : 0);
+  const avgWindSpeed = windSpeedCount ? (windSpeedSum / windSpeedCount) : 0;
+  const avgWindHeading = windHeadings.length ? circularMean(windHeadings) : null;
+
+  return {
+    startTime,
+    endTime,
+    nm: parseFloat(nm.toFixed(1)),
+    maxSpeed,
+    avgSpeed,
+    maxWind,
+    avgWindSpeed,
+    avgWindHeading,
+    points: segmentPoints,
+    maxSpeedCoord,
+    polyline: null
+  };
+}
+
+/**
  * Function: computeDaySegments
- * Description: Break a voyage into daily segments with per-day statistics while respecting stop gaps.
+ * Description: Break a voyage into trip segments with per-leg statistics while respecting stop gaps.
  * Parameters:
  *   voyage (object): Voyage summary containing point data.
- * Returns: object[] - Ordered segment summaries for each day of the voyage.
+ * Returns: object[] - Ordered segment summaries for each trip in the voyage.
  */
 export function computeDaySegments(voyage) {
   const points = Array.isArray(voyage?.points) && voyage.points.length ? voyage.points : null;
   if (!points) return [];
-  const byDay = new Map();
-  for (const point of points) {
-    const dtStr = point.entry?.datetime || point.datetime;
-    if (!dtStr) continue;
-    const dt = new Date(dtStr);
-    if (Number.isNaN(dt)) continue;
-    const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-    if (!byDay.has(key)) byDay.set(key, []);
-    byDay.get(key).push(point);
-  }
-  const keys = Array.from(byDay.keys()).sort();
+  const MIN_ANCHORED_GAP_MS = 60 * 60 * 1000;
+  const orderedPoints = [...points].sort((a, b) => {
+    const aMs = getPointTimeMs(a);
+    const bMs = getPointTimeMs(b);
+    if (!Number.isFinite(aMs) && !Number.isFinite(bMs)) return 0;
+    if (!Number.isFinite(aMs)) return 1;
+    if (!Number.isFinite(bMs)) return -1;
+    return aMs - bMs;
+  });
   const segments = [];
-  for (const key of keys) {
-    const dayPoints = byDay.get(key);
-    dayPoints.sort((a, b) => new Date(a.entry?.datetime || a.datetime) - new Date(b.entry?.datetime || b.datetime));
-    const startTime = dayPoints[0]?.entry?.datetime || dayPoints[0]?.datetime;
-    const endTime = dayPoints[dayPoints.length - 1]?.entry?.datetime || dayPoints[dayPoints.length - 1]?.datetime;
-    let nm = 0;
-    let maxSpeed = 0;
-    let maxSpeedCoord = null;
-    let speedSum = 0;
-    let speedCount = 0;
-    let maxWind = 0;
-    let windSpeedSum = 0;
-    let windSpeedCount = 0;
-    const windHeadings = [];
-    let totalDurationMs = 0;
-    for (let i = 0; i < dayPoints.length; i += 1) {
-      if (i > 0) {
-        const prev = dayPoints[i - 1];
-        const curr = dayPoints[i];
-        const prevValid = typeof prev?.lat === 'number' && typeof prev?.lon === 'number';
-        const currValid = typeof curr?.lat === 'number' && typeof curr?.lon === 'number';
-        if (prevValid && currValid && !shouldSkipConnection(prev, curr)) {
-          const a = L.latLng(prev.lat, prev.lon);
-          const b = L.latLng(curr.lat, curr.lon);
-          nm += a.distanceTo(b) / 1852;
-        }
-        const prevDt = prev?.entry?.datetime || prev?.datetime;
-        const currDt = curr?.entry?.datetime || curr?.datetime;
-        if (prevDt && currDt) {
-          const prevDate = new Date(prevDt);
-          const currDate = new Date(currDt);
-          const prevMs = prevDate.getTime();
-          const currMs = currDate.getTime();
-          if (!Number.isNaN(prevMs) && !Number.isNaN(currMs)) {
-            const gap = currMs - prevMs;
-            if (Number.isFinite(gap) && gap > 0) {
-              totalDurationMs += gap;
-            }
-          }
-        }
-      }
-      const entry = dayPoints[i].entry || dayPoints[i];
-      const speed = entry?.speed?.sog ?? entry?.speed?.stw;
-      if (typeof speed === 'number') {
-        if (speed > maxSpeed) {
-          maxSpeed = speed;
-          maxSpeedCoord = [dayPoints[i].lon, dayPoints[i].lat];
-        }
-        speedSum += speed;
-        speedCount += 1;
-      }
-      const windSpeed = entry?.wind?.speed;
-      if (typeof windSpeed === 'number') {
-        if (windSpeed > maxWind) {
-          maxWind = windSpeed;
-        }
-        windSpeedSum += windSpeed;
-        windSpeedCount += 1;
-      }
-      const windDir = entry?.wind?.direction;
-      if (typeof windDir === 'number') {
-        windHeadings.push(windDir);
-      }
+  let segmentPoints = [];
+  let stopActive = false;
+
+  for (let i = 0; i < orderedPoints.length; i += 1) {
+    const point = orderedPoints[i];
+    if (pointIndicatesStopped(point)) stopActive = true;
+    if (pointIndicatesSailing(point)) stopActive = false;
+    segmentPoints.push(point);
+    const nextPoint = orderedPoints[i + 1];
+    if (nextPoint && shouldSplitTripAfterPoint(point, nextPoint, stopActive, MIN_ANCHORED_GAP_MS)) {
+      const summary = buildSegmentSummary(segmentPoints);
+      if (summary) segments.push(summary);
+      segmentPoints = [];
     }
-    const totalHours = totalDurationMs > 0 ? (totalDurationMs / (1000 * 60 * 60)) : 0;
-    const avgSpeed = totalHours > 0 ? (nm / totalHours) : (speedCount ? (speedSum / speedCount) : 0);
-    const avgWindSpeed = windSpeedCount ? (windSpeedSum / windSpeedCount) : 0;
-    const avgWindHeading = windHeadings.length ? circularMean(windHeadings) : null;
-    segments.push({
-      dateKey: key,
-      startTime,
-      endTime,
-      nm: parseFloat(nm.toFixed(1)),
-      maxSpeed,
-      avgSpeed,
-      maxWind,
-      avgWindSpeed,
-      avgWindHeading,
-      points: dayPoints,
-      maxSpeedCoord,
-      polyline: null
-    });
   }
+
+  if (segmentPoints.length) {
+    const summary = buildSegmentSummary(segmentPoints);
+    if (summary) segments.push(summary);
+  }
+
   return segments;
 }
 

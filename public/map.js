@@ -863,7 +863,7 @@ export function selectVoyage(voyage, row, options = {}) {
 
 /**
  * Function: focusSegment
- * Description: Highlight a voyage day segment, wiring point interactions and map fitting.
+ * Description: Highlight a voyage leg segment, wiring point interactions and map fitting.
  * Parameters:
  *   segment (object): Segment descriptor containing points and optional polyline reference.
  *   options (object): Optional overrides for highlight styling.
@@ -880,29 +880,29 @@ function focusSegment(segment, options = {}) {
   clearSelectedWindGraphics();
   removeActivePolylines();
 
-  const dayPoints = Array.isArray(segment?.points) ? segment.points : [];
+  const segmentPoints = Array.isArray(segment?.points) ? segment.points : [];
   const highlightWeight = typeof options.weight === 'number' ? options.weight : 5;
-  let dayHighlights = (mapInstance && dayPoints.length >= 2)
-    ? createActivityHighlightPolylines(mapInstance, dayPoints, { weight: highlightWeight })
+  let segmentHighlights = (mapInstance && segmentPoints.length >= 2)
+    ? createActivityHighlightPolylines(mapInstance, segmentPoints, { weight: highlightWeight })
     : [];
-  if (!dayHighlights.length && segment?.polyline) {
+  if (!segmentHighlights.length && segment?.polyline) {
     segment.polyline.setStyle({ color: SAILING_HIGHLIGHT_COLOR, weight: DEFAULT_ACTIVITY_WEIGHT });
-    dayHighlights = [segment.polyline];
+    segmentHighlights = [segment.polyline];
   }
-  setActivePolylines(dayHighlights);
-  if (dayHighlights.length > 0) {
-    wirePolylineSelectionHandlers(dayHighlights, dayPoints);
-    let bounds = dayHighlights[0].getBounds();
-    for (let i = 1; i < dayHighlights.length; i += 1) {
-      bounds = bounds.extend(dayHighlights[i].getBounds());
+  setActivePolylines(segmentHighlights);
+  if (segmentHighlights.length > 0) {
+    wirePolylineSelectionHandlers(segmentHighlights, segmentPoints);
+    let bounds = segmentHighlights[0].getBounds();
+    for (let i = 1; i < segmentHighlights.length; i += 1) {
+      bounds = bounds.extend(segmentHighlights[i].getBounds());
     }
     fitMapToBounds(bounds, { deferForMobile: true });
   }
 
   clearWindIntensityLayer();
-  setCurrentVoyagePoints(dayPoints);
-  renderActivePointMarkers(dayPoints);
-  refreshWindOverlay(dayPoints);
+  setCurrentVoyagePoints(segmentPoints);
+  renderActivePointMarkers(segmentPoints);
+  refreshWindOverlay(segmentPoints);
   setWindOverlayToggleAvailability(true);
   setDetailsHint('Click on the highlighted track to inspect a point.');
 }

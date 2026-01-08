@@ -221,12 +221,6 @@ function classifyVoyagePoints(points) {
 
     const gapHours = currentTime && nextTime ? (nextTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60) : null;
     const gapAnchored = gapHours !== null && gapHours > GAP_HOURS_THRESHOLD && (sog ?? 0) < GAP_SOG_THRESHOLD;
-    const nextDayBreak = currentTime && nextTime
-      ? (currentTime.getUTCFullYear() !== nextTime.getUTCFullYear() ||
-         currentTime.getUTCMonth() !== nextTime.getUTCMonth() ||
-         currentTime.getUTCDate() !== nextTime.getUTCDate())
-      : false;
-    const endOfDayAnchored = nextDayBreak && (sog ?? 0) < GAP_SOG_THRESHOLD;
 
     let segmentDistanceFromPrevious = null;
     if (coord && previousCoord) {
@@ -241,7 +235,7 @@ function classifyVoyagePoints(points) {
     let isAnchored = false;
     if (i === 0) {
       isAnchored = true;
-    } else if (gapAnchored || endOfDayAnchored) {
+    } else if (gapAnchored) {
       isAnchored = true;
     } else if (!coord) {
       const prevAnchored = i > 0 ? points[i - 1]?.__isAnchored === true : false;
@@ -283,11 +277,6 @@ function classifyVoyagePoints(points) {
     const nextTime = nextEntry ? parseEntryDate(nextEntry) : null;
 
     const gapHours = currentTime && nextTime ? (nextTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60) : null;
-    const nextDayBreak = currentTime && nextTime
-      ? (currentTime.getUTCFullYear() !== nextTime.getUTCFullYear() ||
-         currentTime.getUTCMonth() !== nextTime.getUTCMonth() ||
-         currentTime.getUTCDate() !== nextTime.getUTCDate())
-      : false;
 
     const nearFutureAnchor = coord && nextAnchoredCoord
       ? haversine(coord, nextAnchoredCoord) <= MOVE_THRESHOLD_NM
@@ -296,7 +285,6 @@ function classifyVoyagePoints(points) {
     const sogValue = sog ?? 0;
     const shouldForceAnchor = (!nextPoint && sogValue < GAP_SOG_THRESHOLD) ||
       (gapHours !== null && gapHours > GAP_HOURS_THRESHOLD && sogValue < GAP_SOG_THRESHOLD) ||
-      (nextDayBreak && sogValue < GAP_SOG_THRESHOLD) ||
       nearFutureAnchor;
 
     if (!point.__isAnchored && shouldForceAnchor) {
@@ -373,14 +361,28 @@ function classifyVoyagePoints(points) {
 }
 
 /**
- * Function: markStopGaps
- * Description: Flag point pairs that should not be connected because they bridge a stop-to-sail interval.
+ * Function: getPointDate
+ * Description: Resolve a Date instance from a voyage point or entry.
  * Parameters:
- *   points (object[]): Ordered list of voyage points to scan for stop and sailing markers.
+ *   point (object): Voyage point or entry containing a datetime value.
+ * Returns: Date|null - Parsed Date instance or null when unavailable.
+ */
+function getPointDate(point) {
+  if (!point || typeof point !== 'object') return null;
+  const entry = point.entry && typeof point.entry === 'object' ? point.entry : point;
+  return parseEntryDate(entry);
+}
+
+/**
+ * Function: markStopGaps
+ * Description: Flag point pairs that should not be connected after anchored stop gaps.
+ * Parameters:
+ *   points (object[]): Ordered list of voyage points to scan for anchored gaps.
  * Returns: void - Adds skip connection flags onto affected points and their entries.
  */
 function markStopGaps(points) {
-  if (!Array.isArray(points) || points.length === 0) return;
+  if (!Array.isArray(points) || points.length < 2) return;
+  const ANCHORED_GAP_HOURS = 1;
 
   const applyBreakFlags = (fromPoint, toPoint) => {
     if (fromPoint && typeof fromPoint === 'object') {
@@ -397,35 +399,20 @@ function markStopGaps(points) {
     }
   };
 
-  let activeStopIndex = null;
-
-  for (let i = 0; i < points.length; i++) {
+  let stopActive = false;
+  for (let i = 0; i < points.length - 1; i += 1) {
     const point = points[i];
-    const textLower = getEntryText(point ? point.entry : null);
-    if (!textLower) {
-      if (activeStopIndex !== null && i > activeStopIndex) {
-        applyBreakFlags(points[i - 1], point);
-      }
-      continue;
-    }
-
-    if (entryIndicatesStopped(point.entry)) {
-      if (activeStopIndex === null) activeStopIndex = i;
-    }
-
-    if (entryIndicatesSailing(point.entry)) {
-      if (activeStopIndex !== null) {
-        for (let j = activeStopIndex; j < i; j++) {
-          applyBreakFlags(points[j], points[j + 1]);
-        }
-      }
-      activeStopIndex = null;
-    }
-  }
-
-  if (activeStopIndex !== null) {
-    for (let j = activeStopIndex; j < points.length - 1; j++) {
-      applyBreakFlags(points[j], points[j + 1]);
+    const entry = point?.entry;
+    if (entryIndicatesStopped(entry)) stopActive = true;
+    if (entryIndicatesSailing(entry)) stopActive = false;
+    if (!stopActive) continue;
+    const nextPoint = points[i + 1];
+    const currentTime = getPointDate(point);
+    const nextTime = getPointDate(nextPoint);
+    if (!currentTime || !nextTime) continue;
+    const gapHours = (nextTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60);
+    if (gapHours >= ANCHORED_GAP_HOURS) {
+      applyBreakFlags(point, nextPoint);
     }
   }
 }
@@ -515,41 +502,44 @@ async function readEntries(dir) {
 }
 
 /**
- * Function: shouldSplitAfterEntry
- * Description: Decide whether a voyage should end after an anchored stop gap.
+ * Function: isVoyageGapExceeded
+ * Description: Decide whether the inactivity gap between entries exceeds the voyage window.
  * Parameters:
+ *   previousEntry (object): Previous log entry in the current voyage.
  *   entry (object): Current log entry under inspection.
- *   nextEntry (object|null): Next chronological entry when available.
- *   stopActive (boolean): True when the vessel is considered stopped/anchored.
- *   minGapHours (number): Minimum inactivity gap in hours required to split voyages.
- * Returns: boolean - True when the voyage should end after the current entry.
+ *   maxGapHours (number): Maximum gap in hours allowed to keep entries in the same voyage.
+ * Returns: boolean - True when the gap exceeds the voyage threshold.
  */
-function shouldSplitAfterEntry(entry, nextEntry, stopActive, minGapHours) {
-  if (!stopActive || !nextEntry || !Number.isFinite(minGapHours)) return false;
+function isVoyageGapExceeded(previousEntry, entry, maxGapHours) {
+  if (!previousEntry || !entry || !Number.isFinite(maxGapHours)) return false;
+  const previousTime = parseEntryDate(previousEntry);
   const currentTime = parseEntryDate(entry);
-  const nextTime = parseEntryDate(nextEntry);
-  if (!currentTime || !nextTime) return false;
-  const gapHours = (nextTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60);
-  return gapHours >= minGapHours;
+  if (!previousTime || !currentTime) return false;
+  const gapHours = (currentTime.getTime() - previousTime.getTime()) / (1000 * 60 * 60);
+  return gapHours > maxGapHours;
 }
 
 /**
  * Function: groupVoyages
- * Description: Aggregate chronological entries into voyages split on anchored stop gaps.
+ * Description: Aggregate chronological entries into voyages separated by inactivity gaps greater than 36 hours.
  * Parameters:
- *   entries (object[]): Sorted log entries covering one or more days.
+ *   entries (object[]): Sorted log entries covering one or more logged intervals.
  * Returns: object[] - Array of voyage summaries.
  */
 function groupVoyages(entries) {
   const voyages = [];
   let current = null;
   const MAX_POSITION_JUMP_NM = 100;
-  const ANCHORED_GAP_HOURS = 1;
+  const VOYAGE_GAP_HOURS = 36;
   let lastKnownCoord = null;
 
-  for (let index = 0; index < entries.length; index += 1) {
-    const entry = entries[index];
-    const nextEntry = index < entries.length - 1 ? entries[index + 1] : null;
+  for (const entry of entries) {
+    if (current && current.lastEntry && isVoyageGapExceeded(current.lastEntry, entry, VOYAGE_GAP_HOURS)) {
+      voyages.push(finalizeVoyage(current));
+      current = null;
+      lastKnownCoord = null;
+    }
+
     if (!current) {
       current = createVoyageAccumulator(entry);
     }
@@ -625,10 +615,6 @@ function groupVoyages(entries) {
     }
 
     current.lastEntry = entry;
-    if (shouldSplitAfterEntry(entry, nextEntry, current.stopActive, ANCHORED_GAP_HOURS)) {
-      voyages.push(finalizeVoyage(current));
-      current = null;
-    }
   }
 
   if (current) {

@@ -1,6 +1,6 @@
 /**
  * Module Responsibilities:
- * - Render the voyage summary table, including per-day expansion rows and totals.
+ * - Render the voyage summary table, including per-leg expansion rows and totals.
  * - Track table row references so other modules can coordinate selections.
  * - Publish voyage and segment selection events for map consumers while reflecting active state.
  *
@@ -15,7 +15,7 @@
  * @typedef {import('./types.js').VoyageTotals} VoyageTotals
  */
 
-import { degToCompass, dateHourLabel, weekdayShort } from './util.js';
+import { degToCompass, dateHourLabel } from './util.js';
 import { emit, on, EVENTS } from './events.js';
 
 let voyageRows = [];
@@ -132,7 +132,7 @@ function createVoyageRowHTML(voyage, index, isMultiDay) {
   const avgWindDir = (voyage.avgWindHeading !== undefined && voyage.avgWindHeading !== null)
     ? degToCompass(voyage.avgWindHeading)
     : '';
-  const expander = isMultiDay ? '<button class="expander-btn" aria-label="Toggle days">[+]</button>' : '';
+  const expander = isMultiDay ? '<button class="expander-btn" aria-label="Toggle legs">[+]</button>' : '';
   return `
     <td class="exp-cell">${expander}</td>
     <td class="idx-cell">${index + 1}</td>
@@ -146,11 +146,11 @@ function createVoyageRowHTML(voyage, index, isMultiDay) {
     <td>${avgWindDir}</td>`;
 }
 
-function createDayRowHTML(segment) {
+function createDayRowHTML(segment, segmentIndex) {
   const avgWindDirDay = (segment.avgWindHeading !== undefined && segment.avgWindHeading !== null)
     ? degToCompass(segment.avgWindHeading)
     : '';
-  const dayLbl = weekdayShort(segment.startTime);
+  const dayLbl = `Leg ${segmentIndex + 1}`;
   return `
     <td class="exp-cell"></td>
     <td class="idx-cell">${dayLbl}</td>
@@ -298,11 +298,11 @@ export function renderVoyageTable(tbody, voyages) {
     const dayRows = [];
     if (segments.length > 0) {
       let insertIndex = row.sectionRowIndex + 1;
-      segments.forEach((segment) => {
+      segments.forEach((segment, segmentIndex) => {
         const dayRow = tbody.insertRow(insertIndex);
         insertIndex += 1;
         dayRow.classList.add('day-row', 'hidden');
-        dayRow.innerHTML = createDayRowHTML(segment);
+        dayRow.innerHTML = createDayRowHTML(segment, segmentIndex);
         dayRows.push(dayRow);
         attachDayRowHandlers(dayRow, voyage, segment, row);
       });
