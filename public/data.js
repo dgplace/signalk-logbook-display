@@ -6,7 +6,7 @@
  *
  * Exported API:
  * - Extraction helpers: `getVoyagePoints`, `getPointActivity`, `shouldSkipConnection`, `extractWindSpeed`.
- * - Aggregation helpers: `computeVoyageTotals`, `computeDaySegments`, `circularMean`.
+ * - Aggregation helpers: `computeVoyageTotals`, `computeDaySegments`, `applyVoyageTimeMetrics`, `circularMean`.
  * - Formatting helpers: `formatDurationMs`.
  * - Data loading: `fetchVoyagesData`.
  *
@@ -302,8 +302,6 @@ function buildSegmentSummary(segmentPoints, minLegDistanceNm) {
   let nm = 0;
   let maxSpeed = 0;
   let maxSpeedCoord = null;
-  let speedSum = 0;
-  let speedCount = 0;
   let maxWind = 0;
   let windSpeedSum = 0;
   let windSpeedCount = 0;
@@ -337,8 +335,6 @@ function buildSegmentSummary(segmentPoints, minLegDistanceNm) {
         maxSpeed = speed;
         maxSpeedCoord = [segmentPoints[i].lon, segmentPoints[i].lat];
       }
-      speedSum += speed;
-      speedCount += 1;
     }
     const windSpeed = entry?.wind?.speed;
     if (typeof windSpeed === 'number') {
@@ -359,11 +355,11 @@ function buildSegmentSummary(segmentPoints, minLegDistanceNm) {
     return null;
   }
 
+  const roundedNm = parseFloat(nm.toFixed(1));
   const totalHours = totalDurationMs > 0 ? (totalDurationMs / (1000 * 60 * 60)) : 0;
-  const avgSpeed = totalHours > 0 ? (nm / totalHours) : (speedCount ? (speedSum / speedCount) : 0);
+  const avgSpeed = totalHours > 0 ? (roundedNm / totalHours) : 0;
   const avgWindSpeed = windSpeedCount ? (windSpeedSum / windSpeedCount) : 0;
   const avgWindHeading = windHeadings.length ? circularMean(windHeadings) : null;
-  const roundedNm = parseFloat(nm.toFixed(1));
 
   return {
     startTime,
@@ -374,6 +370,7 @@ function buildSegmentSummary(segmentPoints, minLegDistanceNm) {
     maxWind,
     avgWindSpeed,
     avgWindHeading,
+    totalHours,
     points: segmentPoints,
     maxSpeedCoord,
     polyline: null
@@ -420,6 +417,33 @@ export function computeDaySegments(voyage) {
   }
 
   return segments;
+}
+
+/**
+ * Function: applyVoyageTimeMetrics
+ * Description: Update voyage average speed and total hours using the computed leg segments.
+ * Parameters:
+ *   voyage (object): Voyage summary to update with display metrics.
+ * Returns: void.
+ */
+export function applyVoyageTimeMetrics(voyage) {
+  if (!voyage || typeof voyage !== 'object') return;
+  const segments = Array.isArray(voyage._segments) ? voyage._segments : [];
+  if (segments.length === 1) {
+    const totalHours = Number.isFinite(segments[0].totalHours) ? segments[0].totalHours : 0;
+    voyage.totalHours = totalHours;
+    voyage.avgSpeed = totalHours > 0 ? (voyage.nm / totalHours) : 0;
+    return;
+  }
+
+  voyage.totalHours = null;
+  if (segments.length > 1) {
+    const speedSum = segments.reduce((sum, segment) => {
+      const speed = Number.isFinite(segment.avgSpeed) ? segment.avgSpeed : 0;
+      return sum + speed;
+    }, 0);
+    voyage.avgSpeed = segments.length ? (speedSum / segments.length) : 0;
+  }
 }
 
 /**

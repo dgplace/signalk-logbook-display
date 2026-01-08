@@ -44,6 +44,7 @@
  * @property {number} maxSpeed Highest recorded speed for the segment in knots.
  * @property {number[]} [maxSpeedCoord] `[lon, lat]` pair for the segment max-speed location.
  * @property {number} avgSpeed Average speed in knots.
+ * @property {number} totalHours Total segment duration in hours.
  * @property {number} maxWind Highest recorded wind speed for the segment in knots.
  * @property {number} avgWindSpeed Average recorded wind speed in knots.
  * @property {number} [avgWindHeading] Mean wind direction in degrees.
@@ -61,6 +62,7 @@
  * @property {number} maxSpeed Maximum recorded speed over ground in knots.
  * @property {number[]} [maxSpeedCoord] `[lon, lat]` pair for the voyage max-speed location.
  * @property {number} avgSpeed Mean speed over ground in knots.
+ * @property {number} [totalHours] Total duration in hours when the voyage has a single leg.
  * @property {number} maxWind Maximum wind speed recorded in knots.
  * @property {number} avgWindSpeed Mean wind speed in knots.
  * @property {number} [avgWindHeading] Mean wind direction across the voyage in degrees.

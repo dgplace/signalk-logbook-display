@@ -38,7 +38,8 @@ import {
   computeDaySegments,
   computeVoyageTotals,
   fetchVoyagesData,
-  formatDurationMs
+  formatDurationMs,
+  applyVoyageTimeMetrics
 } from './data.js';
 import { emit, EVENTS } from './events.js';
 
@@ -144,6 +145,7 @@ async function load() {
   const voyages = data.voyages.map((voyage, index) => {
     voyage._tripIndex = index + 1;
     voyage._segments = computeDaySegments(voyage);
+    applyVoyageTimeMetrics(voyage);
     return voyage;
   });
 

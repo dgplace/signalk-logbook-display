@@ -121,24 +121,40 @@ export function renderTotalsRow(tbody, totals, formatDuration) {
     <td colspan="2" class="idx-cell totals-label">&nbspTotals</td>
     <td colspan="2" class="totals-active">Active Time: ${formatFn(totalActiveMs)}</td>
     <td colspan="2" class="totals-distance">${totalDistanceNm.toFixed(1)} NM</td>
-    <td colspan="4" class="totals-sailing">Sailing Time: ${formatFn(totalSailingMs)} (${sailingPct.toFixed(1)}%)</td>
+    <td colspan="5" class="totals-sailing">Sailing Time: ${formatFn(totalSailingMs)} (${sailingPct.toFixed(1)}%)</td>
     `;
   row.addEventListener('click', () => {
     emit(EVENTS.SELECTION_RESET_REQUESTED, { source: 'table-totals' });
   });
 }
 
-function createVoyageRowHTML(voyage, index, isMultiDay) {
+/**
+ * Function: formatHours
+ * Description: Format a duration in hours for display inside the voyage table.
+ * Parameters:
+ *   hours (number): Duration in hours.
+ * Returns: string - Formatted hour string or empty string when unavailable.
+ */
+function formatHours(hours) {
+  if (!Number.isFinite(hours)) return '';
+  return hours.toFixed(1);
+}
+
+function createVoyageRowHTML(voyage, index, segmentCount) {
   const avgWindDir = (voyage.avgWindHeading !== undefined && voyage.avgWindHeading !== null)
     ? degToCompass(voyage.avgWindHeading)
     : '';
-  const expander = isMultiDay ? '<button class="expander-btn" aria-label="Toggle legs">[+]</button>' : '';
+  const hasMultipleSegments = segmentCount > 1;
+  const showTotalHours = segmentCount === 1;
+  const expander = hasMultipleSegments ? '<button class="expander-btn" aria-label="Toggle legs">[+]</button>' : '';
+  const totalHoursLabel = showTotalHours ? formatHours(voyage.totalHours) : '';
   return `
     <td class="exp-cell">${expander}</td>
     <td class="idx-cell">${index + 1}</td>
     <td>${dateHourLabel(voyage.startTime)}</td>
     <td class="end-col">${dateHourLabel(voyage.endTime)}</td>
     <td>${voyage.nm.toFixed(1)}</td>
+    <td class="total-time-col">${totalHoursLabel}</td>
     <td class="max-speed-cell" tabindex="0">${voyage.maxSpeed.toFixed(1)}<span class="unit-kn"> kn</span></td>
     <td class="avg-speed-col">${voyage.avgSpeed.toFixed(1)} kn</td>
     <td class="max-wind-cell">${voyage.maxWind.toFixed(1)}<span class="unit-kn"> kn</span></td>
@@ -151,12 +167,14 @@ function createDayRowHTML(segment, segmentIndex) {
     ? degToCompass(segment.avgWindHeading)
     : '';
   const dayLbl = `Leg ${segmentIndex + 1}`;
+  const totalHoursLabel = formatHours(segment.totalHours);
   return `
     <td class="exp-cell"></td>
     <td class="idx-cell">${dayLbl}</td>
     <td>${dateHourLabel(segment.startTime)}</td>
     <td class="end-col">${dateHourLabel(segment.endTime)}</td>
     <td>${segment.nm.toFixed(1)}</td>
+    <td class="total-time-col">${totalHoursLabel}</td>
     <td class="max-speed-cell" tabindex="0">${segment.maxSpeed.toFixed(1)}<span class="unit-kn"> kn</span></td>
     <td class="avg-speed-col">${segment.avgSpeed.toFixed(1)} kn</td>
     <td class="max-wind-cell">${segment.maxWind.toFixed(1)}<span class="unit-kn"> kn</span></td>
@@ -289,8 +307,8 @@ export function renderVoyageTable(tbody, voyages) {
     const row = tbody.insertRow();
     row.dataset.tripIndex = String(index + 1);
     const segments = Array.isArray(voyage._segments) ? voyage._segments : [];
-    const isMultiDay = segments.length > 1;
-    row.innerHTML = createVoyageRowHTML(voyage, index, isMultiDay);
+    const segmentCount = segments.length;
+    row.innerHTML = createVoyageRowHTML(voyage, index, segmentCount);
     rows.push(row);
 
     attachVoyageRowHandlers(row, voyage);

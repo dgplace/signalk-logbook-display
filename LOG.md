@@ -3,7 +3,7 @@
 ## Application Overview
 - Signal K plugin that exposes a web interface for exploring logbook voyages and generating polar data.
 - Node.js back-end components parse raw YAML log entries into structured JSON consumed by the front-end, splitting voyages on inactivity gaps over 48 hours, discarding voyages under 1 nm, pruning repeated anchored fixes within 100 meters of the leg-end anchor, segmenting legs on anchored gaps (>= 1 hour) while filtering out legs under 1 nm, and filtering GPS outliers beyond a 100 nm jump threshold.
-- Front-end single-page app (SPA) renders voyage tracks on Leaflet maps, provides rich voyage analytics, and includes responsive layout controls with a tab-view toggle that mirrors the active layout and can override auto switching.
+- Front-end single-page app (SPA) renders voyage tracks on Leaflet maps, provides rich voyage analytics, includes responsive layout controls with a tab-view toggle that mirrors the active layout and can override auto switching, and shows leg total-time hours plus single-leg voyage totals while averaging multi-leg voyage speeds from leg averages.
 - Utility scripts support data preparation, polar analysis, and batch log maintenance outside the runtime path.
 
 ## Data Flow Summary
@@ -11,7 +11,7 @@
 2. `parse_logbook.js` processes the YAML files into `public/voyages.json`, splitting voyages after inactivity gaps greater than 48 hours, discarding voyages under 1 nm, pruning repeated anchored fixes within 100 meters of the leg-end anchor, and marking anchored gaps (>= 1 hour) for leg segmentation, filtering position jumps greater than 100 nm from the last known fix, enriching points with activity metadata, and ignoring speed/wind readings that lack positional data.
 3. `parse_polar.js` transforms the voyage output into polar performance points saved in `public/Polar.json`.
 4. The `plugin.js` router or standalone `server.js` endpoint triggers regeneration on demand.
-5. `public/app.js` fetches the JSON resources, derives leg segments from anchored activity or skip-connection markers, filters out legs under 1 nm, renders voyages on the map, and exposes UI interactions.
+5. `public/app.js` fetches the JSON resources, derives leg segments from anchored activity or skip-connection markers, filters out legs under 1 nm, computes leg durations to drive total-time/average-speed display, renders voyages on the map, and exposes UI interactions.
 
 ## Core Files
 - `plugin.js`: Signal K plugin entry point. Registers HTTP endpoints, spawns the logbook parser, writes voyage and polar JSON, and integrates with the host router.
@@ -21,8 +21,8 @@
 - `public/app.js`: Front-end orchestrator that wires data fetching, module initialisation, and high-level user interactions.
 - `public/map.js`: Leaflet controller that builds voyage overlays, handles map/background interactions, and coordinates selection state with other modules.
 - `public/view.js`: Responsive layout utility that manages mobile/desktop toggles, tab/desktop overrides that sync with auto layout changes, tab behaviour, and layout-driven map resizing.
-- `public/table.js`: Table controller responsible for rendering voyage/leg rows, maintaining row state, and raising callbacks for row events.
-- `public/data.js`: Data helpers focused on voyage datasets, totals aggregation, and leg segmentation based on anchored activity/skip-connection gaps while discarding legs under 1 nm.
+- `public/table.js`: Table controller responsible for rendering voyage/leg rows (including total-time hours on desktop), maintaining row state, and raising callbacks for row events.
+- `public/data.js`: Data helpers focused on voyage datasets, totals aggregation, leg segmentation, and per-leg duration/average-speed calculations based on anchored activity/skip-connection gaps while discarding legs under 1 nm.
 - `public/util.js`: Shared presentation helpers including heading/DMS formatting and datetime labelling.
 - `public/index.html`: Base HTML shell loading the SPA, styles, and UI scaffolding.
 - `public/styles.css`: Styling for the logbook UI, including map layout, table presentation, and responsive behaviour.
@@ -52,9 +52,11 @@
 - Parser drops positions that jump more than 100 nm from the last accepted fix to avoid plotting GPS/AIS outliers.
 - Parser max-speed and max-wind statistics ignore entries that do not include a valid GPS position to prevent sensor spikes from inflating voyage summaries.
 - The header includes a tab-view toggle that mirrors the active layout and can force the tab or desktop layout even when the viewport would choose the opposite.
+- Desktop tables add a Total Time (h) column for leg rows and single-leg voyages, leaving multi-leg voyage totals blank while averaging voyage speed across leg averages.
 - Voyages split on inactivity gaps over 48 hours, with voyages under 1 nm discarded and repeated anchored fixes within 100 meters of the leg-end anchor pruned, while legs split on anchored gaps (>= 1 hour) flagged via anchored activity or skip-connection markers so legs can span multiple days and multiple legs can occur within a single day, with leg segments under 1 nm removed from the UI.
 
 ## Change Log
+- Added a desktop-only Total Time (h) column for legs and single-leg voyages, computing leg speeds from distance/time and averaging multi-leg voyage speeds from leg averages.
 - Prune repeated anchored fixes within 100 meters of the leg-end anchor before computing voyage metrics.
 - Filter out voyages that travel less than 1 nm during parsing.
 - Split voyages on inactivity gaps over 36 hours and define legs by anchored gaps (>= 1 hour) instead of day boundaries.

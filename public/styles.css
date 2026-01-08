@@ -648,6 +648,8 @@ body.is-loading * {
 
 .container.mobile-layout th.end-col,
 .container.mobile-layout td.end-col,
+.container.mobile-layout th.total-time-col,
+.container.mobile-layout td.total-time-col,
 .container.mobile-layout th.avg-speed-col,
 .container.mobile-layout td.avg-speed-col,
 .container.mobile-layout th.avg-wind-col,
