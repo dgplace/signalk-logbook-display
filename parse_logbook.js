@@ -515,8 +515,27 @@ async function readEntries(dir) {
 }
 
 /**
+ * Function: shouldSplitAfterEntry
+ * Description: Decide whether a voyage should end after an anchored stop gap.
+ * Parameters:
+ *   entry (object): Current log entry under inspection.
+ *   nextEntry (object|null): Next chronological entry when available.
+ *   stopActive (boolean): True when the vessel is considered stopped/anchored.
+ *   minGapHours (number): Minimum inactivity gap in hours required to split voyages.
+ * Returns: boolean - True when the voyage should end after the current entry.
+ */
+function shouldSplitAfterEntry(entry, nextEntry, stopActive, minGapHours) {
+  if (!stopActive || !nextEntry || !Number.isFinite(minGapHours)) return false;
+  const currentTime = parseEntryDate(entry);
+  const nextTime = parseEntryDate(nextEntry);
+  if (!currentTime || !nextTime) return false;
+  const gapHours = (nextTime.getTime() - currentTime.getTime()) / (1000 * 60 * 60);
+  return gapHours >= minGapHours;
+}
+
+/**
  * Function: groupVoyages
- * Description: Aggregate chronological entries into voyages spanning consecutive days.
+ * Description: Aggregate chronological entries into voyages split on anchored stop gaps.
  * Parameters:
  *   entries (object[]): Sorted log entries covering one or more days.
  * Returns: object[] - Array of voyage summaries.
@@ -524,38 +543,15 @@ async function readEntries(dir) {
 function groupVoyages(entries) {
   const voyages = [];
   let current = null;
-  let lastDate = null;
   const MAX_POSITION_JUMP_NM = 100;
+  const ANCHORED_GAP_HOURS = 1;
   let lastKnownCoord = null;
 
-  /**
-   * Function: isConsecutiveDay
-   * Description: Determine whether two UTC-normalised dates fall within the same or next calendar day.
-   * Parameters:
-   *   d1 (Date): Reference date for the prior log entry.
-   *   d2 (Date): Date of the current log entry.
-   * Returns: boolean - True when the entries should be grouped into the same voyage.
-   */
-  function isConsecutiveDay(d1, d2) {
-    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-    const diff = d2.getTime() - d1.getTime();
-    return diff >= 0 && diff <= ONE_DAY_MS;
-  }
-
-  for (const entry of entries) {
-    const entryDate = new Date(Date.UTC(
-      entry.datetime.getUTCFullYear(),
-      entry.datetime.getUTCMonth(),
-      entry.datetime.getUTCDate()
-    ));
-
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    const nextEntry = index < entries.length - 1 ? entries[index + 1] : null;
     if (!current) {
       current = createVoyageAccumulator(entry);
-    } else {
-      if (!lastDate || !isConsecutiveDay(lastDate, entryDate)) {
-        voyages.push(finalizeVoyage(current));
-        current = createVoyageAccumulator(entry);
-      }
     }
 
     current.endTime = entry.datetime;
@@ -629,8 +625,10 @@ function groupVoyages(entries) {
     }
 
     current.lastEntry = entry;
-
-    lastDate = entryDate;
+    if (shouldSplitAfterEntry(entry, nextEntry, current.stopActive, ANCHORED_GAP_HOURS)) {
+      voyages.push(finalizeVoyage(current));
+      current = null;
+    }
   }
 
   if (current) {
