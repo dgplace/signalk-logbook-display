@@ -37,11 +37,14 @@ import {
 import {
   computeDaySegments,
   computeVoyageTotals,
+  buildManualVoyageFromRecord,
   fetchVoyagesData,
+  fetchManualVoyagesData,
   formatDurationMs,
   applyVoyageTimeMetrics
 } from './data.js';
-import { emit, EVENTS } from './events.js';
+import { emit, on, EVENTS } from './events.js';
+import { initManualVoyagePanel } from './manual.js';
 
 // DOM references
 const loadingOverlay = document.getElementById('loadingOverlay');
@@ -52,6 +55,16 @@ console.log(`[voyage-webapp] apiBasePath resolved to "${apiBasePath || '/'}" for
 initMobileLayoutControls();
 initSplitters();
 initMaximizeControl();
+
+const manualPanelApi = initManualVoyagePanel({
+  apiBasePath,
+  onSaved: async () => {
+    await load();
+  },
+  onDelete: async (manualId) => {
+    await deleteManualVoyage(manualId);
+  }
+});
 
 /**
  * Function: showLoading
@@ -100,6 +113,63 @@ function getTripIdFromPath() {
 }
 
 /**
+ * Function: getSortTimeValue
+ * Description: Resolve a numeric timestamp used to sort voyages chronologically.
+ * Parameters:
+ *   voyage (object): Voyage descriptor containing a start time.
+ * Returns: number - Millisecond timestamp or Infinity when invalid.
+ */
+function getSortTimeValue(voyage) {
+  if (!voyage || !voyage.startTime) return Number.POSITIVE_INFINITY;
+  const dt = new Date(voyage.startTime);
+  const ts = dt.getTime();
+  return Number.isNaN(ts) ? Number.POSITIVE_INFINITY : ts;
+}
+
+/**
+ * Function: mergeVoyageCollections
+ * Description: Merge auto-generated and manual voyage data into a sorted list.
+ * Parameters:
+ *   voyages (object[]): Generated voyages from the logbook parser.
+ *   manualVoyages (object[]): Manual voyage entries.
+ * Returns: object[] - Combined voyage list ordered by start time.
+ */
+function mergeVoyageCollections(voyages, manualVoyages) {
+  const combined = []
+    .concat(Array.isArray(voyages) ? voyages : [])
+    .concat(Array.isArray(manualVoyages) ? manualVoyages : []);
+  return combined.sort((a, b) => getSortTimeValue(a) - getSortTimeValue(b));
+}
+
+/**
+ * Function: collectManualLocations
+ * Description: Extract unique manual locations for autocomplete suggestions.
+ * Parameters:
+ *   records (object[]): Manual voyage records from storage.
+ * Returns: object[] - Unique manual locations with names and coordinates.
+ */
+function collectManualLocations(records) {
+  const locations = new Map();
+  if (!Array.isArray(records)) return [];
+  records.forEach((record) => {
+    const start = record?.startLocation;
+    const end = record?.endLocation;
+    [start, end].forEach((location) => {
+      if (!location || typeof location !== 'object') return;
+      const name = typeof location.name === 'string' ? location.name.trim() : '';
+      const lat = Number(location.lat);
+      const lon = Number(location.lon);
+      if (!name || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      const key = name.toLowerCase();
+      if (!locations.has(key)) {
+        locations.set(key, { name, lat, lon });
+      }
+    });
+  });
+  return Array.from(locations.values());
+}
+
+/**
  * Function: syncVoyageSelectionWithPath
  * Description: Select the voyage corresponding to the current URL path if possible.
  * Parameters:
@@ -137,21 +207,40 @@ window.addEventListener('popstate', () => {
  * Returns: Promise<void> - Resolves when the interface has been refreshed.
  */
 async function load() {
-  const data = await fetchVoyagesData();
+  const [data, manualData] = await Promise.all([
+    fetchVoyagesData(),
+    fetchManualVoyagesData(apiBasePath)
+  ]);
 
   initializeMap();
   const tbody = document.querySelector('#voyTable tbody');
   if (!tbody) return;
-  const voyages = data.voyages.map((voyage, index) => {
+  const manualRecords = Array.isArray(manualData?.voyages) ? manualData.voyages : [];
+  const manualVoyages = manualRecords
+    .map(record => buildManualVoyageFromRecord(record))
+    .filter(Boolean);
+  const combinedVoyages = mergeVoyageCollections(data.voyages, manualVoyages);
+  if (manualPanelApi && typeof manualPanelApi.updateLocationOptions === 'function') {
+    manualPanelApi.updateLocationOptions(collectManualLocations(manualRecords));
+  }
+  const voyages = combinedVoyages.map((voyage, index) => {
     voyage._tripIndex = index + 1;
-    voyage._segments = computeDaySegments(voyage);
+    const minLegDistanceNm = voyage.manual ? 0 : undefined;
+    voyage._segments = computeDaySegments(voyage, { minLegDistanceNm });
     applyVoyageTimeMetrics(voyage);
+    if (voyage.manual) {
+      const coord = Array.isArray(voyage.coords) ? voyage.coords[voyage.coords.length - 1] : null;
+      if (Array.isArray(coord) && coord.length === 2) {
+        voyage.maxSpeedCoord = coord;
+      }
+      voyage.maxSpeed = Number.isFinite(voyage.avgSpeed) ? voyage.avgSpeed : 0;
+    }
     return voyage;
   });
 
   renderVoyageTable(tbody, voyages);
 
-  const totals = computeVoyageTotals(data.voyages);
+  const totals = computeVoyageTotals(voyages);
   renderTotalsRow(tbody, totals, formatDurationMs);
 
   let allBounds = null;
@@ -199,3 +288,52 @@ if (regenBtn) {
     }
   });
 }
+
+/**
+ * Function: deleteManualVoyage
+ * Description: Issue a delete request for a manual voyage by id.
+ * Parameters:
+ *   manualId (string): Identifier of the manual voyage to delete.
+ * Returns: Promise<void> - Resolves when the delete completes.
+ */
+async function deleteManualVoyage(manualId) {
+  const base = typeof apiBasePath === 'string' ? apiBasePath.replace(/\/$/, '') : '';
+  const url = base ? `${base}/manual-voyages/${encodeURIComponent(manualId)}` : `manual-voyages/${encodeURIComponent(manualId)}`;
+  const response = await fetch(url, { method: 'DELETE', credentials: 'include' });
+  if (!response.ok) {
+    let message = `Manual voyage delete failed with status ${response.status}`;
+    try {
+      const data = await response.json();
+      if (data && typeof data.message === 'string' && data.message.trim()) {
+        message = data.message.trim();
+      }
+    } catch (err) {
+      try {
+        const text = await response.text();
+        if (text && text.trim()) {
+          message = text.trim();
+        }
+      } catch (_) {
+        // keep default message
+      }
+    }
+    throw new Error(message);
+  }
+}
+
+/**
+ * Function: handleManualVoyageEditRequested
+ * Description: Open the manual voyage panel in edit mode for a manual voyage.
+ * Parameters:
+ *   payload (object): Event payload containing the voyage metadata.
+ * Returns: void.
+ */
+function handleManualVoyageEditRequested(payload = {}) {
+  const voyage = payload?.voyage;
+  if (!voyage || !voyage.manualId) return;
+  if (manualPanelApi && typeof manualPanelApi.openForEdit === 'function') {
+    manualPanelApi.openForEdit(voyage);
+  }
+}
+
+on(EVENTS.MANUAL_VOYAGE_EDIT_REQUESTED, handleManualVoyageEditRequested);

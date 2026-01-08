@@ -122,6 +122,7 @@ export function renderTotalsRow(tbody, totals, formatDuration) {
     <td colspan="2" class="totals-active">Active Time: ${formatFn(totalActiveMs)}</td>
     <td colspan="2" class="totals-distance">${totalDistanceNm.toFixed(1)} NM</td>
     <td colspan="5" class="totals-sailing">Sailing Time: ${formatFn(totalSailingMs)} (${sailingPct.toFixed(1)}%)</td>
+    <td class="totals-edit"></td>
     `;
   row.addEventListener('click', () => {
     emit(EVENTS.SELECTION_RESET_REQUESTED, { source: 'table-totals' });
@@ -140,13 +141,43 @@ function formatHours(hours) {
   return `${hours.toFixed(1)} h`;
 }
 
+/**
+ * Function: buildExpanderCellContent
+ * Description: Build the expander or manual delete control for a voyage row.
+ * Parameters:
+ *   voyage (object): Voyage descriptor used to decide expander/delete controls.
+ *   segmentCount (number): Number of segments available for the voyage.
+ * Returns: string - HTML markup for the expander cell.
+ */
+function buildExpanderCellContent(segmentCount) {
+  const hasMultipleSegments = segmentCount > 1;
+  if (hasMultipleSegments) {
+    return '<button class="expander-btn" aria-label="Toggle legs">[+]</button>';
+  }
+  return '';
+}
+
+/**
+ * Function: buildEditCellContent
+ * Description: Build the edit control for manual voyage rows.
+ * Parameters:
+ *   voyage (object): Voyage descriptor used to decide edit control rendering.
+ * Returns: string - HTML markup for the edit cell.
+ */
+function buildEditCellContent(voyage) {
+  if (voyage && voyage.manualId) {
+    return '<button class="manual-edit-btn" aria-label="Edit manual voyage" title="Edit manual voyage">Edit</button>';
+  }
+  return '';
+}
+
 function createVoyageRowHTML(voyage, index, segmentCount) {
   const avgWindDir = (voyage.avgWindHeading !== undefined && voyage.avgWindHeading !== null)
     ? degToCompass(voyage.avgWindHeading)
     : '';
-  const hasMultipleSegments = segmentCount > 1;
   const showTotalHours = segmentCount === 1;
-  const expander = hasMultipleSegments ? '<button class="expander-btn" aria-label="Toggle legs">[+]</button>' : '';
+  const expander = buildExpanderCellContent(segmentCount);
+  const editCell = buildEditCellContent(voyage);
   const totalHoursLabel = showTotalHours ? formatHours(voyage.totalHours) : '';
   return `
     <td class="exp-cell">${expander}</td>
@@ -159,7 +190,8 @@ function createVoyageRowHTML(voyage, index, segmentCount) {
     <td class="avg-speed-col">${voyage.avgSpeed.toFixed(1)} kn</td>
     <td class="max-wind-cell">${voyage.maxWind.toFixed(1)}<span class="unit-kn"> kn</span></td>
     <td class="avg-wind-col">${voyage.avgWindSpeed.toFixed(1)} kn</td>
-    <td>${avgWindDir}</td>`;
+    <td>${avgWindDir}</td>
+    <td class="manual-edit-col">${editCell}</td>`;
 }
 
 function createDayRowHTML(segment, segmentIndex) {
@@ -179,13 +211,17 @@ function createDayRowHTML(segment, segmentIndex) {
     <td class="avg-speed-col">${segment.avgSpeed.toFixed(1)} kn</td>
     <td class="max-wind-cell">${segment.maxWind.toFixed(1)}<span class="unit-kn"> kn</span></td>
     <td class="avg-wind-col">${segment.avgWindSpeed.toFixed(1)} kn</td>
-    <td>${avgWindDirDay}</td>`;
+    <td>${avgWindDirDay}</td>
+    <td class="manual-edit-col"></td>`;
 }
 
 function attachVoyageRowHandlers(row, voyage) {
   row.addEventListener('click', (event) => {
     const target = event.target;
     if (target && target.classList && target.classList.contains('expander-btn')) {
+      return;
+    }
+    if (target && target.classList && target.classList.contains('manual-edit-btn')) {
       return;
     }
     const wasSelected = row.classList.contains('selected-row');
@@ -224,6 +260,27 @@ function attachVoyageRowHandlers(row, voyage) {
       }
     });
   }
+}
+
+/**
+ * Function: attachManualEditHandler
+ * Description: Wire manual voyage edit events for the row when available.
+ * Parameters:
+ *   row (HTMLTableRowElement): Table row element containing the delete button.
+ *   voyage (object): Voyage data item associated with the row.
+ * Returns: void.
+ */
+function attachManualEditHandler(row, voyage) {
+  const editBtn = row.querySelector('.manual-edit-btn');
+  if (!editBtn) return;
+  editBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    emit(EVENTS.MANUAL_VOYAGE_EDIT_REQUESTED, {
+      voyage,
+      row,
+      source: 'table-edit'
+    });
+  });
 }
 
 function attachDayRowHandlers(dayRow, voyage, segment, voyageRow) {
@@ -312,6 +369,7 @@ export function renderVoyageTable(tbody, voyages) {
     rows.push(row);
 
     attachVoyageRowHandlers(row, voyage);
+    attachManualEditHandler(row, voyage);
 
     const dayRows = [];
     if (segments.length > 0) {

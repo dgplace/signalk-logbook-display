@@ -15,6 +15,9 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const LOG_DIR = path.join(process.env.HOME, '.signalk', 'plugin-config-data', 'signalk-logbook');
 const OUTPUT_JSON = path.join(PUBLIC_DIR, 'voyages.json');
 const OUTPUT_POLAR = path.join(PUBLIC_DIR, 'Polar.json');
+const MANUAL_JSON = path.join(PUBLIC_DIR, 'manual-voyages.json');
+const MANUAL_PAYLOAD_MAX_BYTES = 100 * 1024;
+const BASE_PATH = process.env.VOYAGE_BASE_PATH || '';
 
 // Basic, minimal MIME type map
 const MIME = {
@@ -103,6 +106,346 @@ function buildEtag(stats) {
 }
 
 /**
+ * Function: normalizeBasePath
+ * Description: Normalize a base path string for prefix stripping.
+ * Parameters:
+ *   value (string): Base path value to normalize.
+ * Returns: string - Normalized base path with leading slash and no trailing slash.
+ */
+function normalizeBasePath(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === '/') return '';
+  const withSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return withSlash.replace(/\/+$/, '');
+}
+
+/**
+ * Function: resolveEffectivePath
+ * Description: Strip a configured base path or forwarded prefix from the request path.
+ * Parameters:
+ *   pathname (string): Raw decoded pathname from the request URL.
+ *   req (http.IncomingMessage): Request object used to inspect forwarded headers.
+ * Returns: string - Effective pathname for routing.
+ */
+function resolveEffectivePath(pathname, req) {
+  const configured = normalizeBasePath(BASE_PATH);
+  const forwarded = normalizeBasePath(req.headers['x-forwarded-prefix']);
+  const candidates = [configured, forwarded].filter(Boolean);
+  let effective = pathname;
+
+  for (const prefix of candidates) {
+    if (effective === prefix) {
+      effective = '/';
+      break;
+    }
+    if (effective.startsWith(`${prefix}/`)) {
+      effective = effective.slice(prefix.length);
+      break;
+    }
+  }
+
+  if (effective === '/logbook') return '/';
+  if (effective.startsWith('/logbook/')) {
+    return effective.slice('/logbook'.length);
+  }
+
+  return effective;
+}
+
+/**
+ * Function: ensureManualVoyageDir
+ * Description: Ensure the manual voyage storage directory exists.
+ * Parameters: None.
+ * Returns: Promise<void> - Resolves after the directory is created or already exists.
+ */
+async function ensureManualVoyageDir() {
+  await fs.promises.mkdir(PUBLIC_DIR, { recursive: true });
+}
+
+/**
+ * Function: parseIsoDatetime
+ * Description: Validate and normalize a datetime string into ISO format.
+ * Parameters:
+ *   value (string): Raw datetime value to parse.
+ * Returns: string|null - ISO timestamp string or null when invalid.
+ */
+function parseIsoDatetime(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt.toISOString();
+}
+
+/**
+ * Function: normalizeManualLocation
+ * Description: Validate a manual location payload and normalize its fields.
+ * Parameters:
+ *   raw (object): Incoming location descriptor.
+ * Returns: object|null - Normalized location or null when invalid.
+ */
+function normalizeManualLocation(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const name = typeof raw.name === 'string' ? raw.name.trim() : '';
+  const lat = Number(raw.lat);
+  const lon = Number(raw.lon);
+  if (!name) return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  return { name, lat, lon };
+}
+
+/**
+ * Function: normalizeManualVoyagePayload
+ * Description: Validate manual voyage submission payloads before persistence.
+ * Parameters:
+ *   payload (object): Parsed JSON payload from the request body.
+ * Returns: object - Normalized payload or an error descriptor.
+ */
+function normalizeManualVoyagePayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return { error: 'Invalid payload.' };
+  }
+  const startTime = parseIsoDatetime(payload.startTime);
+  const endTime = parseIsoDatetime(payload.endTime);
+  const startLocation = normalizeManualLocation(payload.startLocation);
+  const endLocation = normalizeManualLocation(payload.endLocation);
+  if (!startTime || !endTime || !startLocation || !endLocation) {
+    return { error: 'Missing or invalid voyage fields.' };
+  }
+  const startMs = new Date(startTime).getTime();
+  const endMs = new Date(endTime).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return { error: 'End time must be after the start time.' };
+  }
+  return { startTime, endTime, startLocation, endLocation };
+}
+
+/**
+ * Function: buildManualVoyageId
+ * Description: Create a unique identifier for a manual voyage entry.
+ * Parameters: None.
+ * Returns: string - Unique manual voyage id.
+ */
+function buildManualVoyageId() {
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `manual-${Date.now()}-${rand}`;
+}
+
+/**
+ * Function: readManualVoyages
+ * Description: Load the stored manual voyages from disk, returning an empty payload when missing.
+ * Parameters: None.
+ * Returns: Promise<object> - Manual voyage payload with a `voyages` array.
+ */
+async function readManualVoyages() {
+  try {
+    const contents = await fs.promises.readFile(MANUAL_JSON, 'utf8');
+    const parsed = JSON.parse(contents);
+    if (parsed && Array.isArray(parsed.voyages)) {
+      return parsed;
+    }
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      return { voyages: [] };
+    }
+    throw err;
+  }
+  return { voyages: [] };
+}
+
+/**
+ * Function: writeManualVoyages
+ * Description: Persist the manual voyages payload to disk.
+ * Parameters:
+ *   payload (object): Manual voyage payload to save.
+ * Returns: Promise<void> - Resolves when the file is written.
+ */
+async function writeManualVoyages(payload) {
+  await ensureManualVoyageDir();
+  await fs.promises.writeFile(MANUAL_JSON, JSON.stringify(payload, null, 2));
+}
+
+/**
+ * Function: readJsonBody
+ * Description: Read and parse a JSON request body with a size cap.
+ * Parameters:
+ *   req (http.IncomingMessage): Request stream to consume.
+ * Returns: Promise<object|null> - Parsed JSON payload or null when empty.
+ */
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > MANUAL_PAYLOAD_MAX_BYTES) {
+        reject(new Error('Payload too large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (!chunks.length) {
+        resolve(null);
+        return;
+      }
+      try {
+        const body = Buffer.concat(chunks).toString('utf8');
+        resolve(JSON.parse(body));
+      } catch (err) {
+        reject(err);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+/**
+ * Function: handleManualVoyagesList
+ * Description: Return the stored manual voyage list to the client.
+ * Parameters:
+ *   res (http.ServerResponse): Response object used to transmit data.
+ * Returns: void.
+ */
+function handleManualVoyagesList(res) {
+  readManualVoyages()
+    .then(payload => {
+      send(res, 200, { 'Content-Type': 'application/json' }, JSON.stringify(payload));
+    })
+    .catch(err => {
+      console.error(`[voyage-webapp] Failed to read manual voyages: ${err.message}`);
+      send(res, 500, { 'Content-Type': 'application/json' }, JSON.stringify({ message: 'Failed to read manual voyages' }));
+    });
+}
+
+/**
+ * Function: handleManualVoyageCreate
+ * Description: Store a new manual voyage record based on the request payload.
+ * Parameters:
+ *   req (http.IncomingMessage): Request stream containing JSON payload.
+ *   res (http.ServerResponse): Response object used to transmit data.
+ * Returns: void.
+ */
+function handleManualVoyageCreate(req, res) {
+  readJsonBody(req)
+    .then((payload) => {
+      const normalized = normalizeManualVoyagePayload(payload);
+      if (normalized.error) {
+        send(res, 400, { 'Content-Type': 'application/json' }, JSON.stringify({ message: normalized.error }));
+        return null;
+      }
+      return readManualVoyages().then(existing => {
+        const newVoyage = {
+          id: buildManualVoyageId(),
+          createdAt: new Date().toISOString(),
+          startTime: normalized.startTime,
+          endTime: normalized.endTime,
+          startLocation: normalized.startLocation,
+          endLocation: normalized.endLocation
+        };
+        const voyages = Array.isArray(existing.voyages) ? existing.voyages.slice() : [];
+        voyages.push(newVoyage);
+        return writeManualVoyages({ voyages }).then(() => {
+          send(res, 201, { 'Content-Type': 'application/json' }, JSON.stringify(newVoyage));
+        });
+      });
+    })
+    .catch(err => {
+      const status = err.message === 'Payload too large' ? 413 : 400;
+      const message = err.message === 'Payload too large' ? 'Payload too large' : 'Invalid JSON payload';
+      if (status === 400) {
+        console.error(`[voyage-webapp] Failed to parse manual voyage payload: ${err.message}`);
+      }
+      send(res, status, { 'Content-Type': 'application/json' }, JSON.stringify({ message }));
+    });
+}
+
+/**
+ * Function: handleManualVoyageUpdate
+ * Description: Update an existing manual voyage by id.
+ * Parameters:
+ *   req (http.IncomingMessage): Request stream containing JSON payload.
+ *   res (http.ServerResponse): Response object used to transmit data.
+ *   id (string): Manual voyage identifier to update.
+ * Returns: void.
+ */
+function handleManualVoyageUpdate(req, res, id) {
+  if (!id) {
+    send(res, 400, { 'Content-Type': 'application/json' }, JSON.stringify({ message: 'Missing voyage id' }));
+    return;
+  }
+  readJsonBody(req)
+    .then((payload) => {
+      const normalized = normalizeManualVoyagePayload(payload);
+      if (normalized.error) {
+        send(res, 400, { 'Content-Type': 'application/json' }, JSON.stringify({ message: normalized.error }));
+        return null;
+      }
+      return readManualVoyages().then(existing => {
+        const voyages = Array.isArray(existing.voyages) ? existing.voyages.slice() : [];
+        const index = voyages.findIndex(voyage => voyage && voyage.id === id);
+        if (index === -1) {
+          send(res, 404, { 'Content-Type': 'application/json' }, JSON.stringify({ message: 'Voyage not found' }));
+          return null;
+        }
+        const updated = {
+          ...voyages[index],
+          startTime: normalized.startTime,
+          endTime: normalized.endTime,
+          startLocation: normalized.startLocation,
+          endLocation: normalized.endLocation,
+          updatedAt: new Date().toISOString()
+        };
+        voyages[index] = updated;
+        return writeManualVoyages({ voyages }).then(() => {
+          send(res, 200, { 'Content-Type': 'application/json' }, JSON.stringify(updated));
+        });
+      });
+    })
+    .catch(err => {
+      const status = err.message === 'Payload too large' ? 413 : 400;
+      const message = err.message === 'Payload too large' ? 'Payload too large' : 'Invalid JSON payload';
+      if (status === 400) {
+        console.error(`[voyage-webapp] Failed to parse manual voyage update payload: ${err.message}`);
+      }
+      send(res, status, { 'Content-Type': 'application/json' }, JSON.stringify({ message }));
+    });
+}
+
+/**
+ * Function: handleManualVoyageDelete
+ * Description: Delete a manual voyage by id.
+ * Parameters:
+ *   id (string): Manual voyage identifier to delete.
+ *   res (http.ServerResponse): Response object used to transmit data.
+ * Returns: void.
+ */
+function handleManualVoyageDelete(id, res) {
+  if (!id) {
+    send(res, 400, { 'Content-Type': 'application/json' }, JSON.stringify({ message: 'Missing voyage id' }));
+    return;
+  }
+  readManualVoyages()
+    .then(existing => {
+      const voyages = Array.isArray(existing.voyages) ? existing.voyages : [];
+      const next = voyages.filter(voyage => voyage && voyage.id !== id);
+      if (next.length === voyages.length) {
+        send(res, 404, { 'Content-Type': 'application/json' }, JSON.stringify({ message: 'Voyage not found' }));
+        return null;
+      }
+      return writeManualVoyages({ voyages: next }).then(() => {
+        send(res, 200, { 'Content-Type': 'application/json' }, JSON.stringify({ status: 'ok' }));
+      });
+    })
+    .catch(err => {
+      console.error(`[voyage-webapp] Failed to delete manual voyage: ${err.message}`);
+      send(res, 500, { 'Content-Type': 'application/json' }, JSON.stringify({ message: 'Failed to delete manual voyage' }));
+    });
+}
+
+/**
  * Function: serveFile
  * Description: Stream a static file to the HTTP client, applying appropriate MIME type and cache headers.
  * Parameters:
@@ -186,8 +529,33 @@ function serveFile(req, res, filePath) {
  */
 const server = http.createServer((req, res) => {
   const parsed = url.parse(req.url);
-  let pathname = decodeURI(parsed.pathname || '/');
-  console.log(`[voyage-webapp] ${req.method} ${pathname}`);
+  const originalPath = decodeURI(parsed.pathname || '/');
+  let pathname = resolveEffectivePath(originalPath, req);
+  const normalizedPath = pathname.replace(/\/+$/, '') || '/';
+  const logSuffix = originalPath === pathname ? '' : ` -> ${pathname}`;
+  console.log(`[voyage-webapp] ${req.method} ${originalPath}${logSuffix}`);
+
+  if (req.method === 'GET' && normalizedPath === '/manual-voyages') {
+    handleManualVoyagesList(res);
+    return;
+  }
+
+  if (req.method === 'POST' && normalizedPath === '/manual-voyages') {
+    handleManualVoyageCreate(req, res);
+    return;
+  }
+
+  if (req.method === 'PUT' && normalizedPath.startsWith('/manual-voyages/')) {
+    const manualId = normalizedPath.split('/').pop();
+    handleManualVoyageUpdate(req, res, manualId);
+    return;
+  }
+
+  if (req.method === 'DELETE' && normalizedPath.startsWith('/manual-voyages/')) {
+    const manualId = normalizedPath.split('/').pop();
+    handleManualVoyageDelete(manualId, res);
+    return;
+  }
 
   if (req.method === 'GET' && pathname === '/generate') {
     console.log(`[voyage-webapp] Handling /generate with log dir ${LOG_DIR}`);

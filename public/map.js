@@ -14,7 +14,8 @@
  *   `wirePolylineSelectionHandlers`, `refreshWindOverlay`, `setWindOverlayEnabled`,
  *   `setWindOverlayToggleAvailability`, `clearWindIntensityLayer`, `clearActivePointMarkers`,
  *   `renderActivePointMarkers`, `clearSelectedWindGraphics`, `restoreBasePolylineStyles`,
- *   `clearMaxSpeedMarker`, `setCurrentVoyagePoints`, `detachActiveClickers`.
+ *   `clearMaxSpeedMarker`, `setCurrentVoyagePoints`, `detachActiveClickers`, `setMapClickCapture`,
+ *   `clearMapClickCapture`.
  * - Highlight helpers: `drawMaxSpeedMarkerFromCoord`.
  *
  * @typedef {import('./types.js').Voyage} Voyage
@@ -69,6 +70,7 @@ let suppressHistoryUpdate = false;
 let windOverlayEnabled = false;
 let baseTileLayer = null;
 let themeListenerRegistered = false;
+let mapClickCaptureHandler = null;
 
 const BASE_TILESET_URL_LIGHT = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 const BASE_TILESET_URL_DARK = BASE_TILESET_URL_LIGHT;
@@ -128,6 +130,23 @@ function getCssVariableValue(name) {
   if (!root) return '';
   const styles = window.getComputedStyle(root);
   return (styles.getPropertyValue(name) || '').trim();
+}
+
+/**
+ * Function: escapeHtml
+ * Description: Escape special characters before injecting text into HTML strings.
+ * Parameters:
+ *   value (string): Raw string value to escape.
+ * Returns: string - Escaped string safe for HTML insertion.
+ */
+function escapeHtml(value) {
+  if (typeof value !== 'string') return '';
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /**
@@ -214,6 +233,26 @@ export function fitMapToBounds(bounds, options = {}) {
   performFit();
 }
 
+/**
+ * Function: setMapClickCapture
+ * Description: Register a handler to intercept map background clicks.
+ * Parameters:
+ *   handler (Function|null): Handler invoked with the Leaflet event; return true to swallow default handling.
+ * Returns: void.
+ */
+export function setMapClickCapture(handler) {
+  mapClickCaptureHandler = typeof handler === 'function' ? handler : null;
+}
+
+/**
+ * Function: clearMapClickCapture
+ * Description: Clear the active map click capture handler.
+ * Parameters: None.
+ * Returns: void.
+ */
+export function clearMapClickCapture() {
+  mapClickCaptureHandler = null;
+}
 
 /**
  * Function: clearWindIntensityLayer
@@ -650,9 +689,14 @@ function renderPointDetails(point) {
   const windDir = entry?.wind?.direction;
   const windDirTxt = typeof windDir === 'number' ? `${windDir.toFixed(0)}° (${degToCompassLocal(windDir)})` : '—';
   const posStr = formatPosition(point.lat, point.lon);
+  const locationName = point.manualLocationName || entry.manualLocationName;
+  const locationRow = locationName
+    ? `<div class="row"><dt>Location</dt><dd>${escapeHtml(String(locationName))}</dd></div>`
+    : '';
   const summary = `
     <dl class="point-details">
       <div class="row"><dt>Time</dt><dd>${when}</dd></div>
+      ${locationRow}
       <div class="row"><dt>Position</dt><dd>${posStr}</dd></div>
       <div class="row"><dt>SOG</dt><dd>${typeof sog === 'number' ? sog.toFixed(2) + ' kn' : '—'}</dd></div>
       <div class="row"><dt>STW</dt><dd>${typeof stw === 'number' ? stw.toFixed(2) + ' kn' : '—'}</dd></div>
@@ -980,7 +1024,10 @@ export function initializeMap(onBackgroundClick) {
     }
   });
   const backgroundHandler = (event) => {
-    handleMapBackgroundClick(event);
+    const handled = mapClickCaptureHandler ? mapClickCaptureHandler(event) : false;
+    if (!handled) {
+      handleMapBackgroundClick(event);
+    }
     if (typeof onBackgroundClick === 'function') {
       onBackgroundClick(event);
     }

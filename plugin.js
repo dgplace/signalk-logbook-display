@@ -65,6 +65,160 @@ function runLogbookParser(scriptPath, logDir) {
 const LOG_DIR = path.join(process.env.HOME, '.signalk', 'plugin-config-data', 'signalk-logbook');
 const OUTPUT_JSON = path.join(__dirname, 'public', 'voyages.json');
 const OUTPUT_POLAR = path.join(__dirname, 'public', 'Polar.json');
+const MANUAL_JSON = path.join(__dirname, 'public', 'manual-voyages.json');
+const MANUAL_PAYLOAD_MAX_BYTES = 100 * 1024;
+
+/**
+ * Function: ensureManualVoyageDir
+ * Description: Ensure the manual voyage storage directory exists on disk.
+ * Parameters: None.
+ * Returns: Promise<void> - Resolves after the directory is created or already exists.
+ */
+async function ensureManualVoyageDir() {
+  await fs.promises.mkdir(path.join(__dirname, 'public'), { recursive: true });
+}
+
+/**
+ * Function: parseIsoDatetime
+ * Description: Validate and normalize a datetime string into ISO format.
+ * Parameters:
+ *   value (string): Raw datetime value to parse.
+ * Returns: string|null - ISO timestamp string or null when invalid.
+ */
+function parseIsoDatetime(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt.toISOString();
+}
+
+/**
+ * Function: normalizeManualLocation
+ * Description: Validate a manual location payload and normalize its fields.
+ * Parameters:
+ *   raw (object): Incoming location descriptor.
+ * Returns: object|null - Normalized location or null when invalid.
+ */
+function normalizeManualLocation(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const name = typeof raw.name === 'string' ? raw.name.trim() : '';
+  const lat = Number(raw.lat);
+  const lon = Number(raw.lon);
+  if (!name) return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  return { name, lat, lon };
+}
+
+/**
+ * Function: normalizeManualVoyagePayload
+ * Description: Validate manual voyage submission payloads before persistence.
+ * Parameters:
+ *   payload (object): Parsed JSON payload from the request body.
+ * Returns: object - Normalized payload or an error descriptor.
+ */
+function normalizeManualVoyagePayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return { error: 'Invalid payload.' };
+  }
+  const startTime = parseIsoDatetime(payload.startTime);
+  const endTime = parseIsoDatetime(payload.endTime);
+  const startLocation = normalizeManualLocation(payload.startLocation);
+  const endLocation = normalizeManualLocation(payload.endLocation);
+  if (!startTime || !endTime || !startLocation || !endLocation) {
+    return { error: 'Missing or invalid voyage fields.' };
+  }
+  const startMs = new Date(startTime).getTime();
+  const endMs = new Date(endTime).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return { error: 'End time must be after the start time.' };
+  }
+  return { startTime, endTime, startLocation, endLocation };
+}
+
+/**
+ * Function: buildManualVoyageId
+ * Description: Create a unique identifier for a manual voyage entry.
+ * Parameters: None.
+ * Returns: string - Unique manual voyage id.
+ */
+function buildManualVoyageId() {
+  const rand = Math.random().toString(36).slice(2, 8);
+  return `manual-${Date.now()}-${rand}`;
+}
+
+/**
+ * Function: readManualVoyages
+ * Description: Load the stored manual voyages from disk, returning an empty payload when missing.
+ * Parameters: None.
+ * Returns: Promise<object> - Manual voyage payload with a `voyages` array.
+ */
+async function readManualVoyages() {
+  try {
+    const contents = await fs.promises.readFile(MANUAL_JSON, 'utf8');
+    const parsed = JSON.parse(contents);
+    if (parsed && Array.isArray(parsed.voyages)) {
+      return parsed;
+    }
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      return { voyages: [] };
+    }
+    throw err;
+  }
+  return { voyages: [] };
+}
+
+/**
+ * Function: writeManualVoyages
+ * Description: Persist the manual voyages payload to disk.
+ * Parameters:
+ *   payload (object): Manual voyage payload to save.
+ * Returns: Promise<void> - Resolves when the file is written.
+ */
+async function writeManualVoyages(payload) {
+  await ensureManualVoyageDir();
+  await fs.promises.writeFile(MANUAL_JSON, JSON.stringify(payload, null, 2));
+}
+
+/**
+ * Function: readJsonBody
+ * Description: Read and parse a JSON request body with a size cap.
+ * Parameters:
+ *   req (object): Express request object to consume.
+ * Returns: Promise<object|null> - Parsed JSON payload or null when empty.
+ */
+function readJsonBody(req) {
+  if (req.body && typeof req.body === 'object') {
+    return Promise.resolve(req.body);
+  }
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > MANUAL_PAYLOAD_MAX_BYTES) {
+        reject(new Error('Payload too large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      if (!chunks.length) {
+        resolve(null);
+        return;
+      }
+      try {
+        const body = Buffer.concat(chunks).toString('utf8');
+        resolve(JSON.parse(body));
+      } catch (err) {
+        reject(err);
+      }
+    });
+    req.on('error', reject);
+  });
+}
 
 /**
  * Function: module.exports
@@ -105,6 +259,114 @@ module.exports = function(app) {
    * Returns: void.
    */
   plugin.registerWithRouter = router => {
+    router.get('/manual-voyages', async (req, res) => {
+      const targetUrl = req.originalUrl || req.url || '/manual-voyages';
+      app.debug(`[voyage-webapp] GET ${targetUrl} -> loading manual voyages`);
+      try {
+        const payload = await readManualVoyages();
+        res.json(payload);
+      } catch (err) {
+        app.error(`[voyage-webapp] Failed to read manual voyages: ${err.message}`);
+        res.status(500).send({ message: 'Failed to read manual voyages' });
+      }
+    });
+
+    router.post('/manual-voyages', async (req, res) => {
+      const targetUrl = req.originalUrl || req.url || '/manual-voyages';
+      app.debug(`[voyage-webapp] POST ${targetUrl} -> saving manual voyage`);
+      try {
+        const payload = await readJsonBody(req);
+        const normalized = normalizeManualVoyagePayload(payload);
+        if (normalized.error) {
+          res.status(400).send({ message: normalized.error });
+          return;
+        }
+        const existing = await readManualVoyages();
+        const voyages = Array.isArray(existing.voyages) ? existing.voyages.slice() : [];
+        const newVoyage = {
+          id: buildManualVoyageId(),
+          createdAt: new Date().toISOString(),
+          startTime: normalized.startTime,
+          endTime: normalized.endTime,
+          startLocation: normalized.startLocation,
+          endLocation: normalized.endLocation
+        };
+        voyages.push(newVoyage);
+        await writeManualVoyages({ voyages });
+        res.status(201).json(newVoyage);
+      } catch (err) {
+        const status = err.message === 'Payload too large' ? 413 : 400;
+        const message = err.message === 'Payload too large' ? 'Payload too large' : 'Invalid JSON payload';
+        app.error(`[voyage-webapp] Failed to save manual voyage: ${err.message}`);
+        res.status(status).send({ message });
+      }
+    });
+
+    router.put('/manual-voyages/:id', async (req, res) => {
+      const targetUrl = req.originalUrl || req.url || '/manual-voyages/:id';
+      const { id } = req.params || {};
+      app.debug(`[voyage-webapp] PUT ${targetUrl} -> updating manual voyage ${id || ''}`);
+      if (!id) {
+        res.status(400).send({ message: 'Missing voyage id' });
+        return;
+      }
+      try {
+        const payload = await readJsonBody(req);
+        const normalized = normalizeManualVoyagePayload(payload);
+        if (normalized.error) {
+          res.status(400).send({ message: normalized.error });
+          return;
+        }
+        const existing = await readManualVoyages();
+        const voyages = Array.isArray(existing.voyages) ? existing.voyages.slice() : [];
+        const index = voyages.findIndex(voyage => voyage && voyage.id === id);
+        if (index === -1) {
+          res.status(404).send({ message: 'Voyage not found' });
+          return;
+        }
+        const updated = {
+          ...voyages[index],
+          startTime: normalized.startTime,
+          endTime: normalized.endTime,
+          startLocation: normalized.startLocation,
+          endLocation: normalized.endLocation,
+          updatedAt: new Date().toISOString()
+        };
+        voyages[index] = updated;
+        await writeManualVoyages({ voyages });
+        res.json(updated);
+      } catch (err) {
+        const status = err.message === 'Payload too large' ? 413 : 400;
+        const message = err.message === 'Payload too large' ? 'Payload too large' : 'Invalid JSON payload';
+        app.error(`[voyage-webapp] Failed to update manual voyage: ${err.message}`);
+        res.status(status).send({ message });
+      }
+    });
+
+    router.delete('/manual-voyages/:id', async (req, res) => {
+      const targetUrl = req.originalUrl || req.url || '/manual-voyages/:id';
+      const { id } = req.params || {};
+      app.debug(`[voyage-webapp] DELETE ${targetUrl} -> deleting manual voyage ${id || ''}`);
+      if (!id) {
+        res.status(400).send({ message: 'Missing voyage id' });
+        return;
+      }
+      try {
+        const existing = await readManualVoyages();
+        const voyages = Array.isArray(existing.voyages) ? existing.voyages : [];
+        const next = voyages.filter(voyage => voyage && voyage.id !== id);
+        if (next.length === voyages.length) {
+          res.status(404).send({ message: 'Voyage not found' });
+          return;
+        }
+        await writeManualVoyages({ voyages: next });
+        res.json({ status: 'ok' });
+      } catch (err) {
+        app.error(`[voyage-webapp] Failed to delete manual voyage: ${err.message}`);
+        res.status(500).send({ message: 'Failed to delete manual voyage' });
+      }
+    });
+
     // GET /generate – run the parser and save voyages.json
     router.get('/generate', (req, res) => {
       const targetUrl = req.originalUrl || req.url || '/generate';

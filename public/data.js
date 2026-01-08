@@ -8,12 +8,14 @@
  * - Extraction helpers: `getVoyagePoints`, `getPointActivity`, `shouldSkipConnection`, `extractWindSpeed`.
  * - Aggregation helpers: `computeVoyageTotals`, `computeDaySegments`, `applyVoyageTimeMetrics`, `circularMean`.
  * - Formatting helpers: `formatDurationMs`.
- * - Data loading: `fetchVoyagesData`.
+ * - Manual helpers: `calculateDistanceNm`, `buildManualVoyageFromRecord`.
+ * - Data loading: `fetchVoyagesData`, `fetchManualVoyagesData`.
  *
  * @typedef {import('./types.js').Voyage} Voyage
  * @typedef {import('./types.js').VoyagePoint} VoyagePoint
  * @typedef {import('./types.js').VoyageSegment} VoyageSegment
  * @typedef {import('./types.js').VoyageTotals} VoyageTotals
+ * @typedef {import('./types.js').ManualVoyageRecord} ManualVoyageRecord
  */
 
 /**
@@ -176,6 +178,109 @@ export function formatDurationMs(durationMs) {
   const hours = Math.floor(remainingMinutes / 60);
   const minutes = remainingMinutes % 60;
   return `${days}d ${hours}h ${minutes}m`;
+}
+
+/**
+ * Function: resolveRelativeUrl
+ * Description: Resolve a relative resource URL against the current page location.
+ * Parameters:
+ *   relativePath (string): Relative path to resolve.
+ * Returns: string - Fully resolved URL or the input path when unavailable.
+ */
+function resolveRelativeUrl(relativePath) {
+  if (typeof window === 'undefined') return relativePath;
+  try {
+    return new URL(relativePath, window.location.href).toString();
+  } catch (err) {
+    return relativePath;
+  }
+}
+
+/**
+ * Function: calculateDistanceNm
+ * Description: Compute nautical mile distance between two coordinate pairs.
+ * Parameters:
+ *   startLat (number): Start latitude in decimal degrees.
+ *   startLon (number): Start longitude in decimal degrees.
+ *   endLat (number): End latitude in decimal degrees.
+ *   endLon (number): End longitude in decimal degrees.
+ * Returns: number|null - Distance in nautical miles or null when inputs are invalid.
+ */
+export function calculateDistanceNm(startLat, startLon, endLat, endLon) {
+  if (!Number.isFinite(startLat) || !Number.isFinite(startLon) || !Number.isFinite(endLat) || !Number.isFinite(endLon)) {
+    return null;
+  }
+  if (typeof L !== 'undefined' && typeof L.latLng === 'function') {
+    const a = L.latLng(startLat, startLon);
+    const b = L.latLng(endLat, endLon);
+    return a.distanceTo(b) / 1852;
+  }
+  const toRad = deg => deg * Math.PI / 180;
+  const dLat = toRad(endLat - startLat);
+  const dLon = toRad(endLon - startLon);
+  const lat1 = toRad(startLat);
+  const lat2 = toRad(endLat);
+  const sinLat = Math.sin(dLat / 2);
+  const sinLon = Math.sin(dLon / 2);
+  const a = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLon * sinLon;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const meters = 6371000 * c;
+  return meters / 1852;
+}
+
+/**
+ * Function: buildManualVoyageFromRecord
+ * Description: Convert a manual voyage record into the voyage shape used by the UI.
+ * Parameters:
+ *   record (ManualVoyageRecord): Manual voyage record containing times and locations.
+ * Returns: object|null - Normalised voyage object or null when invalid.
+ */
+export function buildManualVoyageFromRecord(record) {
+  if (!record || typeof record !== 'object') return null;
+  const startTime = record.startTime;
+  const endTime = record.endTime;
+  const startLocation = record.startLocation;
+  const endLocation = record.endLocation;
+  if (!startTime || !endTime || !startLocation || !endLocation) return null;
+  const startDate = new Date(startTime);
+  const endDate = new Date(endTime);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return null;
+  const startLat = Number(startLocation.lat);
+  const startLon = Number(startLocation.lon);
+  const endLat = Number(endLocation.lat);
+  const endLon = Number(endLocation.lon);
+  if (!Number.isFinite(startLat) || !Number.isFinite(startLon) || !Number.isFinite(endLat) || !Number.isFinite(endLon)) {
+    return null;
+  }
+  const distanceNm = calculateDistanceNm(startLat, startLon, endLat, endLon) ?? 0;
+  const durationMs = endDate.getTime() - startDate.getTime();
+  const totalHours = durationMs > 0 ? (durationMs / (1000 * 60 * 60)) : 0;
+  const avgSpeed = totalHours > 0 ? (distanceNm / totalHours) : 0;
+  const maxSpeedCoord = Number.isFinite(avgSpeed) && avgSpeed > 0 ? [endLon, endLat] : null;
+  return {
+    manual: true,
+    manualId: record.id || null,
+    startTime,
+    endTime,
+    startLocation,
+    endLocation,
+    nm: Number(distanceNm.toFixed(1)),
+    maxSpeed: Number(avgSpeed.toFixed(1)),
+    avgSpeed,
+    maxSpeedCoord,
+    maxWind: 0,
+    avgWindSpeed: 0,
+    avgWindHeading: null,
+    totalHours,
+    points: [
+      { lat: startLat, lon: startLon, entry: { datetime: startTime, activity: 'sailing' }, manualLocationName: startLocation.name },
+      { lat: endLat, lon: endLon, entry: { datetime: endTime, activity: 'sailing' }, manualLocationName: endLocation.name }
+    ],
+    coords: [
+      [startLon, startLat],
+      [endLon, endLat]
+    ]
+  };
 }
 
 /**
@@ -392,13 +497,15 @@ function buildSegmentSummary(segmentPoints, minLegDistanceNm) {
  * Description: Break a voyage into trip segments with per-leg statistics while respecting stop gaps.
  * Parameters:
  *   voyage (object): Voyage summary containing point data.
+ *   options (object): Optional overrides for segment calculation.
  * Returns: object[] - Ordered segment summaries for each trip in the voyage.
  */
-export function computeDaySegments(voyage) {
+export function computeDaySegments(voyage, options = {}) {
   const points = Array.isArray(voyage?.points) && voyage.points.length ? voyage.points : null;
   if (!points) return [];
   const MIN_ANCHORED_GAP_MS = 60 * 60 * 1000;
-  const MIN_LEG_DISTANCE_NM = 1;
+  const defaultMinLeg = 1;
+  const minLegDistanceNm = Number.isFinite(options.minLegDistanceNm) ? options.minLegDistanceNm : defaultMinLeg;
   const orderedPoints = [...points].sort((a, b) => {
     const aMs = getPointTimeMs(a);
     const bMs = getPointTimeMs(b);
@@ -415,14 +522,14 @@ export function computeDaySegments(voyage) {
     segmentPoints.push(point);
     const nextPoint = orderedPoints[i + 1];
     if (nextPoint && shouldSplitTripAfterPoint(point, nextPoint, MIN_ANCHORED_GAP_MS)) {
-      const summary = buildSegmentSummary(segmentPoints, MIN_LEG_DISTANCE_NM);
+      const summary = buildSegmentSummary(segmentPoints, minLegDistanceNm);
       if (summary) segments.push(summary);
       segmentPoints = [];
     }
   }
 
   if (segmentPoints.length) {
-    const summary = buildSegmentSummary(segmentPoints, MIN_LEG_DISTANCE_NM);
+    const summary = buildSegmentSummary(segmentPoints, minLegDistanceNm);
     if (summary) segments.push(summary);
   }
 
@@ -463,6 +570,28 @@ export function applyVoyageTimeMetrics(voyage) {
  * Returns: Promise<object> - Parsed voyage dataset payload.
  */
 export async function fetchVoyagesData() {
-  const response = await fetch('voyages.json', { cache: 'no-cache' });
+  const response = await fetch(resolveRelativeUrl('voyages.json'), { cache: 'no-cache' });
   return response.json();
+}
+
+/**
+ * Function: fetchManualVoyagesData
+ * Description: Retrieve manual voyage data from the server with cache disabled.
+ * Parameters:
+ *   apiBasePath (string): Optional API base path when running inside the plugin.
+ * Returns: Promise<object> - Parsed manual voyage payload.
+ */
+export async function fetchManualVoyagesData(apiBasePath = '') {
+  const base = typeof apiBasePath === 'string' ? apiBasePath.replace(/\/$/, '') : '';
+  const url = base ? `${base}/manual-voyages` : resolveRelativeUrl('manual-voyages');
+  try {
+    const response = await fetch(url, { cache: 'no-cache', credentials: 'include' });
+    if (!response.ok) {
+      throw new Error(`Manual voyage request failed with status ${response.status}`);
+    }
+    return response.json();
+  } catch (err) {
+    console.warn('[voyage-webapp] Failed to fetch manual voyages', err);
+    return { voyages: [] };
+  }
 }

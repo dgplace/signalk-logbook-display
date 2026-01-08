@@ -282,6 +282,231 @@ html, body { height: 100%; }
   background: var(--panel-bg);
   box-shadow: var(--panel-shadow);
 }
+
+.manual-toggle {
+  padding: 12px 0 6px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.manual-toggle button {
+  background: var(--button-bg);
+  color: var(--button-text);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  box-shadow: var(--button-shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.manual-toggle button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--button-hover-shadow);
+}
+
+.manual-voyage-panel {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--table-border);
+  border-radius: 12px;
+  background: var(--panel-bg);
+  box-shadow: var(--panel-shadow);
+}
+
+.manual-panel-header h4 {
+  margin: 0 0 4px 0;
+  color: var(--header-color);
+}
+
+.manual-panel-header p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted-text-color);
+}
+
+.manual-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.manual-close-btn {
+  border: 1px solid var(--table-border);
+  background: transparent;
+  color: var(--table-text);
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.manual-close-btn:hover {
+  background: var(--table-hover);
+}
+
+.manual-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.manual-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.manual-group-title {
+  font-weight: 600;
+  color: var(--header-color);
+  font-size: 0.9rem;
+}
+
+.manual-group label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-text-color);
+}
+
+.manual-group input {
+  border: 1px solid var(--table-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--table-text);
+}
+
+@media (prefers-color-scheme: dark) {
+  .manual-group {
+    background: rgba(30, 41, 59, 0.6);
+  }
+  .manual-group input {
+    background: rgba(15, 23, 42, 0.8);
+    color: var(--table-text);
+  }
+}
+
+.manual-group input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
+}
+
+.manual-coords {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.manual-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.manual-pick-btn {
+  border: 1px solid var(--table-border);
+  background: transparent;
+  color: var(--table-text);
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.manual-pick-btn.is-active {
+  background: var(--button-bg);
+  color: var(--button-text);
+  border-color: transparent;
+  box-shadow: var(--button-shadow);
+}
+
+.manual-pick-hint {
+  font-size: 0.8rem;
+  color: var(--muted-text-color);
+}
+
+.manual-metrics {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  font-size: 0.9rem;
+  color: var(--header-color);
+}
+
+.manual-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.manual-metric strong {
+  font-size: 1rem;
+}
+
+.manual-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.manual-actions button {
+  background: var(--button-bg);
+  color: var(--button-text);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  box-shadow: var(--button-shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.manual-actions button:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--button-hover-shadow);
+}
+
+.manual-actions .manual-secondary-btn {
+  background: transparent;
+  color: var(--table-text);
+  border: 1px solid var(--table-border);
+  box-shadow: none;
+}
+
+.manual-actions .manual-secondary-btn:hover {
+  background: var(--table-hover);
+  transform: none;
+  box-shadow: none;
+}
+
+.manual-actions .manual-danger-btn {
+  background: transparent;
+  color: var(--accent-color);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  box-shadow: none;
+}
+
+.manual-actions .manual-danger-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  transform: none;
+  box-shadow: none;
+}
 .map-row {
   display: flex;
   gap: 12px;
@@ -472,6 +697,11 @@ body.resizing {
 /* Fixed width for index column to avoid shifting */
 th.idx-col { width: 48px; }
 td.idx-cell { width: 48px; white-space: nowrap; }
+th.manual-edit-col,
+td.manual-edit-col {
+  width: 70px;
+  text-align: center;
+}
 .expander-btn {
   border: none;
   background: transparent;
@@ -479,6 +709,23 @@ td.idx-cell { width: 48px; white-space: nowrap; }
   font-size: 0.9em;
   margin-right: 6px;
   color: var(--drag-handle);
+}
+
+.manual-edit-btn {
+  border: 1px solid var(--table-border);
+  background: transparent;
+  color: var(--table-text);
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.manual-edit-btn:hover,
+.manual-edit-btn:focus-visible {
+  background: var(--table-hover);
+  outline: none;
 }
 .exp-cell { text-align: center; white-space: nowrap; }
 td.exp-cell { width: 32px; }
@@ -653,7 +900,9 @@ body.is-loading * {
 .container.mobile-layout th.avg-speed-col,
 .container.mobile-layout td.avg-speed-col,
 .container.mobile-layout th.avg-wind-col,
-.container.mobile-layout td.avg-wind-col {
+.container.mobile-layout td.avg-wind-col,
+.container.mobile-layout th.manual-edit-col,
+.container.mobile-layout td.manual-edit-col {
   display: none;
 }
 
@@ -679,4 +928,12 @@ body.is-loading * {
 
 .container.mobile-layout .table-wrapper {
   max-height: none;
+}
+
+.container.mobile-layout .manual-voyage-panel {
+  display: none;
+}
+
+.container.mobile-layout .manual-toggle {
+  display: none;
 }

@@ -34,6 +34,7 @@
  * @property {boolean} [skipConnectionFromPrev] True when the segment to this point should be omitted.
  * @property {VoyageEntry} [entry] Original parsed log entry, when available.
  * @property {VoyageWind} [wind] Inline wind data shortcut when present on the point.
+ * @property {string} [manualLocationName] Optional location label for manual voyages.
  */
 
 /**
@@ -58,6 +59,10 @@
  * @property {number} _tripIndex One-based index representing the voyage’s position in the rendered table.
  * @property {VoyageSegment[]} [_segments] Cached trip segments prepared for rendering.
  * @property {any} [_fallbackPolyline] Leaflet polyline created when the voyage lacks explicit segments.
+ * @property {boolean} [manual] True when the voyage was manually added.
+ * @property {string} [manualId] Identifier for manual voyages stored on the server.
+ * @property {ManualLocation} [startLocation] Named starting location for manual voyages.
+ * @property {ManualLocation} [endLocation] Named ending location for manual voyages.
  * @property {number} nm Total nautical miles travelled during the voyage.
  * @property {number} maxSpeed Maximum recorded speed over ground in knots.
  * @property {number[]} [maxSpeedCoord] `[lon, lat]` pair for the voyage max-speed location.
@@ -69,6 +74,29 @@
  * @property {VoyagePoint[]} [points] Preferred array of voyage points.
  * @property {VoyagePoint[]} [entries] Alternate array of voyage points preserved from parsing.
  * @property {Array<[number, number]>} [coords] Fallback coordinate pairs `[lon, lat]` when point objects are unavailable.
+ */
+
+/**
+ * @typedef {Object} ManualLocation
+ * @property {string} name Human-readable location name.
+ * @property {number} lat Latitude in decimal degrees.
+ * @property {number} lon Longitude in decimal degrees.
+ */
+
+/**
+ * @typedef {Object} ManualVoyageRecord
+ * @property {string} id Unique identifier for the manual voyage.
+ * @property {string} startTime ISO timestamp for the voyage start time.
+ * @property {string} endTime ISO timestamp for the voyage end time.
+ * @property {ManualLocation} startLocation Named start location coordinates.
+ * @property {ManualLocation} endLocation Named end location coordinates.
+ * @property {string} [createdAt] ISO timestamp of when the manual voyage was created.
+ * @property {string} [updatedAt] ISO timestamp of when the manual voyage was updated.
+ */
+
+/**
+ * @typedef {Object} ManualVoyagePayload
+ * @property {ManualVoyageRecord[]} voyages Stored manual voyage records.
  */
 
 /**

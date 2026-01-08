@@ -3,30 +3,34 @@
 ## Application Overview
 - Signal K plugin that exposes a web interface for exploring logbook voyages and generating polar data.
 - Node.js back-end components parse raw YAML log entries into structured JSON consumed by the front-end, splitting voyages on inactivity gaps over 48 hours, discarding voyages under 1 nm, pruning repeated anchored fixes within 100 meters of the leg-end anchor, segmenting legs on anchored gaps (>= 1 hour) while filtering out legs under 1 nm, and filtering GPS outliers beyond a 100 nm jump threshold.
+- Manual voyage entries are stored separately on the server, merged into the front-end view, and can be added or edited from a desktop-only entry panel that stays hidden until toggled open, with remembered locations, map click picking for coordinates, and panel-based deletion.
 - Front-end single-page app (SPA) renders voyage tracks on Leaflet maps, provides rich voyage analytics, includes responsive layout controls with a tab-view toggle that mirrors the active layout and can override auto switching, and shows leg total-time hours (h) in cell values plus single-leg voyage totals while summing Active Time from leg durations and averaging multi-leg voyage speeds from leg averages.
 - Utility scripts support data preparation, polar analysis, and batch log maintenance outside the runtime path.
 
 ## Data Flow Summary
 1. YAML logbook entries are stored under `~/.signalk/plugin-config-data/signalk-logbook/`.
-2. `parse_logbook.js` processes the YAML files into `public/voyages.json`, splitting voyages after inactivity gaps greater than 48 hours, discarding voyages under 1 nm, pruning repeated anchored fixes within 100 meters of the leg-end anchor, and marking anchored gaps (>= 1 hour) for leg segmentation, filtering position jumps greater than 100 nm from the last known fix, enriching points with activity metadata, and ignoring speed/wind readings that lack positional data.
-3. `parse_polar.js` transforms the voyage output into polar performance points saved in `public/Polar.json`.
-4. The `plugin.js` router or standalone `server.js` endpoint triggers regeneration on demand.
-5. `public/app.js` fetches the JSON resources, derives leg segments from anchored activity or skip-connection markers, filters out legs under 1 nm, computes leg durations to drive total-time/average-speed display and totals-row Active Time, renders voyages on the map, and exposes UI interactions.
+2. Manual voyage entries are stored in `public/manual-voyages.json` and served via `/manual-voyages` endpoints for the UI to merge on load.
+3. `parse_logbook.js` processes the YAML files into `public/voyages.json`, splitting voyages after inactivity gaps greater than 48 hours, discarding voyages under 1 nm, pruning repeated anchored fixes within 100 meters of the leg-end anchor, and marking anchored gaps (>= 1 hour) for leg segmentation, filtering position jumps greater than 100 nm from the last known fix, enriching points with activity metadata, and ignoring speed/wind readings that lack positional data.
+4. `parse_polar.js` transforms the voyage output into polar performance points saved in `public/Polar.json`.
+5. The `plugin.js` router or standalone `server.js` endpoint triggers regeneration on demand and persists manual voyages.
+6. `public/app.js` fetches the JSON resources, merges generated and manual voyages chronologically, derives leg segments from anchored activity or skip-connection markers (allowing manual legs under 1 nm), computes leg durations to drive total-time/average-speed display and totals-row Active Time, renders voyages on the map, and exposes UI interactions.
 
 ## Core Files
 - `plugin.js`: Signal K plugin entry point. Registers HTTP endpoints, spawns the logbook parser, writes voyage and polar JSON, and integrates with the host router.
-- `server.js`: Lightweight development server for the `public/` directory. Mirrors the plugin endpoints to regenerate voyage and polar data locally.
+- `server.js`: Lightweight development server for the `public/` directory. Mirrors the plugin endpoints to regenerate voyage and polar data locally while serving manual voyage CRUD endpoints.
 - `parse_logbook.js`: Node.js CLI tool that ingests daily YAML logs, splits voyages on 48-hour inactivity gaps, discards voyages under 1 nm, prunes repeated anchored fixes within 100 meters of the leg-end anchor, marks anchored stop gaps for leg segmentation, filters GPS outliers, classifies activity, computes voyage statistics, and emits structured voyage data.
 - `parse_polar.js`: Helper module that derives polar performance points from voyage data, normalising headings and wind metrics.
 - `public/app.js`: Front-end orchestrator that wires data fetching, module initialisation, and high-level user interactions.
 - `public/map.js`: Leaflet controller that builds voyage overlays, handles map/background interactions, and coordinates selection state with other modules.
 - `public/view.js`: Responsive layout utility that manages mobile/desktop toggles, tab/desktop overrides that sync with auto layout changes, tab behaviour, and layout-driven map resizing.
 - `public/table.js`: Table controller responsible for rendering voyage/leg rows (including total-time hours with unit suffixes on desktop), maintaining row state, and raising callbacks for row events.
+- `public/manual.js`: Desktop-only manual voyage entry panel logic including calculations, autocomplete, and persistence calls.
 - `public/data.js`: Data helpers focused on voyage datasets, totals aggregation (including Active Time from leg durations), leg segmentation, and per-leg duration/average-speed calculations based on anchored activity/skip-connection gaps while discarding legs under 1 nm.
 - `public/util.js`: Shared presentation helpers including heading/DMS formatting and datetime labelling.
 - `public/index.html`: Base HTML shell loading the SPA, styles, and UI scaffolding.
 - `public/styles.css`: Styling for the logbook UI, including map layout, table presentation, and responsive behaviour.
 - `public/voyages.json`: Generated voyage dataset consumed by the SPA (overwritten via parser runs).
+- `public/manual-voyages.json`: Stored manual voyage entries containing named locations and timestamps.
 - `public/Polar.json`: Generated polar dataset used by the polar plotting tooling.
 
 ## Supporting Scripts
@@ -45,8 +49,11 @@
 - `LOG.md`: (This document) Describes architecture, data flow, and file responsibilities for quick onboarding.
 
 ## Operational Notes
-- Plugin endpoints: `GET /plugins/voyage-webapp/generate` regenerates voyages and polar data; `/generate/polar` recomputes polar data only.
+- Plugin endpoints: `GET /plugins/voyage-webapp/generate` regenerates voyages and polar data; `/generate/polar` recomputes polar data only; `/manual-voyages` supports manual voyage GET/POST/DELETE.
 - Development server runs at `http://localhost:3645/` via `node server.js` and mirrors plugin regeneration endpoints.
+- The development server also strips a `/logbook` prefix (or `VOYAGE_BASE_PATH`/`X-Forwarded-Prefix`) so JSON assets and manual-voyage endpoints work when the UI is hosted under a subpath.
+- Manual voyage entries are stored in `public/manual-voyages.json` and surfaced through a desktop-only entry panel beneath the voyage table.
+- Manual voyage entry is toggled by the Add manual voyage button, supports map clicks to populate start/end coordinates, and manual rows expose an Edit button for in-place updates via the panel.
 - Front-end relies on Leaflet globals; ensure assets are served from `public/` for proper styling and script load.
 - Parser scripts expect valid ISO datetimes in YAML and handle anchored/motoring classification via text cues and speed heuristics.
 - Parser drops positions that jump more than 100 nm from the last accepted fix to avoid plotting GPS/AIS outliers.
@@ -57,6 +64,10 @@
 - Voyages split on inactivity gaps over 48 hours, with voyages under 1 nm discarded and repeated anchored fixes within 100 meters of the leg-end anchor pruned, while legs split on anchored gaps (>= 1 hour) flagged via anchored activity or skip-connection markers so legs can span multiple days and multiple legs can occur within a single day, with leg segments under 1 nm removed from the UI.
 
 ## Change Log
+- Store manual voyage entries in `public/manual-voyages.json` alongside other UI JSON assets.
+- Fix manual voyage panel script syntax error so the UI loads in browsers.
+- Resolve data fetch base paths and server prefix stripping so voyages load correctly when the UI is served from a subpath.
+- Added desktop-only manual voyage entry with separate server storage, toggleable panel, map click coordinate picking, location autocomplete, table integration, edit controls, and panel-based deletion.
 - Align totals-row Active Time with the sum of leg durations.
 - Move Total Time hour units into the cell values so the Duration header stays unit-free.
 - Added a desktop-only Total Time column for legs and single-leg voyages, computing leg speeds from distance/time and averaging multi-leg voyage speeds from leg averages.

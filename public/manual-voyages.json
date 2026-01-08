@@ -1,0 +1,36 @@
+{
+  "voyages": [
+    {
+      "id": "manual-1767912031373-a86oie",
+      "createdAt": "2026-01-08T22:40:31.373Z",
+      "startTime": "2026-01-08T22:42:00.000Z",
+      "endTime": "2026-01-09T10:42:00.000Z",
+      "startLocation": {
+        "name": "Manly Marina",
+        "lat": -27.455474,
+        "lon": 153.189181
+      },
+      "endLocation": {
+        "name": "Peel Island",
+        "lat": -27.505264,
+        "lon": 153.366912
+      }
+    },
+    {
+      "id": "manual-1767912593397-noq6ij",
+      "createdAt": "2026-01-08T22:49:53.397Z",
+      "startTime": "2025-05-02T22:52:00.000Z",
+      "endTime": "2025-05-04T04:00:00.000Z",
+      "startLocation": {
+        "name": "Manly Marina",
+        "lat": -27.455474,
+        "lon": 153.189181
+      },
+      "endLocation": {
+        "name": "Dunwich",
+        "lat": -27.507015,
+        "lon": 153.404798
+      }
+    }
+  ]
+}
