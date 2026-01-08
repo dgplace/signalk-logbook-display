@@ -46,6 +46,19 @@ export function getPointActivity(point) {
 }
 
 /**
+ * Function: readPointActivity
+ * Description: Extract the explicit activity label from a point without applying defaults.
+ * Parameters:
+ *   point (object): Voyage point to inspect for activity metadata.
+ * Returns: string - Activity label or empty string when unavailable.
+ */
+function readPointActivity(point) {
+  const activity = point?.activity ?? point?.entry?.activity;
+  if (activity === 'sailing' || activity === 'motoring' || activity === 'anchored') return activity;
+  return '';
+}
+
+/**
  * Function: shouldSkipConnection
  * Description: Decide if two sequential points should not be connected when drawing or analysing a track.
  * Parameters:
@@ -227,6 +240,22 @@ function pointIndicatesSailing(point) {
 }
 
 /**
+ * Function: isAnchoredPoint
+ * Description: Determine whether a voyage point should be treated as anchored using activity metadata and text cues.
+ * Parameters:
+ *   point (object): Voyage point to inspect.
+ * Returns: boolean - True when the point represents an anchored state.
+ */
+function isAnchoredPoint(point) {
+  const activity = readPointActivity(point);
+  if (activity === 'anchored') return true;
+  if (activity === 'sailing' || activity === 'motoring') return false;
+  if (pointIndicatesStopped(point)) return true;
+  if (pointIndicatesSailing(point)) return false;
+  return false;
+}
+
+/**
  * Function: getPointTimeMs
  * Description: Return a millisecond timestamp for a voyage point.
  * Parameters:
@@ -240,16 +269,18 @@ function getPointTimeMs(point) {
 
 /**
  * Function: shouldSplitTripAfterPoint
- * Description: Decide whether a point ends a trip based on an anchored gap to the next point.
+ * Description: Decide whether a point ends a trip based on explicit stop markers or anchored gaps.
  * Parameters:
  *   point (object): Current voyage point.
  *   nextPoint (object|null): Next voyage point when available.
- *   stopActive (boolean): True when the vessel is in a stopped/anchored state.
  *   minGapMs (number): Minimum inactivity gap in milliseconds required to split a trip.
  * Returns: boolean - True when the trip should split after the current point.
  */
-function shouldSplitTripAfterPoint(point, nextPoint, stopActive, minGapMs) {
-  if (!stopActive || !nextPoint || !Number.isFinite(minGapMs)) return false;
+function shouldSplitTripAfterPoint(point, nextPoint, minGapMs) {
+  if (!nextPoint || !Number.isFinite(minGapMs)) return false;
+  if (shouldSkipConnection(point, nextPoint)) return true;
+  const anchoredGap = isAnchoredPoint(point) || isAnchoredPoint(nextPoint);
+  if (!anchoredGap) return false;
   const currentMs = getPointTimeMs(point);
   const nextMs = getPointTimeMs(nextPoint);
   if (!Number.isFinite(currentMs) || !Number.isFinite(nextMs)) return false;
@@ -258,12 +289,13 @@ function shouldSplitTripAfterPoint(point, nextPoint, stopActive, minGapMs) {
 
 /**
  * Function: buildSegmentSummary
- * Description: Compute statistics for a segment made of ordered voyage points.
+ * Description: Compute statistics for a segment made of ordered voyage points, filtering short legs when needed.
  * Parameters:
  *   segmentPoints (object[]): Ordered points belonging to the segment.
- * Returns: object|null - Segment summary or null when input points are missing.
+ *   minLegDistanceNm (number): Minimum leg distance in nautical miles required to keep a segment.
+ * Returns: object|null - Segment summary or null when input points are missing or too short.
  */
-function buildSegmentSummary(segmentPoints) {
+function buildSegmentSummary(segmentPoints, minLegDistanceNm) {
   if (!Array.isArray(segmentPoints) || segmentPoints.length === 0) return null;
   const startTime = segmentPoints[0]?.entry?.datetime || segmentPoints[0]?.datetime;
   const endTime = segmentPoints[segmentPoints.length - 1]?.entry?.datetime || segmentPoints[segmentPoints.length - 1]?.datetime;
@@ -322,15 +354,21 @@ function buildSegmentSummary(segmentPoints) {
     }
   }
 
+  const minLegNm = Number.isFinite(minLegDistanceNm) ? minLegDistanceNm : 0;
+  if (minLegNm > 0 && nm < minLegNm) {
+    return null;
+  }
+
   const totalHours = totalDurationMs > 0 ? (totalDurationMs / (1000 * 60 * 60)) : 0;
   const avgSpeed = totalHours > 0 ? (nm / totalHours) : (speedCount ? (speedSum / speedCount) : 0);
   const avgWindSpeed = windSpeedCount ? (windSpeedSum / windSpeedCount) : 0;
   const avgWindHeading = windHeadings.length ? circularMean(windHeadings) : null;
+  const roundedNm = parseFloat(nm.toFixed(1));
 
   return {
     startTime,
     endTime,
-    nm: parseFloat(nm.toFixed(1)),
+    nm: roundedNm,
     maxSpeed,
     avgSpeed,
     maxWind,
@@ -353,6 +391,7 @@ export function computeDaySegments(voyage) {
   const points = Array.isArray(voyage?.points) && voyage.points.length ? voyage.points : null;
   if (!points) return [];
   const MIN_ANCHORED_GAP_MS = 60 * 60 * 1000;
+  const MIN_LEG_DISTANCE_NM = 1;
   const orderedPoints = [...points].sort((a, b) => {
     const aMs = getPointTimeMs(a);
     const bMs = getPointTimeMs(b);
@@ -363,23 +402,20 @@ export function computeDaySegments(voyage) {
   });
   const segments = [];
   let segmentPoints = [];
-  let stopActive = false;
 
   for (let i = 0; i < orderedPoints.length; i += 1) {
     const point = orderedPoints[i];
-    if (pointIndicatesStopped(point)) stopActive = true;
-    if (pointIndicatesSailing(point)) stopActive = false;
     segmentPoints.push(point);
     const nextPoint = orderedPoints[i + 1];
-    if (nextPoint && shouldSplitTripAfterPoint(point, nextPoint, stopActive, MIN_ANCHORED_GAP_MS)) {
-      const summary = buildSegmentSummary(segmentPoints);
+    if (nextPoint && shouldSplitTripAfterPoint(point, nextPoint, MIN_ANCHORED_GAP_MS)) {
+      const summary = buildSegmentSummary(segmentPoints, MIN_LEG_DISTANCE_NM);
       if (summary) segments.push(summary);
       segmentPoints = [];
     }
   }
 
   if (segmentPoints.length) {
-    const summary = buildSegmentSummary(segmentPoints);
+    const summary = buildSegmentSummary(segmentPoints, MIN_LEG_DISTANCE_NM);
     if (summary) segments.push(summary);
   }
 

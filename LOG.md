@@ -2,27 +2,27 @@
 
 ## Application Overview
 - Signal K plugin that exposes a web interface for exploring logbook voyages and generating polar data.
-- Node.js back-end components parse raw YAML log entries into structured JSON consumed by the front-end, splitting voyages on inactivity gaps over 36 hours, segmenting legs on anchored gaps (>= 1 hour), and filtering GPS outliers beyond a 100 nm jump threshold.
+- Node.js back-end components parse raw YAML log entries into structured JSON consumed by the front-end, splitting voyages on inactivity gaps over 48 hours, segmenting legs on anchored gaps (>= 1 hour) while filtering out legs under 1 nm, and filtering GPS outliers beyond a 100 nm jump threshold.
 - Front-end single-page app (SPA) renders voyage tracks on Leaflet maps and provides rich voyage analytics.
 - Utility scripts support data preparation, polar analysis, and batch log maintenance outside the runtime path.
 
 ## Data Flow Summary
 1. YAML logbook entries are stored under `~/.signalk/plugin-config-data/signalk-logbook/`.
-2. `parse_logbook.js` processes the YAML files into `public/voyages.json`, splitting voyages after inactivity gaps greater than 36 hours and marking anchored gaps (>= 1 hour) for leg segmentation, filtering position jumps greater than 100 nm from the last known fix, enriching points with activity metadata, and ignoring speed/wind readings that lack positional data.
+2. `parse_logbook.js` processes the YAML files into `public/voyages.json`, splitting voyages after inactivity gaps greater than 48 hours and marking anchored gaps (>= 1 hour) for leg segmentation, filtering position jumps greater than 100 nm from the last known fix, enriching points with activity metadata, and ignoring speed/wind readings that lack positional data.
 3. `parse_polar.js` transforms the voyage output into polar performance points saved in `public/Polar.json`.
 4. The `plugin.js` router or standalone `server.js` endpoint triggers regeneration on demand.
-5. `public/app.js` fetches the JSON resources, renders voyages on the map, and exposes UI interactions.
+5. `public/app.js` fetches the JSON resources, derives leg segments from anchored activity or skip-connection markers, filters out legs under 1 nm, renders voyages on the map, and exposes UI interactions.
 
 ## Core Files
 - `plugin.js`: Signal K plugin entry point. Registers HTTP endpoints, spawns the logbook parser, writes voyage and polar JSON, and integrates with the host router.
 - `server.js`: Lightweight development server for the `public/` directory. Mirrors the plugin endpoints to regenerate voyage and polar data locally.
-- `parse_logbook.js`: Node.js CLI tool that ingests daily YAML logs, splits voyages on 36-hour inactivity gaps, marks anchored stop gaps for leg segmentation, filters GPS outliers, classifies activity, computes voyage statistics, and emits structured voyage data.
+- `parse_logbook.js`: Node.js CLI tool that ingests daily YAML logs, splits voyages on 48-hour inactivity gaps, marks anchored stop gaps for leg segmentation, filters GPS outliers, classifies activity, computes voyage statistics, and emits structured voyage data.
 - `parse_polar.js`: Helper module that derives polar performance points from voyage data, normalising headings and wind metrics.
 - `public/app.js`: Front-end orchestrator that wires data fetching, module initialisation, and high-level user interactions.
 - `public/map.js`: Leaflet controller that builds voyage overlays, handles map/background interactions, and coordinates selection state with other modules.
 - `public/view.js`: Responsive layout utility that manages mobile/desktop toggles, tab behaviour, and layout-driven map resizing.
 - `public/table.js`: Table controller responsible for rendering voyage/leg rows, maintaining row state, and raising callbacks for row events.
-- `public/data.js`: Data helpers focused on voyage datasets, totals aggregation, and low-level voyage point utilities.
+- `public/data.js`: Data helpers focused on voyage datasets, totals aggregation, and leg segmentation based on anchored activity/skip-connection gaps while discarding legs under 1 nm.
 - `public/util.js`: Shared presentation helpers including heading/DMS formatting and datetime labelling.
 - `public/index.html`: Base HTML shell loading the SPA, styles, and UI scaffolding.
 - `public/styles.css`: Styling for the logbook UI, including map layout, table presentation, and responsive behaviour.
@@ -51,7 +51,7 @@
 - Parser scripts expect valid ISO datetimes in YAML and handle anchored/motoring classification via text cues and speed heuristics.
 - Parser drops positions that jump more than 100 nm from the last accepted fix to avoid plotting GPS/AIS outliers.
 - Parser max-speed and max-wind statistics ignore entries that do not include a valid GPS position to prevent sensor spikes from inflating voyage summaries.
-- Voyages split on inactivity gaps over 36 hours, while legs split on anchored gaps (>= 1 hour) so legs can span multiple days and multiple legs can occur within a single day.
+- Voyages split on inactivity gaps over 48 hours, while legs split on anchored gaps (>= 1 hour) flagged via anchored activity or skip-connection markers so legs can span multiple days and multiple legs can occur within a single day, with leg segments under 1 nm removed from the UI.
 
 ## Change Log
 - Split voyages on inactivity gaps over 36 hours and define legs by anchored gaps (>= 1 hour) instead of day boundaries.
@@ -85,3 +85,5 @@
 - Guard voyage max-speed and max-wind calculations by excluding log entries without coordinates so instrument glitches (e.g., 46 kt SOG with no position) cannot distort voyage summaries.
 - Group voyages by UTC day boundaries to avoid splitting a single journey across multiple voyages when entries occur near local midnight in different timezones.
 - Revert voyage grouping to a strict 24-hour gap so voyages separated by more than a day (e.g., July 1 vs. July 4) are treated as distinct trips.
+- Use anchored activity/skip-connection markers when building leg segments so the table no longer splits legs on midnight boundaries.
+- Raise the voyage separation gap to 48 hours and filter out leg segments under 1 nm.

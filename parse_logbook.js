@@ -521,7 +521,7 @@ function isVoyageGapExceeded(previousEntry, entry, maxGapHours) {
 
 /**
  * Function: groupVoyages
- * Description: Aggregate chronological entries into voyages separated by inactivity gaps greater than 36 hours.
+ * Description: Aggregate chronological entries into voyages separated by inactivity gaps greater than 48 hours.
  * Parameters:
  *   entries (object[]): Sorted log entries covering one or more logged intervals.
  * Returns: object[] - Array of voyage summaries.
@@ -530,7 +530,7 @@ function groupVoyages(entries) {
   const voyages = [];
   let current = null;
   const MAX_POSITION_JUMP_NM = 100;
-  const VOYAGE_GAP_HOURS = 36;
+  const VOYAGE_GAP_HOURS = 48;
   let lastKnownCoord = null;
 
   for (const entry of entries) {
