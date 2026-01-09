@@ -182,6 +182,10 @@ function setActiveLocation(state, index) {
 function refreshLocationLabels(state) {
   if (!state || !Array.isArray(state.locations)) return;
   const total = state.locations.length;
+  const allowReturn = total === MIN_MANUAL_LOCATIONS;
+  if (!allowReturn && state.returnTrip) {
+    state.returnTrip = false;
+  }
   state.locations.forEach((entry, index) => {
     const label = buildLocationLabel(index, total);
     if (entry.tab) entry.tab.textContent = label;
@@ -197,6 +201,15 @@ function refreshLocationLabels(state) {
       if (isEndStop) {
         entry.timeEdited = false;
       }
+    }
+    if (entry.returnToggle) {
+      const showReturn = allowReturn && index === total - 1;
+      entry.returnToggle.hidden = !showReturn;
+    }
+    if (entry.returnInput) {
+      const allowToggle = allowReturn && index === total - 1;
+      entry.returnInput.checked = Boolean(state.returnTrip);
+      entry.returnInput.disabled = !allowToggle;
     }
   });
 }
@@ -223,6 +236,8 @@ function createLocationEntry(state, data = {}, insertIndex = null) {
   const lonInput = panel.querySelector('.manual-lon-input');
   const pickBtn = panel.querySelector('.manual-pick-btn');
   const pickHint = panel.querySelector('.manual-pick-hint');
+  const returnToggle = panel.querySelector('.manual-return-toggle');
+  const returnInput = panel.querySelector('.manual-return-input');
   const removeBtn = panel.querySelector('.manual-remove-btn');
   const entryId = `manual-location-${state.locationIdCounter += 1}`;
   const tab = document.createElement('button');
@@ -248,6 +263,8 @@ function createLocationEntry(state, data = {}, insertIndex = null) {
     lonInput,
     pickBtn,
     pickHint,
+    returnToggle,
+    returnInput,
     removeBtn,
     timeEdited: false
   };
@@ -322,6 +339,14 @@ function createLocationEntry(state, data = {}, insertIndex = null) {
       setActiveLocation(state, idx);
       setPickMode(state, idx);
       setMapClickCapture((event) => handleMapPick(state, idx, event));
+    });
+  }
+
+  if (returnInput) {
+    returnInput.addEventListener('change', () => {
+      state.returnTrip = returnInput.checked;
+      updateManualMetrics(state);
+      refreshLocationLabels(state);
     });
   }
 
@@ -504,6 +529,9 @@ function updateManualMetrics(state) {
       const legDistance = calculateDistanceNm(prev.lat, prev.lon, location.lat, location.lon);
       return sum + (Number.isFinite(legDistance) ? legDistance : 0);
     }, 0);
+    if (state.returnTrip && locations.length === MIN_MANUAL_LOCATIONS) {
+      distanceNm = distanceNm * 2;
+    }
   }
   if (distanceValue) {
     distanceValue.textContent = Number.isFinite(distanceNm) ? `${distanceNm.toFixed(1)} NM` : PLACEHOLDER_VALUE;
@@ -655,11 +683,12 @@ function setEditMode(state, voyage) {
  *   voyage (object): Manual voyage data to extract.
  * Returns: ManualVoyageStop[] - Ordered manual locations for the edit panel.
  */
-function extractVoyageLocations(voyage) {
+function extractVoyageLocations(voyage, returnTrip) {
   if (!voyage || typeof voyage !== 'object') return [];
   const manualLocations = Array.isArray(voyage.manualLocations) ? voyage.manualLocations : [];
   if (manualLocations.length >= MIN_MANUAL_LOCATIONS) {
-    return manualLocations.map((location) => ({
+    const usableLocations = returnTrip ? manualLocations.slice(0, 2) : manualLocations;
+    return usableLocations.map((location) => ({
       name: location?.name || '',
       lat: Number.isFinite(Number(location?.lat)) ? Number(location.lat) : null,
       lon: Number.isFinite(Number(location?.lon)) ? Number(location.lon) : null,
@@ -695,7 +724,8 @@ function extractVoyageLocations(voyage) {
  */
 function populateFormFromVoyage(state, voyage) {
   if (!state || !voyage) return;
-  const locations = extractVoyageLocations(voyage);
+  state.returnTrip = Boolean(voyage.returnTrip);
+  const locations = extractVoyageLocations(voyage, state.returnTrip);
   rebuildLocationEntries(state, locations);
   updateManualMetrics(state);
 }
@@ -798,7 +828,7 @@ function buildManualPayload(state) {
   if (!state || !Array.isArray(state.locations)) return null;
   const resolvedTimes = ensureStopTimes(state);
   if (resolvedTimes.length < MIN_MANUAL_LOCATIONS) return null;
-  const locations = state.locations.map((entry, index) => {
+  const baseLocations = state.locations.map((entry, index) => {
     const location = readLocationFields(entry.nameInput, entry.latInput, entry.lonInput);
     if (!location) return null;
     const time = resolvedTimes[index] || parseDateInput(entry.timeInput?.value || '');
@@ -810,7 +840,24 @@ function buildManualPayload(state) {
       time: time.toISOString()
     };
   });
-  if (locations.some(location => !location)) return null;
+  if (baseLocations.some(location => !location)) return null;
+  let locations = baseLocations.slice();
+  if (state.returnTrip && baseLocations.length === MIN_MANUAL_LOCATIONS) {
+    const start = baseLocations[0];
+    const via = baseLocations[1];
+    const legDistance = calculateDistanceNm(start.lat, start.lon, via.lat, via.lon);
+    if (!Number.isFinite(legDistance) || MANUAL_AVG_SPEED_KN <= 0) return null;
+    const durationMs = (legDistance / MANUAL_AVG_SPEED_KN) * 60 * 60 * 1000;
+    const viaTime = new Date(via.time);
+    if (Number.isNaN(viaTime.getTime())) return null;
+    const returnTime = new Date(viaTime.getTime() + durationMs);
+    locations = locations.concat({
+      name: start.name,
+      lat: start.lat,
+      lon: start.lon,
+      time: returnTime.toISOString()
+    });
+  }
   for (let i = 1; i < locations.length; i += 1) {
     const prev = new Date(locations[i - 1].time);
     const next = new Date(locations[i].time);
@@ -822,11 +869,10 @@ function buildManualPayload(state) {
     state.locations[0].latInput,
     state.locations[0].lonInput
   );
-  const endLocation = readLocationFields(
-    state.locations[state.locations.length - 1].nameInput,
-    state.locations[state.locations.length - 1].latInput,
-    state.locations[state.locations.length - 1].lonInput
-  );
+  const lastLocation = locations[locations.length - 1];
+  const endLocation = lastLocation
+    ? { name: lastLocation.name, lat: lastLocation.lat, lon: lastLocation.lon }
+    : null;
   if (!startLocation || !endLocation) return null;
   const startTime = locations[0].time;
   const endTime = locations[locations.length - 1].time;
@@ -835,7 +881,8 @@ function buildManualPayload(state) {
     startTime,
     endTime,
     startLocation,
-    endLocation
+    endLocation,
+    returnTrip: Boolean(state.returnTrip)
   };
 }
 
@@ -1002,6 +1049,7 @@ export function initManualVoyagePanel(options = {}) {
     durationValue: document.getElementById('manualDuration'),
     addButton: document.getElementById('manualAddBtn'),
     deleteButton: document.getElementById('manualDeleteBtn'),
+    returnTrip: false,
     locations: [],
     activeLocationIndex: 0,
     activePickIndex: null,
@@ -1013,6 +1061,7 @@ export function initManualVoyagePanel(options = {}) {
 
   form.addEventListener('reset', () => {
     window.requestAnimationFrame(() => {
+      state.returnTrip = false;
       rebuildLocationEntries(state, []);
       updateManualMetrics(state);
     });
@@ -1025,6 +1074,7 @@ export function initManualVoyagePanel(options = {}) {
       if (shouldShow) {
         form.reset();
         setEditMode(state, null);
+        state.returnTrip = false;
         rebuildLocationEntries(state, []);
       }
       setPanelVisibility(state, shouldShow);
@@ -1081,6 +1131,7 @@ export function initManualVoyagePanel(options = {}) {
 
   if (addStopBtn) {
     addStopBtn.addEventListener('click', () => {
+      state.returnTrip = false;
       const insertIndex = Math.max(state.locations.length - 1, 1);
       createLocationEntry(state, {}, insertIndex);
       refreshLocationLabels(state);

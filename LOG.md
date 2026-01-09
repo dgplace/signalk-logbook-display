@@ -3,7 +3,7 @@
 ## Application Overview
 - Signal K plugin that exposes a web interface for exploring logbook voyages and generating polar data.
 - Node.js back-end components parse raw YAML log entries into structured JSON consumed by the front-end, splitting voyages on inactivity gaps over 48 hours, discarding voyages under 1 nm, pruning repeated anchored fixes within 100 meters of the leg-end anchor, segmenting legs on anchored gaps (>= 1 hour) while filtering out legs under 1 nm, and filtering GPS outliers beyond a 100 nm jump threshold.
-- Manual voyage entries are stored separately on the server, merged into the front-end view, and can be added or edited from a desktop-only entry panel that stays hidden until toggled open, with a tabbed multi-stop editor (including Add stop for intermediate legs), remembered locations, map click picking for coordinates, panel-based deletion, table-panel expansion to keep the full form visible, stop times auto-filled from the prior stop plus leg duration at 5 kn (with the final stop time derived automatically and read-only), manual duration derived from total distance at 5 kn, manual map tracks rendered in gray, and manual table rows suppressing max speed and wind metrics.
+- Manual voyage entries are stored separately on the server, merged into the front-end view, and can be added or edited from a desktop-only entry panel that stays hidden until toggled open, with a tabbed multi-stop editor (including Add stop for intermediate legs), a single-leg return-trip toggle that stays a single table leg, remembered locations, map click picking for coordinates, panel-based deletion, table-panel expansion to keep the full form visible, stop times auto-filled from the prior stop plus leg duration at 5 kn (with the final stop time derived automatically and read-only), manual duration derived from total distance at 5 kn, manual map tracks rendered in gray, and manual table rows suppressing max speed and wind metrics.
 - Front-end single-page app (SPA) renders voyage tracks on Leaflet maps, provides rich voyage analytics, includes responsive layout controls with a tab-view toggle that mirrors the active layout and can override auto switching, and shows leg total-time hours (h) in cell values plus single-leg voyage totals while summing Active Time from leg durations and averaging multi-leg voyage speeds from leg averages.
 - Utility scripts support data preparation, polar analysis, and batch log maintenance outside the runtime path.
 
@@ -24,7 +24,7 @@
 - `public/map.js`: Leaflet controller that builds voyage overlays (including gray manual tracks), handles map/background interactions, and coordinates selection state with other modules.
 - `public/view.js`: Responsive layout utility that manages mobile/desktop toggles, tab/desktop overrides that sync with auto layout changes, tab behaviour, and layout-driven map resizing.
 - `public/table.js`: Table controller responsible for rendering voyage/leg rows (including total-time hours with unit suffixes on desktop), suppressing max speed and wind columns for manual voyages, maintaining row state, and raising callbacks for row events.
-- `public/manual.js`: Desktop-only manual voyage entry panel logic including tabbed multi-stop editing, calculations, autocomplete, persistence calls, stop-time auto-fill from leg durations (deriving the final stop time), manual-duration estimates at 5 kn, and table-panel resizing to keep the manual form fully visible.
+- `public/manual.js`: Desktop-only manual voyage entry panel logic including tabbed multi-stop editing, return-trip toggles for single-leg entries, calculations, autocomplete, persistence calls, stop-time auto-fill from leg durations (deriving the final stop time), manual-duration estimates at 5 kn, and table-panel resizing to keep the manual form fully visible.
 - `public/data.js`: Data helpers focused on voyage datasets, totals aggregation (including Active Time from leg durations), leg segmentation, per-leg duration/average-speed calculations based on anchored activity/skip-connection gaps while discarding legs under 1 nm, manual stop normalization for multi-leg entries, and manual-duration assumptions at 5 kn.
 - `public/util.js`: Shared presentation helpers including heading/DMS formatting and datetime labelling.
 - `public/index.html`: Base HTML shell loading the SPA, styles, and UI scaffolding.
@@ -53,7 +53,7 @@
 - Development server runs at `http://localhost:3645/` via `node server.js` and mirrors plugin regeneration endpoints.
 - The development server also strips a `/logbook` prefix (or `VOYAGE_BASE_PATH`/`X-Forwarded-Prefix`) so JSON assets and manual-voyage endpoints work when the UI is hosted under a subpath.
 - Manual voyage entries are stored in `public/manual-voyages.json` and surfaced through a desktop-only entry panel beneath the voyage table.
-- Manual voyage entry is toggled by the Add manual voyage button, supports tabbed start/stop/end entries with map clicks to populate coordinates, auto-fills stop times from the previous stop plus leg duration (deriving a read-only final stop time), manual durations assume 5 kn average speed, and manual rows expose an Edit button for in-place updates via the panel.
+- Manual voyage entry is toggled by the Add manual voyage button, supports tabbed start/stop/end entries with map clicks to populate coordinates, includes a Return to start toggle for single-leg trips that still renders as one leg in the table, auto-fills stop times from the previous stop plus leg duration (deriving a read-only final stop time), manual durations assume 5 kn average speed, and manual rows expose an Edit button for in-place updates via the panel.
 - Manual voyage map tracks render in gray and hide max speed, max wind, avg wind, and wind direction cells in the table.
 - Opening the manual voyage panel expands the table panel to fit the full form; closing restores the prior table panel height.
 - Front-end relies on Leaflet globals; ensure assets are served from `public/` for proper styling and script load.
@@ -124,3 +124,5 @@
 - Hide inactive manual stop panels so only the selected tab's fields are visible.
 - Auto-fill manual stop times from leg durations and derive end times automatically.
 - Make manual end stop time read-only and compute manual leg end times in the table display.
+- Add a return-trip toggle for single-leg manual voyages that doubles the distance/time.
+- Keep return-trip manual voyages as a single table leg while still doubling distance/time.

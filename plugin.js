@@ -175,6 +175,7 @@ function normalizeManualVoyagePayload(payload) {
     if (normalizedStops.error) {
       return { error: normalizedStops.error };
     }
+    const returnTrip = Boolean(payload.returnTrip);
     const locations = normalizedStops.locations;
     const start = locations[0];
     const end = locations[locations.length - 1];
@@ -183,7 +184,8 @@ function normalizeManualVoyagePayload(payload) {
       startTime: start.time,
       endTime: end.time,
       startLocation: { name: start.name, lat: start.lat, lon: start.lon },
-      endLocation: { name: end.name, lat: end.lat, lon: end.lon }
+      endLocation: { name: end.name, lat: end.lat, lon: end.lon },
+      returnTrip
     };
   }
   const startTime = parseIsoDatetime(payload.startTime);
@@ -355,7 +357,8 @@ module.exports = function(app) {
           endTime: normalized.endTime,
           startLocation: normalized.startLocation,
           endLocation: normalized.endLocation,
-          locations: Array.isArray(normalized.locations) ? normalized.locations : undefined
+          locations: Array.isArray(normalized.locations) ? normalized.locations : undefined,
+          returnTrip: Boolean(normalized.returnTrip)
         };
         voyages.push(newVoyage);
         await writeManualVoyages({ voyages });
@@ -397,6 +400,7 @@ module.exports = function(app) {
           startLocation: normalized.startLocation,
           endLocation: normalized.endLocation,
           locations: Array.isArray(normalized.locations) ? normalized.locations : voyages[index].locations,
+          returnTrip: typeof normalized.returnTrip === 'boolean' ? normalized.returnTrip : voyages[index].returnTrip,
           updatedAt: new Date().toISOString()
         };
         voyages[index] = updated;

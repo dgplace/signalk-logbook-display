@@ -62,6 +62,7 @@
  * @property {boolean} [manual] True when the voyage was manually added.
  * @property {string} [manualId] Identifier for manual voyages stored on the server.
  * @property {ManualVoyageStop[]} [manualLocations] Ordered manual locations used to define legs.
+ * @property {boolean} [returnTrip] True when a manual voyage returns to the start location.
  * @property {ManualLocation} [startLocation] Named starting location for manual voyages.
  * @property {ManualLocation} [endLocation] Named ending location for manual voyages.
  * @property {number} nm Total nautical miles travelled during the voyage.
@@ -96,6 +97,7 @@
  * @typedef {Object} ManualVoyageRecord
  * @property {string} id Unique identifier for the manual voyage.
  * @property {ManualVoyageStop[]} [locations] Ordered manual locations for multi-leg voyages.
+ * @property {boolean} [returnTrip] True when a manual voyage returns to the start location.
  * @property {string} startTime ISO timestamp for the voyage start time.
  * @property {string} endTime ISO timestamp for the voyage end time.
  * @property {ManualLocation} startLocation Named start location coordinates.

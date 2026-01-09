@@ -39,6 +39,7 @@ import {
   computeVoyageTotals,
   buildManualVoyageFromRecord,
   buildManualSegmentsFromStops,
+  buildManualReturnSegmentFromStops,
   fetchVoyagesData,
   fetchManualVoyagesData,
   formatDurationMs,
@@ -228,7 +229,10 @@ async function load() {
   }
   const voyages = combinedVoyages.map((voyage, index) => {
     voyage._tripIndex = index + 1;
-    if (voyage.manual && Array.isArray(voyage.manualLocations) && voyage.manualLocations.length > 1) {
+    if (voyage.manual && voyage.returnTrip && Array.isArray(voyage.manualLocations)) {
+      const returnSegment = buildManualReturnSegmentFromStops(voyage.manualLocations);
+      voyage._segments = returnSegment ? [returnSegment] : [];
+    } else if (voyage.manual && Array.isArray(voyage.manualLocations) && voyage.manualLocations.length > 1) {
       voyage._segments = buildManualSegmentsFromStops(voyage.manualLocations);
     } else {
       const minLegDistanceNm = voyage.manual ? 0 : undefined;

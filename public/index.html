@@ -77,8 +77,14 @@
                   Date/time
                   <input type="datetime-local" class="manual-time-input" required>
                 </label>
-                <label>
-                  Location
+                <label class="manual-location-label">
+                  <span class="manual-label-row">
+                    <span>Location</span>
+                    <span class="manual-return-toggle" hidden>
+                      <input type="checkbox" class="manual-return-input" aria-label="Return to start">
+                      <span>Return to start</span>
+                    </span>
+                  </span>
                   <input type="text" class="manual-name-input" list="manualLocationList" required placeholder="e.g. Moreton Bay">
                 </label>
                 <div class="manual-coords">

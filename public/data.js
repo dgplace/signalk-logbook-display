@@ -8,7 +8,7 @@
  * - Extraction helpers: `getVoyagePoints`, `getPointActivity`, `shouldSkipConnection`, `extractWindSpeed`.
  * - Aggregation helpers: `computeVoyageTotals`, `computeDaySegments`, `applyVoyageTimeMetrics`, `circularMean`.
  * - Formatting helpers: `formatDurationMs`.
- * - Manual helpers: `calculateDistanceNm`, `buildManualVoyageFromRecord`, `buildManualSegmentsFromStops`.
+ * - Manual helpers: `calculateDistanceNm`, `buildManualVoyageFromRecord`, `buildManualSegmentsFromStops`, `buildManualReturnSegmentFromStops`.
  * - Data loading: `fetchVoyagesData`, `fetchManualVoyagesData`.
  *
  * @typedef {import('./types.js').Voyage} Voyage
@@ -300,29 +300,57 @@ function extractManualStops(record) {
 export function buildManualVoyageFromRecord(record) {
   const stops = extractManualStops(record);
   if (stops.length < 2) return null;
-  const start = stops[0];
-  const end = stops[stops.length - 1];
-  const startTime = start.time;
-  const endTime = end.time;
-  const startLocation = { name: start.name, lat: start.lat, lon: start.lon };
-  const endLocation = { name: end.name, lat: end.lat, lon: end.lon };
-  const distanceNm = stops.reduce((sum, stop, index) => {
+  const isReturnTrip = Boolean(record.returnTrip);
+  let tripStops = stops.slice();
+  let distanceNm = stops.reduce((sum, stop, index) => {
     if (index === 0) return 0;
     const prev = stops[index - 1];
     const legDistance = calculateDistanceNm(prev.lat, prev.lon, stop.lat, stop.lon);
     return sum + (Number.isFinite(legDistance) ? legDistance : 0);
   }, 0);
+
+  if (isReturnTrip && stops.length === 2) {
+    const startStop = stops[0];
+    const turnStop = stops[1];
+    const legDistance = calculateDistanceNm(startStop.lat, startStop.lon, turnStop.lat, turnStop.lon);
+    if (Number.isFinite(legDistance)) {
+      distanceNm = legDistance * 2;
+      const startDate = new Date(startStop.time);
+      const totalHours = MANUAL_AVG_SPEED_KN > 0 ? (distanceNm / MANUAL_AVG_SPEED_KN) : 0;
+      if (!Number.isNaN(startDate.getTime()) && totalHours > 0) {
+        const returnDate = new Date(startDate.getTime() + totalHours * 60 * 60 * 1000);
+        tripStops = [
+          startStop,
+          turnStop,
+          {
+            name: startStop.name,
+            lat: startStop.lat,
+            lon: startStop.lon,
+            time: returnDate.toISOString()
+          }
+        ];
+      }
+    }
+  }
+
+  const start = tripStops[0];
+  const end = tripStops[tripStops.length - 1];
+  const startTime = start.time;
+  const endTime = end.time;
+  const startLocation = { name: start.name, lat: start.lat, lon: start.lon };
+  const endLocation = { name: end.name, lat: end.lat, lon: end.lon };
   const totalHours = MANUAL_AVG_SPEED_KN > 0 ? (distanceNm / MANUAL_AVG_SPEED_KN) : 0;
   const avgSpeed = distanceNm > 0 ? MANUAL_AVG_SPEED_KN : 0;
   const maxSpeedCoord = null;
   return {
     manual: true,
     manualId: record.id || null,
+    returnTrip: isReturnTrip,
     startTime,
     endTime,
     startLocation,
     endLocation,
-    manualLocations: stops,
+    manualLocations: tripStops,
     nm: Number(distanceNm.toFixed(1)),
     maxSpeed: 0,
     avgSpeed,
@@ -331,13 +359,13 @@ export function buildManualVoyageFromRecord(record) {
     avgWindSpeed: 0,
     avgWindHeading: null,
     totalHours,
-    points: stops.map(stop => ({
+    points: tripStops.map(stop => ({
       lat: stop.lat,
       lon: stop.lon,
       entry: { datetime: stop.time, activity: 'sailing' },
       manualLocationName: stop.name
     })),
-    coords: stops.map(stop => [stop.lon, stop.lat])
+    coords: tripStops.map(stop => [stop.lon, stop.lat])
   };
 }
 
@@ -393,6 +421,49 @@ export function buildManualSegmentsFromStops(stops = []) {
     });
   }
   return segments;
+}
+
+/**
+ * Function: buildManualReturnSegmentFromStops
+ * Description: Build a single segment for a return trip using all stops as points.
+ * Parameters:
+ *   stops (object[]): Ordered manual stop descriptors.
+ * Returns: object|null - Manual segment summary or null when invalid.
+ */
+export function buildManualReturnSegmentFromStops(stops = []) {
+  if (!Array.isArray(stops) || stops.length < 2) return null;
+  const distanceNm = stops.reduce((sum, stop, index) => {
+    if (index === 0) return 0;
+    const prev = stops[index - 1];
+    const legDistance = calculateDistanceNm(prev.lat, prev.lon, stop.lat, stop.lon);
+    return sum + (Number.isFinite(legDistance) ? legDistance : 0);
+  }, 0);
+  const startTime = stops[0].time;
+  const endTime = stops[stops.length - 1].time;
+  const startDate = new Date(startTime);
+  const endDate = new Date(endTime);
+  const totalHours = (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime()) && endDate > startDate)
+    ? ((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60))
+    : 0;
+  return {
+    startTime,
+    endTime,
+    nm: Number(distanceNm.toFixed(1)),
+    maxSpeed: 0,
+    avgSpeed: totalHours > 0 ? (distanceNm / totalHours) : 0,
+    maxWind: 0,
+    avgWindSpeed: 0,
+    avgWindHeading: null,
+    totalHours,
+    points: stops.map(stop => ({
+      lat: stop.lat,
+      lon: stop.lon,
+      entry: { datetime: stop.time, activity: 'sailing' },
+      manualLocationName: stop.name
+    })),
+    maxSpeedCoord: null,
+    polyline: null
+  };
 }
 
 /**
