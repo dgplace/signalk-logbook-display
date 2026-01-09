@@ -333,6 +333,77 @@ html, body { height: 100%; }
   gap: 12px;
 }
 
+.manual-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.manual-tablist {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.manual-tab {
+  border: 1px solid var(--table-border);
+  background: transparent;
+  color: var(--table-text);
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.manual-tab.is-active {
+  background: var(--button-bg);
+  color: var(--button-text);
+  border-color: transparent;
+  box-shadow: var(--button-shadow);
+}
+
+.manual-tab-add {
+  border: 1px dashed var(--table-border);
+  background: transparent;
+  color: var(--table-text);
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.manual-tab-add:hover {
+  background: var(--table-hover);
+}
+
+.manual-tab-panels {
+  margin-top: 12px;
+}
+
+.manual-location-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.manual-remove-btn {
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  background: transparent;
+  color: var(--accent-color);
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.manual-remove-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
 .manual-close-btn {
   border: 1px solid var(--table-border);
   background: transparent;
@@ -361,6 +432,10 @@ html, body { height: 100%; }
   padding: 12px;
   border-radius: 10px;
   background: rgba(148, 163, 184, 0.12);
+}
+
+.manual-location-panel[hidden] {
+  display: none;
 }
 
 .manual-group-title {

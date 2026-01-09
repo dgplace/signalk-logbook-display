@@ -35,8 +35,8 @@
     {
       "id": "manual-1767918126529-1azr85",
       "createdAt": "2026-01-09T00:22:06.529Z",
-      "startTime": "2024-09-14T01:00:00.000Z",
-      "endTime": "2024-09-14T04:00:00.000Z",
+      "startTime": "2024-09-14T04:00:00.000Z",
+      "endTime": "2024-09-14T05:19:57.911Z",
       "startLocation": {
         "name": "Manly Marina",
         "lat": -27.455474,
@@ -46,7 +46,131 @@
         "name": "Moreton Bay",
         "lat": -27.425871,
         "lon": 153.309709
-      }
+      },
+      "locations": [
+        {
+          "name": "Manly Marina",
+          "lat": -27.455474,
+          "lon": 153.189181,
+          "time": "2024-09-14T04:00:00.000Z"
+        },
+        {
+          "name": "Moreton Bay",
+          "lat": -27.425871,
+          "lon": 153.309709,
+          "time": "2024-09-14T05:19:57.911Z"
+        }
+      ],
+      "updatedAt": "2026-01-09T02:01:14.655Z"
+    },
+    {
+      "id": "manual-1767921477065-7fkrms",
+      "createdAt": "2026-01-09T01:17:57.065Z",
+      "startTime": "2024-09-07T00:30:00.000Z",
+      "endTime": "2024-09-07T23:55:24.603Z",
+      "startLocation": {
+        "name": "Manly Marina",
+        "lat": -27.455474,
+        "lon": 153.189181
+      },
+      "endLocation": {
+        "name": "Manly Marina",
+        "lat": -27.455474,
+        "lon": 153.189181
+      },
+      "locations": [
+        {
+          "name": "Manly Marina",
+          "lat": -27.455474,
+          "lon": 153.189181,
+          "time": "2024-09-07T00:30:00.000Z"
+        },
+        {
+          "name": "Peel Island",
+          "lat": -27.509071,
+          "lon": 153.359333,
+          "time": "2024-09-07T22:00:00.000Z"
+        },
+        {
+          "name": "Manly Marina",
+          "lat": -27.455474,
+          "lon": 153.189181,
+          "time": "2024-09-07T23:55:24.603Z"
+        }
+      ],
+      "updatedAt": "2026-01-09T01:59:51.867Z"
+    },
+    {
+      "id": "manual-1767924915387-x8g473",
+      "createdAt": "2026-01-09T02:15:15.387Z",
+      "startTime": "2024-09-21T01:30:00.000Z",
+      "endTime": "2024-09-22T01:58:05.272Z",
+      "startLocation": {
+        "name": "Manly Marina",
+        "lat": -27.455474,
+        "lon": 153.189181
+      },
+      "endLocation": {
+        "name": "Manly Marina",
+        "lat": -27.455474,
+        "lon": 153.189181
+      },
+      "locations": [
+        {
+          "name": "Manly Marina",
+          "lat": -27.455474,
+          "lon": 153.189181,
+          "time": "2024-09-21T01:30:00.000Z"
+        },
+        {
+          "name": "Sandhills",
+          "lat": -27.289094,
+          "lon": 153.395024,
+          "time": "2024-09-21T23:00:00.000Z"
+        },
+        {
+          "name": "Manly Marina",
+          "lat": -27.455474,
+          "lon": 153.189181,
+          "time": "2024-09-22T01:58:05.272Z"
+        }
+      ]
+    },
+    {
+      "id": "manual-1767925091093-6gupgg",
+      "createdAt": "2026-01-09T02:18:11.093Z",
+      "startTime": "2024-10-06T01:00:00.000Z",
+      "endTime": "2024-10-06T23:55:24.603Z",
+      "startLocation": {
+        "name": "Manly Marina",
+        "lat": -27.455474,
+        "lon": 153.189181
+      },
+      "endLocation": {
+        "name": "Manly Marina",
+        "lat": -27.455474,
+        "lon": 153.189181
+      },
+      "locations": [
+        {
+          "name": "Manly Marina",
+          "lat": -27.455474,
+          "lon": 153.189181,
+          "time": "2024-10-06T01:00:00.000Z"
+        },
+        {
+          "name": "Peel Island",
+          "lat": -27.509071,
+          "lon": 153.359333,
+          "time": "2024-10-06T22:00:00.000Z"
+        },
+        {
+          "name": "Manly Marina",
+          "lat": -27.455474,
+          "lon": 153.189181,
+          "time": "2024-10-06T23:55:24.603Z"
+        }
+      ]
     }
   ]
 }

@@ -38,6 +38,7 @@ import {
   computeDaySegments,
   computeVoyageTotals,
   buildManualVoyageFromRecord,
+  buildManualSegmentsFromStops,
   fetchVoyagesData,
   fetchManualVoyagesData,
   formatDurationMs,
@@ -153,9 +154,10 @@ function collectManualLocations(records) {
   const locations = new Map();
   if (!Array.isArray(records)) return [];
   records.forEach((record) => {
-    const start = record?.startLocation;
-    const end = record?.endLocation;
-    [start, end].forEach((location) => {
+    const manualLocations = Array.isArray(record?.locations) ? record.locations : [];
+    const legacyLocations = [record?.startLocation, record?.endLocation];
+    const combined = manualLocations.length ? manualLocations : legacyLocations;
+    combined.forEach((location) => {
       if (!location || typeof location !== 'object') return;
       const name = typeof location.name === 'string' ? location.name.trim() : '';
       const lat = Number(location.lat);
@@ -226,8 +228,12 @@ async function load() {
   }
   const voyages = combinedVoyages.map((voyage, index) => {
     voyage._tripIndex = index + 1;
-    const minLegDistanceNm = voyage.manual ? 0 : undefined;
-    voyage._segments = computeDaySegments(voyage, { minLegDistanceNm });
+    if (voyage.manual && Array.isArray(voyage.manualLocations) && voyage.manualLocations.length > 1) {
+      voyage._segments = buildManualSegmentsFromStops(voyage.manualLocations);
+    } else {
+      const minLegDistanceNm = voyage.manual ? 0 : undefined;
+      voyage._segments = computeDaySegments(voyage, { minLegDistanceNm });
+    }
     applyVoyageTimeMetrics(voyage);
     if (voyage.manual) {
       const distanceNm = Number.isFinite(voyage.nm) ? voyage.nm : 0;
@@ -241,13 +247,18 @@ async function load() {
       voyage.avgWindHeading = null;
       voyage.maxSpeedCoord = null;
       const segments = Array.isArray(voyage._segments) ? voyage._segments : [];
-      if (segments.length === 1) {
-        segments[0].totalHours = manualHours;
-        segments[0].avgSpeed = manualSpeed;
-        segments[0].maxSpeed = 0;
-        segments[0].maxWind = 0;
-        segments[0].avgWindSpeed = 0;
-        segments[0].avgWindHeading = null;
+      if (segments.length > 0) {
+        segments.forEach((segment) => {
+          const segmentDistance = Number.isFinite(segment?.nm) ? segment.nm : 0;
+          const segmentHours = MANUAL_AVG_SPEED_KN > 0 ? (segmentDistance / MANUAL_AVG_SPEED_KN) : 0;
+          segment.totalHours = segmentHours;
+          segment.avgSpeed = segmentDistance > 0 ? MANUAL_AVG_SPEED_KN : 0;
+          segment.maxSpeed = 0;
+          segment.maxSpeedCoord = null;
+          segment.maxWind = 0;
+          segment.avgWindSpeed = 0;
+          segment.avgWindHeading = null;
+        });
       }
     }
     return voyage;

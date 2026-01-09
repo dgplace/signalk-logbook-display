@@ -202,24 +202,41 @@ function createVoyageRowHTML(voyage, index, segmentCount) {
     <td class="manual-edit-col">${editCell}</td>`;
 }
 
-function createDayRowHTML(segment, segmentIndex) {
+function createDayRowHTML(segment, segmentIndex, voyage) {
+  const isManual = Boolean(voyage && voyage.manual);
   const avgWindDirDay = (segment.avgWindHeading !== undefined && segment.avgWindHeading !== null)
     ? degToCompass(segment.avgWindHeading)
     : '';
   const dayLbl = `Leg ${segmentIndex + 1}`;
   const totalHoursLabel = formatHours(segment.totalHours);
+  let endLabel = dateHourLabel(segment.endTime);
+  if (isManual) {
+    const startDate = new Date(segment.startTime);
+    const totalHours = Number.isFinite(segment.totalHours) ? segment.totalHours : 0;
+    if (!Number.isNaN(startDate.getTime()) && totalHours > 0) {
+      const endDate = new Date(startDate.getTime() + totalHours * 60 * 60 * 1000);
+      endLabel = dateHourLabel(endDate.toISOString());
+    }
+  }
+  const maxSpeedContent = isManual ? '' : `${segment.maxSpeed.toFixed(1)}<span class="unit-kn"> kn</span>`;
+  const avgSpeedContent = Number.isFinite(segment.avgSpeed) ? `${segment.avgSpeed.toFixed(1)} kn` : '';
+  const maxWindContent = isManual ? '' : `${segment.maxWind.toFixed(1)}<span class="unit-kn"> kn</span>`;
+  const avgWindContent = isManual ? '' : `${segment.avgWindSpeed.toFixed(1)} kn`;
+  const windDirContent = isManual ? '' : avgWindDirDay;
+  const maxSpeedTabIndex = isManual ? '' : 'tabindex="0"';
+  const maxSpeedClass = isManual ? '' : 'max-speed-cell';
   return `
     <td class="exp-cell"></td>
     <td class="idx-cell">${dayLbl}</td>
     <td>${dateHourLabel(segment.startTime)}</td>
-    <td class="end-col">${dateHourLabel(segment.endTime)}</td>
+    <td class="end-col">${endLabel}</td>
     <td>${segment.nm.toFixed(1)}</td>
     <td class="total-time-col">${totalHoursLabel}</td>
-    <td class="max-speed-cell" tabindex="0">${segment.maxSpeed.toFixed(1)}<span class="unit-kn"> kn</span></td>
-    <td class="avg-speed-col">${segment.avgSpeed.toFixed(1)} kn</td>
-    <td class="max-wind-cell">${segment.maxWind.toFixed(1)}<span class="unit-kn"> kn</span></td>
-    <td class="avg-wind-col">${segment.avgWindSpeed.toFixed(1)} kn</td>
-    <td>${avgWindDirDay}</td>
+    <td class="${maxSpeedClass}" ${maxSpeedTabIndex}>${maxSpeedContent}</td>
+    <td class="avg-speed-col">${avgSpeedContent}</td>
+    <td class="max-wind-cell">${maxWindContent}</td>
+    <td class="avg-wind-col">${avgWindContent}</td>
+    <td>${windDirContent}</td>
     <td class="manual-edit-col"></td>`;
 }
 
@@ -307,7 +324,7 @@ function attachDayRowHandlers(dayRow, voyage, segment, voyageRow) {
   });
 
   const maxSpeedCell = dayRow.querySelector('.max-speed-cell');
-  if (maxSpeedCell) {
+  if (maxSpeedCell && !(voyage && voyage.manual)) {
     const activate = (event) => {
       event.stopPropagation();
       emit(EVENTS.SEGMENT_MAX_SPEED_REQUESTED, {
@@ -380,17 +397,17 @@ export function renderVoyageTable(tbody, voyages) {
     attachManualEditHandler(row, voyage);
 
     const dayRows = [];
-    if (segments.length > 0) {
-      let insertIndex = row.sectionRowIndex + 1;
-      segments.forEach((segment, segmentIndex) => {
-        const dayRow = tbody.insertRow(insertIndex);
-        insertIndex += 1;
-        dayRow.classList.add('day-row', 'hidden');
-        dayRow.innerHTML = createDayRowHTML(segment, segmentIndex);
-        dayRows.push(dayRow);
-        attachDayRowHandlers(dayRow, voyage, segment, row);
-      });
-    }
+  if (segments.length > 0) {
+    let insertIndex = row.sectionRowIndex + 1;
+    segments.forEach((segment, segmentIndex) => {
+      const dayRow = tbody.insertRow(insertIndex);
+      insertIndex += 1;
+      dayRow.classList.add('day-row', 'hidden');
+      dayRow.innerHTML = createDayRowHTML(segment, segmentIndex, voyage);
+      dayRows.push(dayRow);
+      attachDayRowHandlers(dayRow, voyage, segment, row);
+    });
+  }
 
     if (dayRows.length > 0) {
       attachExpanderHandler(row, dayRows);

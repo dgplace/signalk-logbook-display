@@ -8,7 +8,7 @@
  * - Extraction helpers: `getVoyagePoints`, `getPointActivity`, `shouldSkipConnection`, `extractWindSpeed`.
  * - Aggregation helpers: `computeVoyageTotals`, `computeDaySegments`, `applyVoyageTimeMetrics`, `circularMean`.
  * - Formatting helpers: `formatDurationMs`.
- * - Manual helpers: `calculateDistanceNm`, `buildManualVoyageFromRecord`.
+ * - Manual helpers: `calculateDistanceNm`, `buildManualVoyageFromRecord`, `buildManualSegmentsFromStops`.
  * - Data loading: `fetchVoyagesData`, `fetchManualVoyagesData`.
  *
  * @typedef {import('./types.js').Voyage} Voyage
@@ -231,6 +231,66 @@ export function calculateDistanceNm(startLat, startLon, endLat, endLon) {
 export const MANUAL_AVG_SPEED_KN = 5;
 
 /**
+ * Function: extractManualStops
+ * Description: Build an ordered list of manual stops from a stored record.
+ * Parameters:
+ *   record (ManualVoyageRecord): Manual voyage record containing locations or start/end data.
+ * Returns: object[] - Ordered manual stop descriptors with time and coordinates.
+ */
+function extractManualStops(record) {
+  if (!record || typeof record !== 'object') return [];
+  if (Array.isArray(record.locations) && record.locations.length >= 2) {
+    const stops = record.locations.map((location) => {
+      if (!location || typeof location !== 'object') return null;
+      const name = typeof location.name === 'string' ? location.name.trim() : '';
+      const lat = Number(location.lat);
+      const lon = Number(location.lon);
+      const timeValue = location.time || location.datetime;
+      if (!name || !Number.isFinite(lat) || !Number.isFinite(lon) || typeof timeValue !== 'string') return null;
+      const dt = new Date(timeValue);
+      if (Number.isNaN(dt.getTime())) return null;
+      return {
+        name,
+        lat,
+        lon,
+        time: dt.toISOString()
+      };
+    });
+    if (stops.some(stop => !stop)) return [];
+    return stops;
+  }
+  const startTime = record.startTime;
+  const endTime = record.endTime;
+  const startLocation = record.startLocation;
+  const endLocation = record.endLocation;
+  if (!startTime || !endTime || !startLocation || !endLocation) return [];
+  const startDate = new Date(startTime);
+  const endDate = new Date(endTime);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return [];
+  const startLat = Number(startLocation.lat);
+  const startLon = Number(startLocation.lon);
+  const endLat = Number(endLocation.lat);
+  const endLon = Number(endLocation.lon);
+  if (!Number.isFinite(startLat) || !Number.isFinite(startLon) || !Number.isFinite(endLat) || !Number.isFinite(endLon)) {
+    return [];
+  }
+  return [
+    {
+      name: startLocation.name,
+      lat: startLat,
+      lon: startLon,
+      time: startDate.toISOString()
+    },
+    {
+      name: endLocation.name,
+      lat: endLat,
+      lon: endLon,
+      time: endDate.toISOString()
+    }
+  ];
+}
+
+/**
  * Function: buildManualVoyageFromRecord
  * Description: Convert a manual voyage record into the voyage shape used by the UI.
  * Parameters:
@@ -238,23 +298,20 @@ export const MANUAL_AVG_SPEED_KN = 5;
  * Returns: object|null - Normalised voyage object or null when invalid.
  */
 export function buildManualVoyageFromRecord(record) {
-  if (!record || typeof record !== 'object') return null;
-  const startTime = record.startTime;
-  const endTime = record.endTime;
-  const startLocation = record.startLocation;
-  const endLocation = record.endLocation;
-  if (!startTime || !endTime || !startLocation || !endLocation) return null;
-  const startDate = new Date(startTime);
-  const endDate = new Date(endTime);
-  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return null;
-  const startLat = Number(startLocation.lat);
-  const startLon = Number(startLocation.lon);
-  const endLat = Number(endLocation.lat);
-  const endLon = Number(endLocation.lon);
-  if (!Number.isFinite(startLat) || !Number.isFinite(startLon) || !Number.isFinite(endLat) || !Number.isFinite(endLon)) {
-    return null;
-  }
-  const distanceNm = calculateDistanceNm(startLat, startLon, endLat, endLon) ?? 0;
+  const stops = extractManualStops(record);
+  if (stops.length < 2) return null;
+  const start = stops[0];
+  const end = stops[stops.length - 1];
+  const startTime = start.time;
+  const endTime = end.time;
+  const startLocation = { name: start.name, lat: start.lat, lon: start.lon };
+  const endLocation = { name: end.name, lat: end.lat, lon: end.lon };
+  const distanceNm = stops.reduce((sum, stop, index) => {
+    if (index === 0) return 0;
+    const prev = stops[index - 1];
+    const legDistance = calculateDistanceNm(prev.lat, prev.lon, stop.lat, stop.lon);
+    return sum + (Number.isFinite(legDistance) ? legDistance : 0);
+  }, 0);
   const totalHours = MANUAL_AVG_SPEED_KN > 0 ? (distanceNm / MANUAL_AVG_SPEED_KN) : 0;
   const avgSpeed = distanceNm > 0 ? MANUAL_AVG_SPEED_KN : 0;
   const maxSpeedCoord = null;
@@ -265,6 +322,7 @@ export function buildManualVoyageFromRecord(record) {
     endTime,
     startLocation,
     endLocation,
+    manualLocations: stops,
     nm: Number(distanceNm.toFixed(1)),
     maxSpeed: 0,
     avgSpeed,
@@ -273,15 +331,68 @@ export function buildManualVoyageFromRecord(record) {
     avgWindSpeed: 0,
     avgWindHeading: null,
     totalHours,
-    points: [
-      { lat: startLat, lon: startLon, entry: { datetime: startTime, activity: 'sailing' }, manualLocationName: startLocation.name },
-      { lat: endLat, lon: endLon, entry: { datetime: endTime, activity: 'sailing' }, manualLocationName: endLocation.name }
-    ],
-    coords: [
-      [startLon, startLat],
-      [endLon, endLat]
-    ]
+    points: stops.map(stop => ({
+      lat: stop.lat,
+      lon: stop.lon,
+      entry: { datetime: stop.time, activity: 'sailing' },
+      manualLocationName: stop.name
+    })),
+    coords: stops.map(stop => [stop.lon, stop.lat])
   };
+}
+
+/**
+ * Function: buildManualSegmentsFromStops
+ * Description: Build leg segments from ordered manual stop locations.
+ * Parameters:
+ *   stops (object[]): Ordered manual stop descriptors.
+ * Returns: object[] - Manual segment summaries.
+ */
+export function buildManualSegmentsFromStops(stops = []) {
+  if (!Array.isArray(stops) || stops.length < 2) return [];
+  const segments = [];
+  for (let i = 0; i < stops.length - 1; i += 1) {
+    const start = stops[i];
+    const end = stops[i + 1];
+    if (!start || !end) continue;
+    const distanceNm = calculateDistanceNm(start.lat, start.lon, end.lat, end.lon) ?? 0;
+    const startTime = start.time;
+    const endTime = end.time;
+    const startDate = new Date(startTime);
+    const endDate = new Date(endTime);
+    const totalHours = (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime()) && endDate > startDate)
+      ? ((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60))
+      : 0;
+    const avgSpeed = totalHours > 0 ? (distanceNm / totalHours) : 0;
+    segments.push({
+      startTime,
+      endTime,
+      nm: Number(distanceNm.toFixed(1)),
+      maxSpeed: 0,
+      avgSpeed,
+      maxWind: 0,
+      avgWindSpeed: 0,
+      avgWindHeading: null,
+      totalHours,
+      points: [
+        {
+          lat: start.lat,
+          lon: start.lon,
+          entry: { datetime: start.time, activity: 'sailing' },
+          manualLocationName: start.name
+        },
+        {
+          lat: end.lat,
+          lon: end.lon,
+          entry: { datetime: end.time, activity: 'sailing' },
+          manualLocationName: end.name
+        }
+      ],
+      maxSpeedCoord: null,
+      polyline: null
+    });
+  }
+  return segments;
 }
 
 /**

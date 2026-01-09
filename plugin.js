@@ -111,6 +111,55 @@ function normalizeManualLocation(raw) {
 }
 
 /**
+ * Function: normalizeManualStop
+ * Description: Validate a manual stop payload and normalize its fields.
+ * Parameters:
+ *   raw (object): Incoming stop descriptor.
+ * Returns: object|null - Normalized stop or null when invalid.
+ */
+function normalizeManualStop(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const name = typeof raw.name === 'string' ? raw.name.trim() : '';
+  const lat = Number(raw.lat);
+  const lon = Number(raw.lon);
+  const timeValue = raw.time || raw.datetime;
+  const time = parseIsoDatetime(timeValue);
+  if (!name || !time) return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  return { name, lat, lon, time };
+}
+
+/**
+ * Function: normalizeManualStops
+ * Description: Validate an ordered list of manual stops.
+ * Parameters:
+ *   rawStops (object[]): Raw stops payload.
+ * Returns: object - Normalized stops payload or an error descriptor.
+ */
+function normalizeManualStops(rawStops) {
+  if (!Array.isArray(rawStops) || rawStops.length < 2) {
+    return { error: 'Manual voyages require at least two locations.' };
+  }
+  const locations = rawStops.map(normalizeManualStop);
+  if (locations.some(location => !location)) {
+    return { error: 'Missing or invalid voyage fields.' };
+  }
+  let previousMs = null;
+  for (const location of locations) {
+    const ms = new Date(location.time).getTime();
+    if (!Number.isFinite(ms)) {
+      return { error: 'Missing or invalid voyage fields.' };
+    }
+    if (previousMs !== null && ms <= previousMs) {
+      return { error: 'Stop times must be in ascending order.' };
+    }
+    previousMs = ms;
+  }
+  return { locations };
+}
+
+/**
  * Function: normalizeManualVoyagePayload
  * Description: Validate manual voyage submission payloads before persistence.
  * Parameters:
@@ -120,6 +169,22 @@ function normalizeManualLocation(raw) {
 function normalizeManualVoyagePayload(payload) {
   if (!payload || typeof payload !== 'object') {
     return { error: 'Invalid payload.' };
+  }
+  if (Array.isArray(payload.locations)) {
+    const normalizedStops = normalizeManualStops(payload.locations);
+    if (normalizedStops.error) {
+      return { error: normalizedStops.error };
+    }
+    const locations = normalizedStops.locations;
+    const start = locations[0];
+    const end = locations[locations.length - 1];
+    return {
+      locations,
+      startTime: start.time,
+      endTime: end.time,
+      startLocation: { name: start.name, lat: start.lat, lon: start.lon },
+      endLocation: { name: end.name, lat: end.lat, lon: end.lon }
+    };
   }
   const startTime = parseIsoDatetime(payload.startTime);
   const endTime = parseIsoDatetime(payload.endTime);
@@ -289,7 +354,8 @@ module.exports = function(app) {
           startTime: normalized.startTime,
           endTime: normalized.endTime,
           startLocation: normalized.startLocation,
-          endLocation: normalized.endLocation
+          endLocation: normalized.endLocation,
+          locations: Array.isArray(normalized.locations) ? normalized.locations : undefined
         };
         voyages.push(newVoyage);
         await writeManualVoyages({ voyages });
@@ -330,6 +396,7 @@ module.exports = function(app) {
           endTime: normalized.endTime,
           startLocation: normalized.startLocation,
           endLocation: normalized.endLocation,
+          locations: Array.isArray(normalized.locations) ? normalized.locations : voyages[index].locations,
           updatedAt: new Date().toISOString()
         };
         voyages[index] = updated;

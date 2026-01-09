@@ -65,58 +65,41 @@
             <button type="button" class="manual-close-btn" id="manualCloseBtn">Close</button>
           </div>
           <form id="manualVoyageForm">
-            <div class="manual-grid">
-              <div class="manual-group">
+            <div class="manual-tabs">
+              <div class="manual-tablist" id="manualTabList" role="tablist" aria-label="Manual voyage locations"></div>
+              <button type="button" class="manual-tab-add" id="manualAddStopBtn">Add stop</button>
+            </div>
+            <div class="manual-tab-panels" id="manualTabPanels"></div>
+            <template id="manualLocationTemplate">
+              <section class="manual-group manual-location-panel" role="tabpanel">
                 <div class="manual-group-title">Start</div>
                 <label>
-                  Start date/time
-                  <input type="datetime-local" id="manualStartTime" required>
+                  Date/time
+                  <input type="datetime-local" class="manual-time-input" required>
                 </label>
                 <label>
-                  Location name
-                  <input type="text" id="manualStartName" list="manualLocationList" required placeholder="e.g. Moreton Bay">
+                  Location
+                  <input type="text" class="manual-name-input" list="manualLocationList" required placeholder="e.g. Moreton Bay">
                 </label>
                 <div class="manual-coords">
                   <label>
                     Lat
-                    <input type="number" id="manualStartLat" required step="0.000001" min="-90" max="90" inputmode="decimal" placeholder="-27.470125">
+                    <input type="number" class="manual-lat-input" required step="0.000001" min="-90" max="90" inputmode="decimal" placeholder="-27.470125">
                   </label>
                   <label>
                     Long
-                    <input type="number" id="manualStartLon" required step="0.000001" min="-180" max="180" inputmode="decimal" placeholder="153.021072">
+                    <input type="number" class="manual-lon-input" required step="0.000001" min="-180" max="180" inputmode="decimal" placeholder="153.021072">
                   </label>
                 </div>
                 <div class="manual-pick">
-                  <button type="button" class="manual-pick-btn" id="manualStartPickBtn">Pick on map</button>
-                  <span class="manual-pick-hint" id="manualStartPickHint" hidden>Click on the map to set start coordinates.</span>
+                  <button type="button" class="manual-pick-btn">Pick on map</button>
+                  <span class="manual-pick-hint" hidden>Click on the map to set coordinates.</span>
                 </div>
-              </div>
-              <div class="manual-group">
-                <div class="manual-group-title">End</div>
-                <label>
-                  End date/time
-                  <input type="datetime-local" id="manualEndTime" required>
-                </label>
-                <label>
-                  Location name
-                  <input type="text" id="manualEndName" list="manualLocationList" required placeholder="e.g. Manly Marina">
-                </label>
-                <div class="manual-coords">
-                  <label>
-                    Lat
-                    <input type="number" id="manualEndLat" required step="0.000001" min="-90" max="90" inputmode="decimal" placeholder="-27.452664">
-                  </label>
-                  <label>
-                    Long
-                    <input type="number" id="manualEndLon" required step="0.000001" min="-180" max="180" inputmode="decimal" placeholder="153.187995">
-                  </label>
+                <div class="manual-location-actions">
+                  <button type="button" class="manual-remove-btn">Remove stop</button>
                 </div>
-                <div class="manual-pick">
-                  <button type="button" class="manual-pick-btn" id="manualEndPickBtn">Pick on map</button>
-                  <span class="manual-pick-hint" id="manualEndPickHint" hidden>Click on the map to set end coordinates.</span>
-                </div>
-              </div>
-            </div>
+              </section>
+            </template>
             <datalist id="manualLocationList"></datalist>
             <div class="manual-metrics">
               <div class="manual-metric">

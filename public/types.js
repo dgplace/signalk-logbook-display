@@ -61,6 +61,7 @@
  * @property {any} [_fallbackPolyline] Leaflet polyline created when the voyage lacks explicit segments.
  * @property {boolean} [manual] True when the voyage was manually added.
  * @property {string} [manualId] Identifier for manual voyages stored on the server.
+ * @property {ManualVoyageStop[]} [manualLocations] Ordered manual locations used to define legs.
  * @property {ManualLocation} [startLocation] Named starting location for manual voyages.
  * @property {ManualLocation} [endLocation] Named ending location for manual voyages.
  * @property {number} nm Total nautical miles travelled during the voyage.
@@ -84,8 +85,17 @@
  */
 
 /**
+ * @typedef {Object} ManualVoyageStop
+ * @property {string} name Human-readable stop name.
+ * @property {number} lat Latitude in decimal degrees.
+ * @property {number} lon Longitude in decimal degrees.
+ * @property {string} time ISO timestamp for the stop.
+ */
+
+/**
  * @typedef {Object} ManualVoyageRecord
  * @property {string} id Unique identifier for the manual voyage.
+ * @property {ManualVoyageStop[]} [locations] Ordered manual locations for multi-leg voyages.
  * @property {string} startTime ISO timestamp for the voyage start time.
  * @property {string} endTime ISO timestamp for the voyage end time.
  * @property {ManualLocation} startLocation Named start location coordinates.
