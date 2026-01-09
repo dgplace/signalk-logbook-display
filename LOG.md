@@ -3,13 +3,13 @@
 ## Application Overview
 - Signal K plugin that exposes a web interface for exploring logbook voyages and generating polar data.
 - Node.js back-end components parse raw YAML log entries into structured JSON consumed by the front-end, splitting voyages on inactivity gaps over 48 hours, discarding voyages under 1 nm, pruning repeated anchored fixes within 100 meters of the leg-end anchor, segmenting legs on anchored gaps (>= 1 hour) while filtering out legs under 1 nm, and filtering GPS outliers beyond a 100 nm jump threshold.
-- Manual voyage entries are stored separately on the server, merged into the front-end view, and can be added or edited from a desktop-only entry panel that stays hidden until toggled open, with a tabbed multi-stop editor (including Add stop for intermediate legs), a single-leg return-trip toggle that stays a single table leg, remembered locations, map click picking for coordinates, panel-based deletion, table-panel expansion to keep the full form visible, stop times auto-filled from the prior stop plus leg duration at 5 kn (with the final stop time derived automatically and read-only), manual duration derived from total distance at 5 kn, manual map tracks rendered in gray, and manual table rows suppressing max speed and wind metrics.
+- Manual voyage entries are stored in `public/manual-voyages.json`, loaded by the UI as a static JSON asset (with an API fallback), merged into the front-end view, and can be added or edited from a desktop-only entry panel that stays hidden until toggled open, with a tabbed multi-stop editor (including Add stop for intermediate legs), a single-leg return-trip toggle that stays a single table leg, remembered locations, map click picking for coordinates, panel-based deletion, table-panel expansion to keep the full form visible, stop times auto-filled from the prior stop plus leg duration at 5 kn (with the final stop time derived automatically and read-only), manual duration derived from total distance at 5 kn, manual map tracks rendered in gray, and manual table rows suppressing max speed and wind metrics.
 - Front-end single-page app (SPA) renders voyage tracks on Leaflet maps, provides rich voyage analytics, includes responsive layout controls with a tab-view toggle that mirrors the active layout and can override auto switching, and shows leg total-time hours (h) in cell values plus voyage totals (including summed multi-leg durations) while summing Active Time from voyage total hours/leg durations and averaging multi-leg voyage speeds from leg averages.
 - Utility scripts support data preparation, polar analysis, and batch log maintenance outside the runtime path.
 
 ## Data Flow Summary
 1. YAML logbook entries are stored under `~/.signalk/plugin-config-data/signalk-logbook/`.
-2. Manual voyage entries are stored in `public/manual-voyages.json` (including ordered `locations` arrays for multi-leg trips) and served via `/manual-voyages` endpoints for the UI to merge on load, with manual durations derived from distance at 5 kn in the UI.
+2. Manual voyage entries are stored in `public/manual-voyages.json` (including ordered `locations` arrays for multi-leg trips) and loaded as a static JSON asset alongside `voyages.json`, with the `/manual-voyages` API used for create/update/delete operations.
 3. `parse_logbook.js` processes the YAML files into `public/voyages.json`, splitting voyages after inactivity gaps greater than 48 hours, discarding voyages under 1 nm, pruning repeated anchored fixes within 100 meters of the leg-end anchor, and marking anchored gaps (>= 1 hour) for leg segmentation, filtering position jumps greater than 100 nm from the last known fix, enriching points with activity metadata, and ignoring speed/wind readings that lack positional data.
 4. `parse_polar.js` transforms the voyage output into polar performance points saved in `public/Polar.json`.
 5. The `plugin.js` router or standalone `server.js` endpoint triggers regeneration on demand and persists manual voyages.
@@ -30,7 +30,7 @@
 - `public/index.html`: Base HTML shell loading the SPA, styles, and UI scaffolding.
 - `public/styles.css`: Styling for the logbook UI, including map layout, table presentation, and responsive behaviour.
 - `public/voyages.json`: Generated voyage dataset consumed by the SPA (overwritten via parser runs).
-- `public/manual-voyages.json`: Stored manual voyage entries containing named locations, timestamps, and optional multi-leg stop arrays.
+- `public/manual-voyages.json`: Stored manual voyage entries containing named locations, timestamps, and optional multi-leg stop arrays, served as a static asset for UI loads.
 - `public/Polar.json`: Generated polar dataset used by the polar plotting tooling.
 
 ## Supporting Scripts
@@ -49,10 +49,10 @@
 - `LOG.md`: (This document) Describes architecture, data flow, and file responsibilities for quick onboarding.
 
 ## Operational Notes
-- Plugin endpoints: `GET /plugins/voyage-webapp/generate` regenerates voyages and polar data; `/generate/polar` recomputes polar data only; `/manual-voyages` supports manual voyage GET/POST/DELETE.
+- Plugin endpoints: `GET /plugins/voyage-webapp/generate` regenerates voyages and polar data; `/generate/polar` recomputes polar data only; `/manual-voyages` supports manual voyage create/update/delete with GET kept for API access.
 - Development server runs at `http://localhost:3645/` via `node server.js` and mirrors plugin regeneration endpoints.
 - The development server also strips a `/logbook` prefix (or `VOYAGE_BASE_PATH`/`X-Forwarded-Prefix`) so JSON assets and manual-voyage endpoints work when the UI is hosted under a subpath.
-- Manual voyage entries are stored in `public/manual-voyages.json` and surfaced through a desktop-only entry panel beneath the voyage table.
+- Manual voyage entries are stored in `public/manual-voyages.json`, loaded alongside other JSON assets, and surfaced through a desktop-only entry panel beneath the voyage table.
 - Manual voyage entry is toggled by the Add manual voyage button, supports tabbed start/stop/end entries with map clicks to populate coordinates, includes a Return to start toggle for single-leg trips that still renders as one leg in the table, auto-fills stop times from the previous stop plus leg duration (deriving a read-only final stop time), manual durations assume 5 kn average speed, and manual rows expose an Edit button for in-place updates via the panel.
 - Manual voyage map tracks render in gray and hide max speed, max wind, avg wind, and wind direction cells in the table.
 - Opening the manual voyage panel expands the table panel to fit the full form; closing restores the prior table panel height.
@@ -66,6 +66,7 @@
 - Voyages split on inactivity gaps over 48 hours, with voyages under 1 nm discarded and repeated anchored fixes within 100 meters of the leg-end anchor pruned, while legs split on anchored gaps (>= 1 hour) flagged via anchored activity or skip-connection markers so legs can span multiple days and multiple legs can occur within a single day, with leg segments under 1 nm removed from the UI.
 
 ## Change Log
+- Load manual voyage data from the static `public/manual-voyages.json` asset with an API fallback to mirror `voyages.json` handling.
 - Align totals Active Time with the summed voyage total hours and cap Sailing Time to Active Time.
 - Auto-reset the manual voyage end time to the start when missing or earlier than the start time.
 - Use gray map polylines for manual voyages, derive manual duration from distance at 5 kn, and hide manual max speed/wind columns in the table.

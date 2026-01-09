@@ -791,22 +791,35 @@ export async function fetchVoyagesData() {
 
 /**
  * Function: fetchManualVoyagesData
- * Description: Retrieve manual voyage data from the server with cache disabled.
+ * Description: Retrieve manual voyage data from a static JSON file, falling back to the API when needed.
  * Parameters:
  *   apiBasePath (string): Optional API base path when running inside the plugin.
  * Returns: Promise<object> - Parsed manual voyage payload.
  */
 export async function fetchManualVoyagesData(apiBasePath = '') {
-  const base = typeof apiBasePath === 'string' ? apiBasePath.replace(/\/$/, '') : '';
-  const url = base ? `${base}/manual-voyages` : resolveRelativeUrl('manual-voyages');
+  const staticUrl = resolveRelativeUrl('manual-voyages.json');
   try {
-    const response = await fetch(url, { cache: 'no-cache', credentials: 'include' });
+    const response = await fetch(staticUrl, { cache: 'no-cache' });
     if (!response.ok) {
       throw new Error(`Manual voyage request failed with status ${response.status}`);
     }
     return response.json();
   } catch (err) {
-    console.warn('[voyage-webapp] Failed to fetch manual voyages', err);
-    return { voyages: [] };
+    const base = typeof apiBasePath === 'string' ? apiBasePath.replace(/\/$/, '') : '';
+    if (!base) {
+      console.warn('[voyage-webapp] Failed to fetch manual voyages', err);
+      return { voyages: [] };
+    }
+    try {
+      const apiUrl = `${base}/manual-voyages`;
+      const response = await fetch(apiUrl, { cache: 'no-cache', credentials: 'include' });
+      if (!response.ok) {
+        throw new Error(`Manual voyage request failed with status ${response.status}`);
+      }
+      return response.json();
+    } catch (apiErr) {
+      console.warn('[voyage-webapp] Failed to fetch manual voyages', apiErr);
+      return { voyages: [] };
+    }
   }
 }
