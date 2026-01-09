@@ -176,10 +176,9 @@ function createVoyageRowHTML(voyage, index, segmentCount) {
   const avgWindDir = (voyage.avgWindHeading !== undefined && voyage.avgWindHeading !== null)
     ? degToCompass(voyage.avgWindHeading)
     : '';
-  const showTotalHours = segmentCount === 1;
   const expander = buildExpanderCellContent(segmentCount);
   const editCell = buildEditCellContent(voyage);
-  const totalHoursLabel = showTotalHours ? formatHours(voyage.totalHours) : '';
+  const totalHoursLabel = Number.isFinite(voyage.totalHours) ? formatHours(voyage.totalHours) : '';
   const maxSpeedContent = isManual ? '' : `${voyage.maxSpeed.toFixed(1)}<span class="unit-kn"> kn</span>`;
   const avgSpeedContent = Number.isFinite(voyage.avgSpeed) ? `${voyage.avgSpeed.toFixed(1)} kn` : '';
   const maxWindContent = isManual ? '' : `${voyage.maxWind.toFixed(1)}<span class="unit-kn"> kn</span>`;

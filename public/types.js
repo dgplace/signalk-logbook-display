@@ -69,7 +69,7 @@
  * @property {number} maxSpeed Maximum recorded speed over ground in knots.
  * @property {number[]} [maxSpeedCoord] `[lon, lat]` pair for the voyage max-speed location.
  * @property {number} avgSpeed Mean speed over ground in knots.
- * @property {number} [totalHours] Total duration in hours when the voyage has a single leg.
+ * @property {number} [totalHours] Total duration in hours, summed across legs when multiple legs exist.
  * @property {number} maxWind Maximum wind speed recorded in knots.
  * @property {number} avgWindSpeed Mean wind speed in knots.
  * @property {number} [avgWindHeading] Mean wind direction across the voyage in degrees.

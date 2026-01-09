@@ -97,8 +97,23 @@ export function extractWindSpeed(point) {
 }
 
 /**
+ * Function: sumSegmentDurationMs
+ * Description: Accumulate segment durations into a single millisecond total.
+ * Parameters:
+ *   segments (object[]): Segment list containing totalHours values.
+ * Returns: number - Total duration in milliseconds.
+ */
+function sumSegmentDurationMs(segments) {
+  if (!Array.isArray(segments) || segments.length === 0) return 0;
+  return segments.reduce((sum, segment) => {
+    const hours = Number.isFinite(segment?.totalHours) ? segment.totalHours : 0;
+    return sum + (hours * 60 * 60 * 1000);
+  }, 0);
+}
+
+/**
  * Function: computeVoyageTotals
- * Description: Aggregate voyage distance plus leg-driven active time and sailing activity durations.
+ * Description: Aggregate voyage distance plus active time from voyage total hours or leg durations and sailing activity durations.
  * Parameters:
  *   voyages (object[]): Voyage summaries containing point data and statistics.
  * Returns: object - Accumulated totals for distance (NM) and activity durations (milliseconds).
@@ -124,40 +139,51 @@ export function computeVoyageTotals(voyages) {
       totalDistanceNm += voyage.nm;
     }
     const segments = Array.isArray(voyage?._segments) ? voyage._segments : [];
-    if (segments.length > 0) {
-      const segmentDurationMs = segments.reduce((sum, segment) => {
-        const hours = Number.isFinite(segment?.totalHours) ? segment.totalHours : 0;
-        return sum + (hours * 60 * 60 * 1000);
-      }, 0);
-      totalActiveMs += segmentDurationMs;
-    }
+    const segmentDurationMs = sumSegmentDurationMs(segments);
     const points = getVoyagePoints(voyage);
-    if (!Array.isArray(points) || points.length < 2) return;
-    for (let idx = 1; idx < points.length; idx += 1) {
-      const prev = points[idx - 1];
-      const curr = points[idx];
-      if (shouldSkipConnection(prev, curr)) continue;
-      const prevDt = prev?.entry?.datetime || prev?.datetime;
-      const currDt = curr?.entry?.datetime || curr?.datetime;
-      if (!prevDt || !currDt) continue;
-      const prevDate = new Date(prevDt);
-      const currDate = new Date(currDt);
-      const prevMs = prevDate.getTime();
-      const currMs = currDate.getTime();
-      if (!Number.isFinite(prevMs) || !Number.isFinite(currMs)) continue;
-      const gap = currMs - prevMs;
-      if (!(gap > 0)) continue;
-      const prevAct = readActivity(prev);
-      const currAct = readActivity(curr);
-      if (activeActivities.has(prevAct) && activeActivities.has(currAct)) {
-        if (segments.length === 0) {
-          totalActiveMs += gap;
-        }
-        if (prevAct === 'sailing' && currAct === 'sailing') {
-          totalSailingMs += gap;
+    let pointsActiveMs = 0;
+    let pointsSailingMs = 0;
+    if (Array.isArray(points) && points.length >= 2) {
+      for (let idx = 1; idx < points.length; idx += 1) {
+        const prev = points[idx - 1];
+        const curr = points[idx];
+        if (shouldSkipConnection(prev, curr)) continue;
+        const prevDt = prev?.entry?.datetime || prev?.datetime;
+        const currDt = curr?.entry?.datetime || curr?.datetime;
+        if (!prevDt || !currDt) continue;
+        const prevDate = new Date(prevDt);
+        const currDate = new Date(currDt);
+        const prevMs = prevDate.getTime();
+        const currMs = currDate.getTime();
+        if (!Number.isFinite(prevMs) || !Number.isFinite(currMs)) continue;
+        const gap = currMs - prevMs;
+        if (!(gap > 0)) continue;
+        const prevAct = readActivity(prev);
+        const currAct = readActivity(curr);
+        if (activeActivities.has(prevAct) && activeActivities.has(currAct)) {
+          pointsActiveMs += gap;
+          if (prevAct === 'sailing' && currAct === 'sailing') {
+            pointsSailingMs += gap;
+          }
         }
       }
     }
+
+    let voyageActiveMs = 0;
+    if (Number.isFinite(voyage?.totalHours)) {
+      voyageActiveMs = voyage.totalHours * 60 * 60 * 1000;
+    } else if (segmentDurationMs > 0) {
+      voyageActiveMs = segmentDurationMs;
+    } else {
+      voyageActiveMs = pointsActiveMs;
+    }
+    totalActiveMs += voyageActiveMs;
+
+    let voyageSailingMs = pointsSailingMs;
+    if (voyageActiveMs > 0 && voyageSailingMs > voyageActiveMs) {
+      voyageSailingMs = voyageActiveMs;
+    }
+    totalSailingMs += voyageSailingMs;
   });
 
   return { totalDistanceNm, totalActiveMs, totalSailingMs };
@@ -729,21 +755,27 @@ export function computeDaySegments(voyage, options = {}) {
 export function applyVoyageTimeMetrics(voyage) {
   if (!voyage || typeof voyage !== 'object') return;
   const segments = Array.isArray(voyage._segments) ? voyage._segments : [];
+  if (segments.length === 0) {
+    voyage.totalHours = null;
+    return;
+  }
+
+  const totalHours = segments.reduce((sum, segment) => {
+    const hours = Number.isFinite(segment?.totalHours) ? segment.totalHours : 0;
+    return sum + hours;
+  }, 0);
+  voyage.totalHours = totalHours;
+
   if (segments.length === 1) {
-    const totalHours = Number.isFinite(segments[0].totalHours) ? segments[0].totalHours : 0;
-    voyage.totalHours = totalHours;
     voyage.avgSpeed = totalHours > 0 ? (voyage.nm / totalHours) : 0;
     return;
   }
 
-  voyage.totalHours = null;
-  if (segments.length > 1) {
-    const speedSum = segments.reduce((sum, segment) => {
-      const speed = Number.isFinite(segment.avgSpeed) ? segment.avgSpeed : 0;
-      return sum + speed;
-    }, 0);
-    voyage.avgSpeed = segments.length ? (speedSum / segments.length) : 0;
-  }
+  const speedSum = segments.reduce((sum, segment) => {
+    const speed = Number.isFinite(segment.avgSpeed) ? segment.avgSpeed : 0;
+    return sum + speed;
+  }, 0);
+  voyage.avgSpeed = segments.length ? (speedSum / segments.length) : 0;
 }
 
 /**
