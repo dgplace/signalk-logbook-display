@@ -55,6 +55,8 @@ import {
 } from './overlays.js';
 
 // Map state and configuration
+const MANUAL_VOYAGE_COLOR = '#94a3b8';
+
 let mapInstance = null;
 let polylines = [];
 let maxMarker = null;
@@ -433,11 +435,13 @@ export function updateHistoryForTrip(tripId, options = {}) {
 export function addVoyageToMap(voyage, row) {
   if (!mapInstance || !voyage) return null;
   let voyageBounds = null;
+  const baseColor = voyage.manual ? MANUAL_VOYAGE_COLOR : 'blue';
   const segments = Array.isArray(voyage._segments) ? voyage._segments : [];
   if (segments.length > 0) {
     segments.forEach((seg) => {
       const latLngs = seg.points.map(p => [p.lat, p.lon]);
-      const polyline = L.polyline(latLngs, { color: 'blue', weight: 2 }).addTo(mapInstance);
+      const polyline = L.polyline(latLngs, { color: baseColor, weight: 2 }).addTo(mapInstance);
+      polyline._baseColor = baseColor;
       seg.polyline = polyline;
       polylines.push(polyline);
       const bounds = polyline.getBounds();
@@ -457,7 +461,8 @@ export function addVoyageToMap(voyage, row) {
     });
   } else if (Array.isArray(voyage.coords) && voyage.coords.length) {
     const latLngs = voyage.coords.map(([lon, lat]) => [lat, lon]);
-    const line = L.polyline(latLngs, { color: 'blue', weight: 2 }).addTo(mapInstance);
+    const line = L.polyline(latLngs, { color: baseColor, weight: 2 }).addTo(mapInstance);
+    line._baseColor = baseColor;
     polylines.push(line);
     voyage._fallbackPolyline = line;
     voyageBounds = line.getBounds();
@@ -786,7 +791,8 @@ export function setDetailsHint(msg) {
  */
 export function restoreBasePolylineStyles() {
   polylines.forEach(pl => {
-    try { pl.setStyle({ color: 'blue', weight: 2 }); } catch (_) {}
+    const color = pl && pl._baseColor ? pl._baseColor : 'blue';
+    try { pl.setStyle({ color, weight: 2 }); } catch (_) {}
   });
 }
 

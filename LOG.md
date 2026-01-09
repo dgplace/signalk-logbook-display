@@ -3,13 +3,13 @@
 ## Application Overview
 - Signal K plugin that exposes a web interface for exploring logbook voyages and generating polar data.
 - Node.js back-end components parse raw YAML log entries into structured JSON consumed by the front-end, splitting voyages on inactivity gaps over 48 hours, discarding voyages under 1 nm, pruning repeated anchored fixes within 100 meters of the leg-end anchor, segmenting legs on anchored gaps (>= 1 hour) while filtering out legs under 1 nm, and filtering GPS outliers beyond a 100 nm jump threshold.
-- Manual voyage entries are stored separately on the server, merged into the front-end view, and can be added or edited from a desktop-only entry panel that stays hidden until toggled open, with remembered locations, map click picking for coordinates, and panel-based deletion.
+- Manual voyage entries are stored separately on the server, merged into the front-end view, and can be added or edited from a desktop-only entry panel that stays hidden until toggled open, with remembered locations, map click picking for coordinates, panel-based deletion, table-panel expansion to keep the full form visible, end-time auto-alignment when missing or earlier than the start, manual duration derived from distance at 6 kn, manual map tracks rendered in gray, and manual table rows suppressing max speed and wind metrics.
 - Front-end single-page app (SPA) renders voyage tracks on Leaflet maps, provides rich voyage analytics, includes responsive layout controls with a tab-view toggle that mirrors the active layout and can override auto switching, and shows leg total-time hours (h) in cell values plus single-leg voyage totals while summing Active Time from leg durations and averaging multi-leg voyage speeds from leg averages.
 - Utility scripts support data preparation, polar analysis, and batch log maintenance outside the runtime path.
 
 ## Data Flow Summary
 1. YAML logbook entries are stored under `~/.signalk/plugin-config-data/signalk-logbook/`.
-2. Manual voyage entries are stored in `public/manual-voyages.json` and served via `/manual-voyages` endpoints for the UI to merge on load.
+2. Manual voyage entries are stored in `public/manual-voyages.json` and served via `/manual-voyages` endpoints for the UI to merge on load, with manual durations derived from distance at 6 kn in the UI.
 3. `parse_logbook.js` processes the YAML files into `public/voyages.json`, splitting voyages after inactivity gaps greater than 48 hours, discarding voyages under 1 nm, pruning repeated anchored fixes within 100 meters of the leg-end anchor, and marking anchored gaps (>= 1 hour) for leg segmentation, filtering position jumps greater than 100 nm from the last known fix, enriching points with activity metadata, and ignoring speed/wind readings that lack positional data.
 4. `parse_polar.js` transforms the voyage output into polar performance points saved in `public/Polar.json`.
 5. The `plugin.js` router or standalone `server.js` endpoint triggers regeneration on demand and persists manual voyages.
@@ -21,11 +21,11 @@
 - `parse_logbook.js`: Node.js CLI tool that ingests daily YAML logs, splits voyages on 48-hour inactivity gaps, discards voyages under 1 nm, prunes repeated anchored fixes within 100 meters of the leg-end anchor, marks anchored stop gaps for leg segmentation, filters GPS outliers, classifies activity, computes voyage statistics, and emits structured voyage data.
 - `parse_polar.js`: Helper module that derives polar performance points from voyage data, normalising headings and wind metrics.
 - `public/app.js`: Front-end orchestrator that wires data fetching, module initialisation, and high-level user interactions.
-- `public/map.js`: Leaflet controller that builds voyage overlays, handles map/background interactions, and coordinates selection state with other modules.
+- `public/map.js`: Leaflet controller that builds voyage overlays (including gray manual tracks), handles map/background interactions, and coordinates selection state with other modules.
 - `public/view.js`: Responsive layout utility that manages mobile/desktop toggles, tab/desktop overrides that sync with auto layout changes, tab behaviour, and layout-driven map resizing.
-- `public/table.js`: Table controller responsible for rendering voyage/leg rows (including total-time hours with unit suffixes on desktop), maintaining row state, and raising callbacks for row events.
-- `public/manual.js`: Desktop-only manual voyage entry panel logic including calculations, autocomplete, and persistence calls.
-- `public/data.js`: Data helpers focused on voyage datasets, totals aggregation (including Active Time from leg durations), leg segmentation, and per-leg duration/average-speed calculations based on anchored activity/skip-connection gaps while discarding legs under 1 nm.
+- `public/table.js`: Table controller responsible for rendering voyage/leg rows (including total-time hours with unit suffixes on desktop), suppressing max speed and wind columns for manual voyages, maintaining row state, and raising callbacks for row events.
+- `public/manual.js`: Desktop-only manual voyage entry panel logic including calculations, autocomplete, persistence calls, end-time auto-alignment when missing/earlier than the start, manual-duration estimates at 6 kn, and table-panel resizing to keep the manual form fully visible.
+- `public/data.js`: Data helpers focused on voyage datasets, totals aggregation (including Active Time from leg durations), leg segmentation, per-leg duration/average-speed calculations based on anchored activity/skip-connection gaps while discarding legs under 1 nm, and manual-duration assumptions at 6 kn.
 - `public/util.js`: Shared presentation helpers including heading/DMS formatting and datetime labelling.
 - `public/index.html`: Base HTML shell loading the SPA, styles, and UI scaffolding.
 - `public/styles.css`: Styling for the logbook UI, including map layout, table presentation, and responsive behaviour.
@@ -53,7 +53,9 @@
 - Development server runs at `http://localhost:3645/` via `node server.js` and mirrors plugin regeneration endpoints.
 - The development server also strips a `/logbook` prefix (or `VOYAGE_BASE_PATH`/`X-Forwarded-Prefix`) so JSON assets and manual-voyage endpoints work when the UI is hosted under a subpath.
 - Manual voyage entries are stored in `public/manual-voyages.json` and surfaced through a desktop-only entry panel beneath the voyage table.
-- Manual voyage entry is toggled by the Add manual voyage button, supports map clicks to populate start/end coordinates, and manual rows expose an Edit button for in-place updates via the panel.
+- Manual voyage entry is toggled by the Add manual voyage button, supports map clicks to populate start/end coordinates, auto-aligns end time to the start when missing or earlier, manual durations assume 6 kn average speed, and manual rows expose an Edit button for in-place updates via the panel.
+- Manual voyage map tracks render in gray and hide max speed, max wind, avg wind, and wind direction cells in the table.
+- Opening the manual voyage panel expands the table panel to fit the full form; closing restores the prior table panel height.
 - Front-end relies on Leaflet globals; ensure assets are served from `public/` for proper styling and script load.
 - Parser scripts expect valid ISO datetimes in YAML and handle anchored/motoring classification via text cues and speed heuristics.
 - Parser drops positions that jump more than 100 nm from the last accepted fix to avoid plotting GPS/AIS outliers.
@@ -64,6 +66,9 @@
 - Voyages split on inactivity gaps over 48 hours, with voyages under 1 nm discarded and repeated anchored fixes within 100 meters of the leg-end anchor pruned, while legs split on anchored gaps (>= 1 hour) flagged via anchored activity or skip-connection markers so legs can span multiple days and multiple legs can occur within a single day, with leg segments under 1 nm removed from the UI.
 
 ## Change Log
+- Auto-reset the manual voyage end time to the start when missing or earlier than the start time.
+- Use gray map polylines for manual voyages, derive manual duration from distance at 6 kn, and hide manual max speed/wind columns in the table.
+- Expand the table panel when the manual voyage form opens so the full panel stays visible, then restore sizing when it closes.
 - Store manual voyage entries in `public/manual-voyages.json` alongside other UI JSON assets.
 - Fix manual voyage panel script syntax error so the UI loads in browsers.
 - Resolve data fetch base paths and server prefix stripping so voyages load correctly when the UI is served from a subpath.

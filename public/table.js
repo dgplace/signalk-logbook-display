@@ -172,6 +172,7 @@ function buildEditCellContent(voyage) {
 }
 
 function createVoyageRowHTML(voyage, index, segmentCount) {
+  const isManual = Boolean(voyage && voyage.manual);
   const avgWindDir = (voyage.avgWindHeading !== undefined && voyage.avgWindHeading !== null)
     ? degToCompass(voyage.avgWindHeading)
     : '';
@@ -179,6 +180,13 @@ function createVoyageRowHTML(voyage, index, segmentCount) {
   const expander = buildExpanderCellContent(segmentCount);
   const editCell = buildEditCellContent(voyage);
   const totalHoursLabel = showTotalHours ? formatHours(voyage.totalHours) : '';
+  const maxSpeedContent = isManual ? '' : `${voyage.maxSpeed.toFixed(1)}<span class="unit-kn"> kn</span>`;
+  const avgSpeedContent = Number.isFinite(voyage.avgSpeed) ? `${voyage.avgSpeed.toFixed(1)} kn` : '';
+  const maxWindContent = isManual ? '' : `${voyage.maxWind.toFixed(1)}<span class="unit-kn"> kn</span>`;
+  const avgWindContent = isManual ? '' : `${voyage.avgWindSpeed.toFixed(1)} kn`;
+  const windDirContent = isManual ? '' : avgWindDir;
+  const maxSpeedTabIndex = isManual ? '' : 'tabindex="0"';
+  const maxSpeedClass = isManual ? '' : 'max-speed-cell';
   return `
     <td class="exp-cell">${expander}</td>
     <td class="idx-cell">${index + 1}</td>
@@ -186,11 +194,11 @@ function createVoyageRowHTML(voyage, index, segmentCount) {
     <td class="end-col">${dateHourLabel(voyage.endTime)}</td>
     <td>${voyage.nm.toFixed(1)}</td>
     <td class="total-time-col">${totalHoursLabel}</td>
-    <td class="max-speed-cell" tabindex="0">${voyage.maxSpeed.toFixed(1)}<span class="unit-kn"> kn</span></td>
-    <td class="avg-speed-col">${voyage.avgSpeed.toFixed(1)} kn</td>
-    <td class="max-wind-cell">${voyage.maxWind.toFixed(1)}<span class="unit-kn"> kn</span></td>
-    <td class="avg-wind-col">${voyage.avgWindSpeed.toFixed(1)} kn</td>
-    <td>${avgWindDir}</td>
+    <td class="${maxSpeedClass}" ${maxSpeedTabIndex}>${maxSpeedContent}</td>
+    <td class="avg-speed-col">${avgSpeedContent}</td>
+    <td class="max-wind-cell">${maxWindContent}</td>
+    <td class="avg-wind-col">${avgWindContent}</td>
+    <td>${windDirContent}</td>
     <td class="manual-edit-col">${editCell}</td>`;
 }
 
@@ -235,7 +243,7 @@ function attachVoyageRowHandlers(row, voyage) {
   });
 
   const maxSpeedCell = row.querySelector('.max-speed-cell');
-  if (maxSpeedCell) {
+  if (maxSpeedCell && !(voyage && voyage.manual)) {
     const activate = (event) => {
       event.stopPropagation();
       const wasSelected = row.classList.contains('selected-row');

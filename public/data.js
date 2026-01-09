@@ -228,6 +228,8 @@ export function calculateDistanceNm(startLat, startLon, endLat, endLon) {
   return meters / 1852;
 }
 
+export const MANUAL_AVG_SPEED_KN = 5;
+
 /**
  * Function: buildManualVoyageFromRecord
  * Description: Convert a manual voyage record into the voyage shape used by the UI.
@@ -253,10 +255,9 @@ export function buildManualVoyageFromRecord(record) {
     return null;
   }
   const distanceNm = calculateDistanceNm(startLat, startLon, endLat, endLon) ?? 0;
-  const durationMs = endDate.getTime() - startDate.getTime();
-  const totalHours = durationMs > 0 ? (durationMs / (1000 * 60 * 60)) : 0;
-  const avgSpeed = totalHours > 0 ? (distanceNm / totalHours) : 0;
-  const maxSpeedCoord = Number.isFinite(avgSpeed) && avgSpeed > 0 ? [endLon, endLat] : null;
+  const totalHours = MANUAL_AVG_SPEED_KN > 0 ? (distanceNm / MANUAL_AVG_SPEED_KN) : 0;
+  const avgSpeed = distanceNm > 0 ? MANUAL_AVG_SPEED_KN : 0;
+  const maxSpeedCoord = null;
   return {
     manual: true,
     manualId: record.id || null,
@@ -265,7 +266,7 @@ export function buildManualVoyageFromRecord(record) {
     startLocation,
     endLocation,
     nm: Number(distanceNm.toFixed(1)),
-    maxSpeed: Number(avgSpeed.toFixed(1)),
+    maxSpeed: 0,
     avgSpeed,
     maxSpeedCoord,
     maxWind: 0,

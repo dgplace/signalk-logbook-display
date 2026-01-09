@@ -41,7 +41,8 @@ import {
   fetchVoyagesData,
   fetchManualVoyagesData,
   formatDurationMs,
-  applyVoyageTimeMetrics
+  applyVoyageTimeMetrics,
+  MANUAL_AVG_SPEED_KN
 } from './data.js';
 import { emit, on, EVENTS } from './events.js';
 import { initManualVoyagePanel } from './manual.js';
@@ -229,11 +230,25 @@ async function load() {
     voyage._segments = computeDaySegments(voyage, { minLegDistanceNm });
     applyVoyageTimeMetrics(voyage);
     if (voyage.manual) {
-      const coord = Array.isArray(voyage.coords) ? voyage.coords[voyage.coords.length - 1] : null;
-      if (Array.isArray(coord) && coord.length === 2) {
-        voyage.maxSpeedCoord = coord;
+      const distanceNm = Number.isFinite(voyage.nm) ? voyage.nm : 0;
+      const manualHours = MANUAL_AVG_SPEED_KN > 0 ? (distanceNm / MANUAL_AVG_SPEED_KN) : 0;
+      const manualSpeed = distanceNm > 0 ? MANUAL_AVG_SPEED_KN : 0;
+      voyage.totalHours = manualHours;
+      voyage.avgSpeed = manualSpeed;
+      voyage.maxSpeed = 0;
+      voyage.maxWind = 0;
+      voyage.avgWindSpeed = 0;
+      voyage.avgWindHeading = null;
+      voyage.maxSpeedCoord = null;
+      const segments = Array.isArray(voyage._segments) ? voyage._segments : [];
+      if (segments.length === 1) {
+        segments[0].totalHours = manualHours;
+        segments[0].avgSpeed = manualSpeed;
+        segments[0].maxSpeed = 0;
+        segments[0].maxWind = 0;
+        segments[0].avgWindSpeed = 0;
+        segments[0].avgWindHeading = null;
       }
-      voyage.maxSpeed = Number.isFinite(voyage.avgSpeed) ? voyage.avgSpeed : 0;
     }
     return voyage;
   });

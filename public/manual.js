@@ -10,7 +10,7 @@
  * @typedef {import('./types.js').Voyage} Voyage
  */
 
-import { calculateDistanceNm, formatDurationMs } from './data.js';
+import { calculateDistanceNm, formatDurationMs, MANUAL_AVG_SPEED_KN } from './data.js';
 import { setMapClickCapture, clearMapClickCapture } from './map.js';
 
 const PLACEHOLDER_VALUE = '—';
@@ -144,25 +144,118 @@ function updateManualMetrics(state) {
   if (!state) return;
   normalizeDatetimeInputValue(state.startTimeInput);
   normalizeDatetimeInputValue(state.endTimeInput);
+  syncEndTimeWithStart(state);
   validateTimeOrder(state);
   const startLocation = readLocationFields(state.startNameInput, state.startLatInput, state.startLonInput);
   const endLocation = readLocationFields(state.endNameInput, state.endLatInput, state.endLonInput);
   const distanceValue = state.distanceValue;
   const durationValue = state.durationValue;
+  const distanceNm = (startLocation && endLocation)
+    ? calculateDistanceNm(startLocation.lat, startLocation.lon, endLocation.lat, endLocation.lon)
+    : null;
   if (distanceValue) {
-    const distanceNm = (startLocation && endLocation)
-      ? calculateDistanceNm(startLocation.lat, startLocation.lon, endLocation.lat, endLocation.lon)
-      : null;
     distanceValue.textContent = Number.isFinite(distanceNm) ? `${distanceNm.toFixed(1)} NM` : PLACEHOLDER_VALUE;
   }
   if (durationValue) {
-    const startDate = parseDateInput(state.startTimeInput.value);
-    const endDate = parseDateInput(state.endTimeInput.value);
-    const durationMs = startDate && endDate ? (endDate.getTime() - startDate.getTime()) : null;
+    const durationMs = Number.isFinite(distanceNm) && distanceNm > 0 && MANUAL_AVG_SPEED_KN > 0
+      ? (distanceNm / MANUAL_AVG_SPEED_KN) * 60 * 60 * 1000
+      : null;
     durationValue.textContent = Number.isFinite(durationMs) && durationMs > 0
       ? formatDurationMs(durationMs)
       : PLACEHOLDER_VALUE;
   }
+}
+
+/**
+ * Function: syncEndTimeWithStart
+ * Description: Reset the end datetime to the start when missing or earlier.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ * Returns: void.
+ */
+function syncEndTimeWithStart(state) {
+  if (!state || !state.startTimeInput || !state.endTimeInput) return;
+  const startDate = parseDateInput(state.startTimeInput.value);
+  if (!startDate) return;
+  const endDate = parseDateInput(state.endTimeInput.value);
+  if (!endDate || endDate.getTime() < startDate.getTime()) {
+    state.endTimeInput.value = formatDatetimeLocal(startDate);
+  }
+}
+
+/**
+ * Function: captureTablePanelLayout
+ * Description: Cache the current container sizing before expanding for the manual panel.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ * Returns: void.
+ */
+function captureTablePanelLayout(state) {
+  if (!state || state.panelLayoutRestore) return;
+  const container = document.querySelector('.container');
+  if (!container) return;
+  state.panelLayoutRestore = {
+    height: container.style.height,
+    topHeight: container.style.getPropertyValue('--top-height')
+  };
+}
+
+/**
+ * Function: restoreTablePanelLayout
+ * Description: Restore the container sizing captured before the manual panel opened.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ * Returns: void.
+ */
+function restoreTablePanelLayout(state) {
+  if (!state || !state.panelLayoutRestore) return;
+  const container = document.querySelector('.container');
+  if (!container) return;
+  const { height, topHeight } = state.panelLayoutRestore;
+  container.style.height = height || '';
+  if (topHeight) {
+    container.style.setProperty('--top-height', topHeight);
+  } else {
+    container.style.removeProperty('--top-height');
+  }
+  state.panelLayoutRestore = null;
+}
+
+/**
+ * Function: expandTablePanelForManual
+ * Description: Extend the table panel to fully display the manual voyage form.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ * Returns: void.
+ */
+function expandTablePanelForManual(state) {
+  if (!state || !state.panel || state.panel.hidden) return;
+  const container = document.querySelector('.container');
+  const topSection = document.querySelector('.top-section');
+  const tableWrapper = document.querySelector('.table-wrapper');
+  if (!container || !topSection || !tableWrapper) return;
+  if (container.classList.contains('mobile-layout')) return;
+  captureTablePanelLayout(state);
+
+  const panelRect = state.panel.getBoundingClientRect();
+  if (!panelRect || panelRect.height <= 0) return;
+  const panelStyles = getComputedStyle(state.panel);
+  const marginTop = parseFloat(panelStyles.marginTop || '0');
+  const marginBottom = parseFloat(panelStyles.marginBottom || '0');
+  const panelBlockHeight = panelRect.height + marginTop + marginBottom;
+
+  const headerBar = document.querySelector('.header-bar');
+  const headerHeight = headerBar ? headerBar.getBoundingClientRect().height : 0;
+  const wrapperHeight = tableWrapper.getBoundingClientRect().height;
+  const requiredWrapperHeight = Math.max(wrapperHeight, panelBlockHeight);
+  const requiredTopHeight = Math.ceil(headerHeight + requiredWrapperHeight);
+  const currentTopHeight = topSection.getBoundingClientRect().height;
+  if (requiredTopHeight <= currentTopHeight) return;
+
+  const containerRect = container.getBoundingClientRect();
+  const delta = requiredTopHeight - currentTopHeight;
+  container.style.height = `${Math.ceil(containerRect.height + delta)}px`;
+  container.style.setProperty('--top-height', `${requiredTopHeight}px`);
 }
 
 /**
@@ -178,6 +271,11 @@ function setPanelVisibility(state, isVisible) {
   state.panel.hidden = !isVisible;
   if (state.panelToggleBtn) {
     state.panelToggleBtn.textContent = isVisible ? 'Hide manual voyage' : 'Add manual voyage';
+  }
+  if (isVisible) {
+    expandTablePanelForManual(state);
+  } else {
+    restoreTablePanelLayout(state);
   }
   if (!isVisible) {
     clearMapClickCapture();
@@ -529,7 +627,8 @@ export function initManualVoyagePanel(options = {}) {
     durationValue: document.getElementById('manualDuration'),
     addButton: document.getElementById('manualAddBtn'),
     deleteButton: document.getElementById('manualDeleteBtn'),
-    activePickTarget: null
+    activePickTarget: null,
+    panelLayoutRestore: null
   };
 
   const inputFields = [
