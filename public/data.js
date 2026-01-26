@@ -317,6 +317,130 @@ function extractManualStops(record) {
 }
 
 /**
+ * Function: isSameCoordinate
+ * Description: Compare two latitude/longitude pairs with a small tolerance.
+ * Parameters:
+ *   a (object): First coordinate with lat/lon values.
+ *   b (object): Second coordinate with lat/lon values.
+ *   epsilon (number): Optional tolerance for coordinate comparisons.
+ * Returns: boolean - True when the coordinates are effectively the same.
+ */
+function isSameCoordinate(a, b, epsilon = 1e-6) {
+  if (!a || !b) return false;
+  const latA = Number(a.lat);
+  const lonA = Number(a.lon);
+  const latB = Number(b.lat);
+  const lonB = Number(b.lon);
+  if (!Number.isFinite(latA) || !Number.isFinite(lonA) || !Number.isFinite(latB) || !Number.isFinite(lonB)) return false;
+  return Math.abs(latA - latB) <= epsilon && Math.abs(lonA - lonB) <= epsilon;
+}
+
+/**
+ * Function: normalizeManualRoutePoints
+ * Description: Validate and align stored day-trip route points for return voyages.
+ * Parameters:
+ *   record (ManualVoyageRecord): Manual voyage record containing optional route metadata.
+ *   start (object): Start stop containing lat/lon coordinates.
+ *   turn (object): Turnaround stop containing lat/lon coordinates.
+ * Returns: object|null - Normalized route metadata or null when unavailable.
+ */
+function normalizeManualRoutePoints(record, start, turn) {
+  if (!record || !start || !turn) return null;
+  const rawPoints = Array.isArray(record.routePoints) ? record.routePoints : null;
+  if (!rawPoints || rawPoints.length < 2) return null;
+  const normalized = rawPoints.map((point) => {
+    const lat = Number(point?.lat);
+    const lon = Number(point?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return { lat, lon };
+  });
+  if (normalized.some(point => !point) || normalized.length < 2) return null;
+  let turnIndex = Number.isInteger(record.routeTurnIndex) ? record.routeTurnIndex : null;
+  if (turnIndex === null || turnIndex < 1 || turnIndex >= normalized.length) {
+    turnIndex = 1;
+  }
+  normalized[0] = { lat: start.lat, lon: start.lon };
+  normalized[turnIndex] = { lat: turn.lat, lon: turn.lon };
+  if (normalized.length > 2 && isSameCoordinate(normalized[normalized.length - 1], normalized[0])) {
+    normalized.pop();
+    if (turnIndex >= normalized.length) {
+      turnIndex = Math.max(1, normalized.length - 1);
+      normalized[turnIndex] = { lat: turn.lat, lon: turn.lon };
+    }
+  }
+  return { points: normalized, turnIndex };
+}
+
+/**
+ * Function: calculateRouteDistanceNm
+ * Description: Sum the total route distance across points, optionally closing the loop.
+ * Parameters:
+ *   points (object[]): Ordered route points with lat/lon values.
+ *   closeLoop (boolean): When true, include the final leg back to the start.
+ * Returns: number|null - Route distance in nautical miles or null when invalid.
+ */
+function calculateRouteDistanceNm(points, closeLoop) {
+  if (!Array.isArray(points) || points.length < 2) return null;
+  let distanceNm = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = points[i - 1];
+    const next = points[i];
+    const legDistance = calculateDistanceNm(prev.lat, prev.lon, next.lat, next.lon);
+    distanceNm += Number.isFinite(legDistance) ? legDistance : 0;
+  }
+  if (closeLoop && points.length > 1) {
+    const first = points[0];
+    const last = points[points.length - 1];
+    if (!isSameCoordinate(first, last)) {
+      const legDistance = calculateDistanceNm(last.lat, last.lon, first.lat, first.lon);
+      distanceNm += Number.isFinite(legDistance) ? legDistance : 0;
+    }
+  }
+  return distanceNm;
+}
+
+/**
+ * Function: buildRoutePointEntries
+ * Description: Build manual point entries from route points using a constant speed.
+ * Parameters:
+ *   points (object[]): Ordered route points with lat/lon values.
+ *   startTime (string): ISO timestamp for the route start time.
+ *   turnIndex (number|null): Index of the turnaround point.
+ *   startName (string): Label for the starting point.
+ *   turnName (string): Label for the turnaround point.
+ * Returns: object[] - Array of point entries with optional timing metadata.
+ */
+function buildRoutePointEntries(points, startTime, turnIndex, startName, turnName) {
+  if (!Array.isArray(points) || points.length === 0) return [];
+  const startDate = new Date(startTime);
+  const hasStartTime = !Number.isNaN(startDate.getTime());
+  const cumulativeDistances = [0];
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = points[i - 1];
+    const next = points[i];
+    const legDistance = calculateDistanceNm(prev.lat, prev.lon, next.lat, next.lon);
+    const increment = Number.isFinite(legDistance) ? legDistance : 0;
+    cumulativeDistances[i] = (cumulativeDistances[i - 1] || 0) + increment;
+  }
+  return points.map((point, index) => {
+    const offsetHours = MANUAL_AVG_SPEED_KN > 0 ? (cumulativeDistances[index] / MANUAL_AVG_SPEED_KN) : 0;
+    const time = hasStartTime
+      ? new Date(startDate.getTime() + offsetHours * 60 * 60 * 1000).toISOString()
+      : '';
+    const entry = time ? { datetime: time, activity: 'sailing' } : { activity: 'sailing' };
+    const manualLocationName = index === 0
+      ? startName
+      : (Number.isInteger(turnIndex) && index === turnIndex ? turnName : undefined);
+    return {
+      lat: point.lat,
+      lon: point.lon,
+      entry,
+      manualLocationName
+    };
+  });
+}
+
+/**
  * Function: buildManualVoyageFromRecord
  * Description: Convert a manual voyage record into the voyage shape used by the UI.
  * Parameters:
@@ -327,6 +451,11 @@ export function buildManualVoyageFromRecord(record) {
   const stops = extractManualStops(record);
   if (stops.length < 2) return null;
   const isReturnTrip = Boolean(record.returnTrip);
+  const startStop = stops[0];
+  const turnStop = stops[1];
+  const manualRoute = isReturnTrip && startStop && turnStop
+    ? normalizeManualRoutePoints(record, startStop, turnStop)
+    : null;
   let tripStops = stops.slice();
   let distanceNm = stops.reduce((sum, stop, index) => {
     if (index === 0) return 0;
@@ -335,14 +464,22 @@ export function buildManualVoyageFromRecord(record) {
     return sum + (Number.isFinite(legDistance) ? legDistance : 0);
   }, 0);
 
+  if (manualRoute && Array.isArray(manualRoute.points)) {
+    const routeDistance = calculateRouteDistanceNm(manualRoute.points, true);
+    if (Number.isFinite(routeDistance)) {
+      distanceNm = routeDistance;
+    }
+  }
+
   if (isReturnTrip && stops.length === 2) {
-    const startStop = stops[0];
-    const turnStop = stops[1];
-    const legDistance = calculateDistanceNm(startStop.lat, startStop.lon, turnStop.lat, turnStop.lon);
+    const legDistance = manualRoute && Array.isArray(manualRoute.points)
+      ? calculateRouteDistanceNm(manualRoute.points.slice(0, manualRoute.turnIndex + 1), false)
+      : calculateDistanceNm(startStop.lat, startStop.lon, turnStop.lat, turnStop.lon);
     if (Number.isFinite(legDistance)) {
-      distanceNm = legDistance * 2;
+      const totalLoop = Number.isFinite(distanceNm) ? distanceNm : legDistance * 2;
+      distanceNm = totalLoop;
       const startDate = new Date(startStop.time);
-      const totalHours = MANUAL_AVG_SPEED_KN > 0 ? (distanceNm / MANUAL_AVG_SPEED_KN) : 0;
+      const totalHours = MANUAL_AVG_SPEED_KN > 0 ? (totalLoop / MANUAL_AVG_SPEED_KN) : 0;
       if (!Number.isNaN(startDate.getTime()) && totalHours > 0) {
         const returnDate = new Date(startDate.getTime() + totalHours * 60 * 60 * 1000);
         tripStops = [
@@ -368,6 +505,11 @@ export function buildManualVoyageFromRecord(record) {
   const totalHours = MANUAL_AVG_SPEED_KN > 0 ? (distanceNm / MANUAL_AVG_SPEED_KN) : 0;
   const avgSpeed = distanceNm > 0 ? MANUAL_AVG_SPEED_KN : 0;
   const maxSpeedCoord = null;
+  const routePoints = manualRoute?.points || null;
+  const routeTurnIndex = Number.isInteger(manualRoute?.turnIndex) ? manualRoute.turnIndex : null;
+  const routePointEntries = routePoints
+    ? buildRoutePointEntries(routePoints, startTime, routeTurnIndex, start?.name, turnStop?.name)
+    : null;
   return {
     manual: true,
     manualId: record.id || null,
@@ -377,6 +519,8 @@ export function buildManualVoyageFromRecord(record) {
     startLocation,
     endLocation,
     manualLocations: tripStops,
+    manualRoutePoints: routePoints || undefined,
+    manualRouteTurnIndex: routeTurnIndex ?? undefined,
     nm: Number(distanceNm.toFixed(1)),
     maxSpeed: 0,
     avgSpeed,
@@ -385,13 +529,15 @@ export function buildManualVoyageFromRecord(record) {
     avgWindSpeed: 0,
     avgWindHeading: null,
     totalHours,
-    points: tripStops.map(stop => ({
+    points: routePointEntries || tripStops.map(stop => ({
       lat: stop.lat,
       lon: stop.lon,
       entry: { datetime: stop.time, activity: 'sailing' },
       manualLocationName: stop.name
     })),
-    coords: tripStops.map(stop => [stop.lon, stop.lat])
+    coords: routePoints
+      ? routePoints.map(point => [point.lon, point.lat])
+      : tripStops.map(stop => [stop.lon, stop.lat])
   };
 }
 
@@ -456,14 +602,20 @@ export function buildManualSegmentsFromStops(stops = []) {
  *   stops (object[]): Ordered manual stop descriptors.
  * Returns: object|null - Manual segment summary or null when invalid.
  */
-export function buildManualReturnSegmentFromStops(stops = []) {
+export function buildManualReturnSegmentFromStops(stops = [], options = {}) {
   if (!Array.isArray(stops) || stops.length < 2) return null;
-  const distanceNm = stops.reduce((sum, stop, index) => {
-    if (index === 0) return 0;
-    const prev = stops[index - 1];
-    const legDistance = calculateDistanceNm(prev.lat, prev.lon, stop.lat, stop.lon);
-    return sum + (Number.isFinite(legDistance) ? legDistance : 0);
-  }, 0);
+  const routePoints = Array.isArray(options.routePoints) ? options.routePoints : null;
+  const routeTurnIndex = Number.isInteger(options.routeTurnIndex) ? options.routeTurnIndex : null;
+  const startName = options.startName || stops[0]?.name || '';
+  const turnName = options.turnName || stops[1]?.name || '';
+  const distanceNm = routePoints
+    ? calculateRouteDistanceNm(routePoints, true) ?? 0
+    : stops.reduce((sum, stop, index) => {
+      if (index === 0) return 0;
+      const prev = stops[index - 1];
+      const legDistance = calculateDistanceNm(prev.lat, prev.lon, stop.lat, stop.lon);
+      return sum + (Number.isFinite(legDistance) ? legDistance : 0);
+    }, 0);
   const startTime = stops[0].time;
   const endTime = stops[stops.length - 1].time;
   const startDate = new Date(startTime);
@@ -471,6 +623,14 @@ export function buildManualReturnSegmentFromStops(stops = []) {
   const totalHours = (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime()) && endDate > startDate)
     ? ((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60))
     : 0;
+  const pointEntries = routePoints
+    ? buildRoutePointEntries(routePoints, startTime, routeTurnIndex, startName, turnName)
+    : stops.map(stop => ({
+      lat: stop.lat,
+      lon: stop.lon,
+      entry: { datetime: stop.time, activity: 'sailing' },
+      manualLocationName: stop.name
+    }));
   return {
     startTime,
     endTime,
@@ -481,14 +641,10 @@ export function buildManualReturnSegmentFromStops(stops = []) {
     avgWindSpeed: 0,
     avgWindHeading: null,
     totalHours,
-    points: stops.map(stop => ({
-      lat: stop.lat,
-      lon: stop.lon,
-      entry: { datetime: stop.time, activity: 'sailing' },
-      manualLocationName: stop.name
-    })),
+    points: pointEntries,
     maxSpeedCoord: null,
-    polyline: null
+    polyline: null,
+    closeLoop: Boolean(routePoints)
   };
 }
 

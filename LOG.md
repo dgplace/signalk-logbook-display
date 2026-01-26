@@ -23,6 +23,14 @@
 - Replace day trip checkbox with a trip type radio group and only allow day trips when there are no anchorages
 - Lay out trip type radios inline and alert when day trip is selected while anchorages are present
 - Rename manual stop removal control to "Remove anchorage"
+- Add day-trip loop editing on the map:
+  - Show an Edit loop on map toggle with reset option in the manual voyage form
+  - Allow inserting, dragging, and removing loop points with directional arrows
+  - Persist optional `routePoints` and `routeTurnIndex` for day trips and use them for distance/time calculations
+- Improve day-trip loop editing usability:
+  - Dim other voyage layers and disable selection while editing a loop
+  - Widen the click target for inserting loop control points
+- Render the editable day-trip loop in green while map editing is active
 - Add mandatory documentation update requirement to AGENTS.md
 - Simplify voyage sync scripts (`scripts/fetch-voyages.sh` and `scripts/push-voyages.sh`)
 - Remove `scripts/update-voyages.sh` and add `scripts/push-voyages.sh` to copy assets into a local Signal K install

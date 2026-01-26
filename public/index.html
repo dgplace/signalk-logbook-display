@@ -126,6 +126,20 @@
                 <strong id="manualDuration">—</strong>
               </div>
             </div>
+            <div class="manual-route-editor" id="manualRouteEditor" hidden>
+              <div class="manual-route-controls">
+                <label class="toggle-switch manual-route-toggle" id="manualRouteToggleWrapper">
+                  <input type="checkbox" id="manualRouteToggle" aria-label="Edit day trip loop on map">
+                  <span class="toggle-slider" aria-hidden="true"></span>
+                  <span class="toggle-text">Edit loop on map</span>
+                </label>
+                <button type="button" class="manual-secondary-btn" id="manualRouteResetBtn">Reset loop</button>
+              </div>
+              <p class="manual-route-hint" id="manualRouteHint">
+                Click the loop to insert a point, drag points to move them, and double-click a point to remove it.
+                Arrows show the loop direction.
+              </p>
+            </div>
             <div class="manual-actions">
               <button type="submit" id="manualAddBtn">Add manual voyage</button>
               <button type="reset" class="manual-secondary-btn">Clear</button>

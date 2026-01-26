@@ -52,6 +52,7 @@
  * @property {string} [dateKey] Optional label used when segments are keyed by date.
  * @property {VoyagePoint[]} points Ordered points belonging to the segment.
  * @property {any} [polyline] Leaflet polyline reference associated with the segment when rendered.
+ * @property {boolean} [closeLoop] True when the segment should render as a closed loop.
  */
 
 /**
@@ -62,6 +63,8 @@
  * @property {boolean} [manual] True when the voyage was manually added.
  * @property {string} [manualId] Identifier for manual voyages stored on the server.
  * @property {ManualVoyageStop[]} [manualLocations] Ordered manual locations used to define legs.
+ * @property {ManualRoutePoint[]} [manualRoutePoints] Ordered route points used for day-trip loop edits.
+ * @property {number} [manualRouteTurnIndex] Index of the turnaround point within the route points array.
  * @property {boolean} [returnTrip] True when a manual voyage returns to the start location.
  * @property {ManualLocation} [startLocation] Named starting location for manual voyages.
  * @property {ManualLocation} [endLocation] Named ending location for manual voyages.
@@ -86,6 +89,12 @@
  */
 
 /**
+ * @typedef {Object} ManualRoutePoint
+ * @property {number} lat Latitude in decimal degrees.
+ * @property {number} lon Longitude in decimal degrees.
+ */
+
+/**
  * @typedef {Object} ManualVoyageStop
  * @property {string} name Human-readable stop name.
  * @property {number} lat Latitude in decimal degrees.
@@ -97,6 +106,8 @@
  * @typedef {Object} ManualVoyageRecord
  * @property {string} id Unique identifier for the manual voyage.
  * @property {ManualVoyageStop[]} [locations] Ordered manual locations for multi-leg voyages.
+ * @property {ManualRoutePoint[]} [routePoints] Ordered loop points for manual day trips.
+ * @property {number} [routeTurnIndex] Index of the turnaround point within the loop.
  * @property {boolean} [returnTrip] True when a manual voyage returns to the start location.
  * @property {string} startTime ISO timestamp for the voyage start time.
  * @property {string} endTime ISO timestamp for the voyage end time.

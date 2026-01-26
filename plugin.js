@@ -131,6 +131,53 @@ function normalizeManualStop(raw) {
 }
 
 /**
+ * Function: normalizeManualRoutePoint
+ * Description: Validate a manual route point payload and normalize its fields.
+ * Parameters:
+ *   raw (object): Incoming route point descriptor.
+ * Returns: object|null - Normalized route point or null when invalid.
+ */
+function normalizeManualRoutePoint(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const lat = Number(raw.lat);
+  const lon = Number(raw.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  return { lat, lon };
+}
+
+/**
+ * Function: normalizeManualRoute
+ * Description: Validate optional route points for return trips and align start/turn indices.
+ * Parameters:
+ *   rawPoints (object[]): Raw route points payload.
+ *   rawTurnIndex (number): Optional turnaround index for the route.
+ *   start (object): Start stop containing lat/lon coordinates.
+ *   turn (object): Turnaround stop containing lat/lon coordinates.
+ * Returns: object|null - Normalized route payload or null when invalid.
+ */
+function normalizeManualRoute(rawPoints, rawTurnIndex, start, turn) {
+  if (!Array.isArray(rawPoints) || rawPoints.length < 2) return null;
+  const points = rawPoints.map(normalizeManualRoutePoint);
+  if (points.some(point => !point) || points.length < 2) return null;
+  let turnIndex = Number.isInteger(rawTurnIndex) ? rawTurnIndex : 1;
+  if (turnIndex < 1 || turnIndex >= points.length) {
+    turnIndex = 1;
+  }
+  points[0] = { lat: start.lat, lon: start.lon };
+  points[turnIndex] = { lat: turn.lat, lon: turn.lon };
+  const last = points[points.length - 1];
+  if (points.length > 2 && last && last.lat === points[0].lat && last.lon === points[0].lon) {
+    points.pop();
+    if (turnIndex >= points.length) {
+      turnIndex = Math.max(1, points.length - 1);
+      points[turnIndex] = { lat: turn.lat, lon: turn.lon };
+    }
+  }
+  return { points, turnIndex };
+}
+
+/**
  * Function: normalizeManualStops
  * Description: Validate an ordered list of manual stops.
  * Parameters:
@@ -179,13 +226,17 @@ function normalizeManualVoyagePayload(payload) {
     const locations = normalizedStops.locations;
     const start = locations[0];
     const end = locations[locations.length - 1];
+    const turn = locations[1] || end;
+    const route = returnTrip ? normalizeManualRoute(payload.routePoints, payload.routeTurnIndex, start, turn) : null;
     return {
       locations,
       startTime: start.time,
       endTime: end.time,
       startLocation: { name: start.name, lat: start.lat, lon: start.lon },
       endLocation: { name: end.name, lat: end.lat, lon: end.lon },
-      returnTrip
+      returnTrip,
+      routePoints: route ? route.points : undefined,
+      routeTurnIndex: route ? route.turnIndex : undefined
     };
   }
   const startTime = parseIsoDatetime(payload.startTime);
@@ -358,7 +409,9 @@ module.exports = function(app) {
           startLocation: normalized.startLocation,
           endLocation: normalized.endLocation,
           locations: Array.isArray(normalized.locations) ? normalized.locations : undefined,
-          returnTrip: Boolean(normalized.returnTrip)
+          returnTrip: Boolean(normalized.returnTrip),
+          routePoints: Array.isArray(normalized.routePoints) ? normalized.routePoints : undefined,
+          routeTurnIndex: Number.isInteger(normalized.routeTurnIndex) ? normalized.routeTurnIndex : undefined
         };
         voyages.push(newVoyage);
         await writeManualVoyages({ voyages });
@@ -393,6 +446,7 @@ module.exports = function(app) {
           res.status(404).send({ message: 'Voyage not found' });
           return;
         }
+        const nextReturnTrip = typeof normalized.returnTrip === 'boolean' ? normalized.returnTrip : voyages[index].returnTrip;
         const updated = {
           ...voyages[index],
           startTime: normalized.startTime,
@@ -400,7 +454,13 @@ module.exports = function(app) {
           startLocation: normalized.startLocation,
           endLocation: normalized.endLocation,
           locations: Array.isArray(normalized.locations) ? normalized.locations : voyages[index].locations,
-          returnTrip: typeof normalized.returnTrip === 'boolean' ? normalized.returnTrip : voyages[index].returnTrip,
+          returnTrip: nextReturnTrip,
+          routePoints: nextReturnTrip
+            ? (Array.isArray(normalized.routePoints) ? normalized.routePoints : voyages[index].routePoints)
+            : undefined,
+          routeTurnIndex: nextReturnTrip
+            ? (Number.isInteger(normalized.routeTurnIndex) ? normalized.routeTurnIndex : voyages[index].routeTurnIndex)
+            : undefined,
           updatedAt: new Date().toISOString()
         };
         voyages[index] = updated;

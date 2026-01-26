@@ -140,6 +140,8 @@ export function getEventNames() {
     MANUAL_VOYAGE_EDIT_REQUESTED: 'voyage:manual-edit-requested',
     MANUAL_LOCATION_SELECTED: 'voyage:manual-location-selected',
     MANUAL_VOYAGE_PREVIEW: 'voyage:manual-preview',
+    MANUAL_ROUTE_EDIT_REQUESTED: 'voyage:manual-route-edit-requested',
+    MANUAL_ROUTE_UPDATED: 'voyage:manual-route-updated',
     SEGMENT_SELECT_REQUESTED: 'segment:select-requested',
     SEGMENT_MAX_SPEED_REQUESTED: 'segment:max-speed-requested',
     SELECTION_RESET_REQUESTED: 'selection:reset-requested',

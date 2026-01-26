@@ -13,7 +13,7 @@
 
 import { calculateDistanceNm, formatDurationMs, MANUAL_AVG_SPEED_KN } from './data.js';
 import { setMapClickCapture, clearMapClickCapture } from './map.js';
-import { emit, EVENTS } from './events.js';
+import { emit, on, EVENTS } from './events.js';
 
 const PLACEHOLDER_VALUE = '—';
 const MIN_MANUAL_LOCATIONS = 2;
@@ -102,6 +102,89 @@ function parseNumberInput(value) {
 }
 
 /**
+ * Function: isSameCoordinate
+ * Description: Compare two latitude/longitude pairs with a small tolerance.
+ * Parameters:
+ *   a (object): First coordinate with lat/lon values.
+ *   b (object): Second coordinate with lat/lon values.
+ *   epsilon (number): Optional tolerance for comparisons.
+ * Returns: boolean - True when the coordinates are effectively the same.
+ */
+function isSameCoordinate(a, b, epsilon = 1e-6) {
+  if (!a || !b) return false;
+  const latA = Number(a.lat);
+  const lonA = Number(a.lon);
+  const latB = Number(b.lat);
+  const lonB = Number(b.lon);
+  if (!Number.isFinite(latA) || !Number.isFinite(lonA) || !Number.isFinite(latB) || !Number.isFinite(lonB)) return false;
+  return Math.abs(latA - latB) <= epsilon && Math.abs(lonA - lonB) <= epsilon;
+}
+
+/**
+ * Function: normalizeRoutePoints
+ * Description: Normalize a list of route points into lat/lon objects.
+ * Parameters:
+ *   points (object[]): Raw route point list.
+ * Returns: object[]|null - Normalized points or null when invalid.
+ */
+function normalizeRoutePoints(points) {
+  if (!Array.isArray(points) || points.length < 2) return null;
+  const normalized = points.map((point) => {
+    const lat = Number(point?.lat);
+    const lon = Number(point?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return { lat, lon };
+  });
+  if (normalized.some(point => !point) || normalized.length < 2) return null;
+  return normalized;
+}
+
+/**
+ * Function: calculateRouteDistanceNm
+ * Description: Sum the total route distance across points, optionally closing the loop.
+ * Parameters:
+ *   points (object[]): Ordered route points with lat/lon values.
+ *   closeLoop (boolean): When true, include the final leg back to the start.
+ * Returns: number|null - Route distance in nautical miles or null when invalid.
+ */
+function calculateRouteDistanceNm(points, closeLoop) {
+  if (!Array.isArray(points) || points.length < 2) return null;
+  let distanceNm = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = points[i - 1];
+    const next = points[i];
+    const legDistance = calculateDistanceNm(prev.lat, prev.lon, next.lat, next.lon);
+    distanceNm += Number.isFinite(legDistance) ? legDistance : 0;
+  }
+  if (closeLoop && points.length > 1) {
+    const first = points[0];
+    const last = points[points.length - 1];
+    if (!isSameCoordinate(first, last)) {
+      const legDistance = calculateDistanceNm(last.lat, last.lon, first.lat, first.lon);
+      distanceNm += Number.isFinite(legDistance) ? legDistance : 0;
+    }
+  }
+  return distanceNm;
+}
+
+/**
+ * Function: calculateOutboundDistanceNm
+ * Description: Sum the outbound distance from start to the turnaround index.
+ * Parameters:
+ *   points (object[]): Ordered route points with lat/lon values.
+ *   turnIndex (number): Index of the turnaround point.
+ * Returns: number|null - Outbound distance in nautical miles or null when invalid.
+ */
+function calculateOutboundDistanceNm(points, turnIndex) {
+  if (!Array.isArray(points) || points.length < 2) return null;
+  const safeIndex = Number.isInteger(turnIndex)
+    ? Math.max(1, Math.min(turnIndex, points.length - 1))
+    : points.length - 1;
+  const outboundPoints = points.slice(0, safeIndex + 1);
+  return calculateRouteDistanceNm(outboundPoints, false);
+}
+
+/**
  * Function: readLocationFields
  * Description: Read a named location from the supplied input elements.
  * Parameters:
@@ -116,6 +199,109 @@ function readLocationFields(nameInput, latInput, lonInput) {
   const lon = parseNumberInput(lonInput ? lonInput.value : '');
   if (!name || !Number.isFinite(lat) || !Number.isFinite(lon)) return null;
   return { name, lat, lon };
+}
+
+/**
+ * Function: syncRoutePointsWithStops
+ * Description: Ensure route points exist for day trips and align with start/turn coordinates.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ * Returns: boolean - True when route points are valid after sync.
+ */
+function syncRoutePointsWithStops(state) {
+  if (!state || !state.returnTrip || !Array.isArray(state.locations)) {
+    if (state) {
+      state.routePoints = [];
+      state.routeTurnIndex = null;
+    }
+    return false;
+  }
+  if (state.locations.length !== MIN_MANUAL_LOCATIONS) {
+    state.routePoints = [];
+    state.routeTurnIndex = null;
+    return false;
+  }
+  const start = readLocationFields(
+    state.locations[0].nameInput,
+    state.locations[0].latInput,
+    state.locations[0].lonInput
+  );
+  const turn = readLocationFields(
+    state.locations[1].nameInput,
+    state.locations[1].latInput,
+    state.locations[1].lonInput
+  );
+  if (!start || !turn) {
+    state.routePoints = [];
+    state.routeTurnIndex = null;
+    return false;
+  }
+  const normalized = normalizeRoutePoints(state.routePoints);
+  let points = normalized && normalized.length >= 2
+    ? normalized
+    : [
+      { lat: start.lat, lon: start.lon },
+      { lat: turn.lat, lon: turn.lon }
+    ];
+  let turnIndex = Number.isInteger(state.routeTurnIndex) ? state.routeTurnIndex : 1;
+  if (turnIndex < 1 || turnIndex >= points.length) {
+    turnIndex = 1;
+  }
+  points[0] = { lat: start.lat, lon: start.lon };
+  points[turnIndex] = { lat: turn.lat, lon: turn.lon };
+  if (points.length > 2 && isSameCoordinate(points[points.length - 1], points[0])) {
+    points = points.slice(0, -1);
+    if (turnIndex >= points.length) {
+      turnIndex = Math.max(1, points.length - 1);
+      points[turnIndex] = { lat: turn.lat, lon: turn.lon };
+    }
+  }
+  state.routePoints = points;
+  state.routeTurnIndex = turnIndex;
+  return true;
+}
+
+/**
+ * Function: getRouteDistanceSummary
+ * Description: Compute outbound and total distance for day-trip route points.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ * Returns: object|null - Distance summary or null when unavailable.
+ */
+function getRouteDistanceSummary(state) {
+  if (!syncRoutePointsWithStops(state)) return null;
+  const points = state.routePoints;
+  const turnIndex = state.routeTurnIndex;
+  const totalDistanceNm = calculateRouteDistanceNm(points, true);
+  const outboundDistanceNm = calculateOutboundDistanceNm(points, turnIndex);
+  if (!Number.isFinite(totalDistanceNm) || !Number.isFinite(outboundDistanceNm)) return null;
+  return { totalDistanceNm, outboundDistanceNm };
+}
+
+/**
+ * Function: applyRoutePointsToInputs
+ * Description: Update start/turn coordinate inputs based on route point positions.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ * Returns: void.
+ */
+function applyRoutePointsToInputs(state) {
+  if (!state || !Array.isArray(state.locations)) return;
+  const points = normalizeRoutePoints(state.routePoints);
+  if (!points || points.length < 2) return;
+  const turnIndex = Number.isInteger(state.routeTurnIndex) ? state.routeTurnIndex : 1;
+  const startPoint = points[0];
+  const turnPoint = points[Math.min(turnIndex, points.length - 1)];
+  const startEntry = state.locations[0];
+  const turnEntry = state.locations[1];
+  if (startEntry?.latInput && startEntry?.lonInput && startPoint) {
+    startEntry.latInput.value = startPoint.lat.toFixed(6);
+    startEntry.lonInput.value = startPoint.lon.toFixed(6);
+  }
+  if (turnEntry?.latInput && turnEntry?.lonInput && turnPoint) {
+    turnEntry.latInput.value = turnPoint.lat.toFixed(6);
+    turnEntry.lonInput.value = turnPoint.lon.toFixed(6);
+  }
 }
 
 /**
@@ -214,6 +400,7 @@ function refreshLocationLabels(state) {
   // Sync trip type inputs and add-anchorage state
   syncTripTypeInputs(state, allowDayTrip);
   updateAddAnchorageButtonState(state, allowDayTrip);
+  updateRouteEditorUI(state, allowDayTrip);
 }
 
 /**
@@ -250,6 +437,111 @@ function syncTripTypeInputs(state, allowDayTrip) {
   }
   if (state.overnightInput) {
     state.overnightInput.checked = !state.returnTrip;
+  }
+}
+
+/**
+ * Function: updateRouteToggleUI
+ * Description: Sync the route edit toggle UI with the current state.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ *   allowDayTrip (boolean): Whether day trip editing is available.
+ *   canEdit (boolean): Whether the current inputs support route editing.
+ * Returns: void.
+ */
+function updateRouteToggleUI(state, allowDayTrip, canEdit) {
+  if (!state) return;
+  const toggleInput = state.routeToggleInput;
+  const toggleWrapper = state.routeToggleWrapper;
+  const enabled = allowDayTrip && state.returnTrip && canEdit;
+  if (toggleInput) {
+    toggleInput.disabled = !enabled;
+    toggleInput.checked = enabled && state.routeEditActive;
+  }
+  if (toggleWrapper) {
+    toggleWrapper.classList.toggle('is-active', enabled && state.routeEditActive);
+    toggleWrapper.classList.toggle('is-disabled', !enabled);
+  }
+}
+
+/**
+ * Function: updateRouteEditorUI
+ * Description: Show or hide route editing controls based on day-trip availability.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ *   allowDayTrip (boolean): Whether day trip editing is available.
+ * Returns: void.
+ */
+function updateRouteEditorUI(state, allowDayTrip) {
+  if (!state || !state.routeEditor) return;
+  const canEdit = syncRoutePointsWithStops(state);
+  const showEditor = allowDayTrip && state.returnTrip;
+  state.routeEditor.hidden = !showEditor;
+  updateRouteToggleUI(state, allowDayTrip, canEdit);
+  if ((!showEditor || !canEdit) && state.routeEditActive) {
+    state.routeEditActive = false;
+    emit(EVENTS.MANUAL_ROUTE_EDIT_REQUESTED, { active: false });
+  }
+  if (state.routeResetBtn) {
+    const hasCustomRoute = canEdit && Array.isArray(state.routePoints) && state.routePoints.length > MIN_MANUAL_LOCATIONS;
+    state.routeResetBtn.disabled = !showEditor || !hasCustomRoute;
+  }
+}
+
+/**
+ * Function: setRouteEditActive
+ * Description: Toggle the manual route editing mode and notify the map.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ *   isActive (boolean): True to enable route editing.
+ * Returns: void.
+ */
+function setRouteEditActive(state, isActive) {
+  if (!state) return;
+  const allowDayTrip = Array.isArray(state.locations) && state.locations.length === MIN_MANUAL_LOCATIONS;
+  const canEdit = syncRoutePointsWithStops(state);
+  if (!allowDayTrip || !state.returnTrip || !canEdit) {
+    state.routeEditActive = false;
+    updateRouteToggleUI(state, allowDayTrip, canEdit);
+    emit(EVENTS.MANUAL_ROUTE_EDIT_REQUESTED, { active: false });
+    return;
+  }
+  state.routeEditActive = Boolean(isActive);
+  updateRouteToggleUI(state, allowDayTrip, canEdit);
+  emit(EVENTS.MANUAL_ROUTE_EDIT_REQUESTED, {
+    active: state.routeEditActive,
+    points: state.routePoints,
+    turnIndex: state.routeTurnIndex
+  });
+}
+
+/**
+ * Function: resetRoutePoints
+ * Description: Reset the day-trip route back to start and turn points.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ * Returns: void.
+ */
+function resetRoutePoints(state) {
+  if (!state) return;
+  if (!syncRoutePointsWithStops(state)) return;
+  const startPoint = state.routePoints[0];
+  const turnPoint = state.routePoints[state.routeTurnIndex] || state.routePoints[1];
+  if (!startPoint || !turnPoint) return;
+  state.routePoints = [
+    { lat: startPoint.lat, lon: startPoint.lon },
+    { lat: turnPoint.lat, lon: turnPoint.lon }
+  ];
+  state.routeTurnIndex = 1;
+  emitManualVoyagePreview(state);
+  updateManualMetrics(state);
+  updateRouteEditorUI(state, true);
+  if (state.routeEditActive) {
+    emit(EVENTS.MANUAL_ROUTE_EDIT_REQUESTED, {
+      active: true,
+      points: state.routePoints,
+      turnIndex: state.routeTurnIndex
+    });
   }
 }
 
@@ -342,6 +634,8 @@ function createLocationEntry(state, data = {}, insertIndex = null) {
 
   const updateHandler = () => {
     updateManualMetrics(state);
+    const allowDayTrip = state.locations.length === MIN_MANUAL_LOCATIONS;
+    updateRouteEditorUI(state, allowDayTrip);
     // Emit location update when coordinates change
     const idx = state.locations.indexOf(entry);
     if (idx === state.activeLocationIndex) {
@@ -504,7 +798,16 @@ function ensureStopTimes(state) {
     const shouldAutoFill = isLast || !inputTime || !entry.timeEdited;
     let nextTime = inputTime;
     if (shouldAutoFill) {
-      const durationMs = computeLegDurationMs(state.locations[i - 1], entry);
+      let durationMs = null;
+      if (state.returnTrip && state.locations.length === MIN_MANUAL_LOCATIONS && i === 1) {
+        const routeSummary = getRouteDistanceSummary(state);
+        if (routeSummary && Number.isFinite(routeSummary.outboundDistanceNm) && MANUAL_AVG_SPEED_KN > 0) {
+          durationMs = (routeSummary.outboundDistanceNm / MANUAL_AVG_SPEED_KN) * 60 * 60 * 1000;
+        }
+      }
+      if (!Number.isFinite(durationMs)) {
+        durationMs = computeLegDurationMs(state.locations[i - 1], entry);
+      }
       if (Number.isFinite(durationMs)) {
         nextTime = new Date(previousTime.getTime() + durationMs);
       } else {
@@ -561,15 +864,20 @@ function updateManualMetrics(state) {
   const durationValue = state.durationValue;
   let distanceNm = null;
   const locations = state.locations.map(entry => readLocationFields(entry.nameInput, entry.latInput, entry.lonInput));
+  const routeSummary = state.returnTrip ? getRouteDistanceSummary(state) : null;
   if (locations.every(Boolean) && locations.length >= MIN_MANUAL_LOCATIONS) {
-    distanceNm = locations.reduce((sum, location, index) => {
-      if (index === 0) return 0;
-      const prev = locations[index - 1];
-      const legDistance = calculateDistanceNm(prev.lat, prev.lon, location.lat, location.lon);
-      return sum + (Number.isFinite(legDistance) ? legDistance : 0);
-    }, 0);
-    if (state.returnTrip && locations.length === MIN_MANUAL_LOCATIONS) {
-      distanceNm = distanceNm * 2;
+    if (routeSummary && Number.isFinite(routeSummary.totalDistanceNm)) {
+      distanceNm = routeSummary.totalDistanceNm;
+    } else {
+      distanceNm = locations.reduce((sum, location, index) => {
+        if (index === 0) return 0;
+        const prev = locations[index - 1];
+        const legDistance = calculateDistanceNm(prev.lat, prev.lon, location.lat, location.lon);
+        return sum + (Number.isFinite(legDistance) ? legDistance : 0);
+      }, 0);
+      if (state.returnTrip && locations.length === MIN_MANUAL_LOCATIONS) {
+        distanceNm = distanceNm * 2;
+      }
     }
   }
   if (distanceValue) {
@@ -682,6 +990,7 @@ function setPanelVisibility(state, isVisible) {
   if (!isVisible) {
     clearMapClickCapture();
     setPickMode(state, null);
+    setRouteEditActive(state, false);
     // Clear location highlight and preview when panel closes
     emit(EVENTS.MANUAL_LOCATION_SELECTED, { location: null });
     emit(EVENTS.MANUAL_VOYAGE_PREVIEW, { locations: null });
@@ -772,6 +1081,10 @@ function extractVoyageLocations(voyage, returnTrip) {
 function populateFormFromVoyage(state, voyage) {
   if (!state || !voyage) return;
   state.returnTrip = Boolean(voyage.returnTrip);
+  state.routePoints = state.returnTrip ? normalizeRoutePoints(voyage.manualRoutePoints) || [] : [];
+  state.routeTurnIndex = state.returnTrip && Number.isInteger(voyage.manualRouteTurnIndex)
+    ? voyage.manualRouteTurnIndex
+    : null;
   if (state.dayTripInput) {
     state.dayTripInput.checked = state.returnTrip;
   }
@@ -847,6 +1160,7 @@ function handleMapPick(state, target, event) {
   if (entry.lonInput) entry.lonInput.value = lonValue;
   if (entry.nameInput) entry.nameInput.focus();
   updateManualMetrics(state);
+  updateRouteEditorUI(state, state.locations.length === MIN_MANUAL_LOCATIONS);
   setPickMode(state, null);
   // Update location highlight and preview after picking coordinates
   const location = readLocationFields(entry.nameInput, entry.latInput, entry.lonInput);
@@ -872,6 +1186,7 @@ function applyLocationLookup(state, entry) {
   entry.latInput.value = Number(match.lat).toFixed(6);
   entry.lonInput.value = Number(match.lon).toFixed(6);
   updateManualMetrics(state);
+  updateRouteEditorUI(state, state.locations.length === MIN_MANUAL_LOCATIONS);
   emitManualVoyagePreview(state);
 }
 
@@ -887,13 +1202,50 @@ function emitManualVoyagePreview(state) {
   const validLocations = state.locations
     .map(entry => readLocationFields(entry.nameInput, entry.latInput, entry.lonInput))
     .filter(loc => loc !== null);
+  const routePoints = state.returnTrip && syncRoutePointsWithStops(state) ? state.routePoints : null;
+  const routeTurnIndex = state.returnTrip && Number.isInteger(state.routeTurnIndex) ? state.routeTurnIndex : null;
 
   if (validLocations.length >= 2) {
-    emit(EVENTS.MANUAL_VOYAGE_PREVIEW, { locations: validLocations });
+    emit(EVENTS.MANUAL_VOYAGE_PREVIEW, {
+      locations: validLocations,
+      returnTrip: Boolean(state.returnTrip),
+      routePoints,
+      routeTurnIndex
+    });
   } else {
     // Clear preview if we don't have enough valid locations
     emit(EVENTS.MANUAL_VOYAGE_PREVIEW, { locations: null });
   }
+}
+
+/**
+ * Function: handleManualRouteUpdated
+ * Description: Apply route edits from the map back into the manual form state.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ *   payload (object): Route update payload from the map.
+ * Returns: void.
+ */
+function handleManualRouteUpdated(state, payload = {}) {
+  if (!state || !state.returnTrip || !Array.isArray(state.locations)) return;
+  if (state.locations.length !== MIN_MANUAL_LOCATIONS) return;
+  const incomingPoints = normalizeRoutePoints(payload.points);
+  if (!incomingPoints) return;
+  let turnIndex = Number.isInteger(payload.turnIndex) ? payload.turnIndex : 1;
+  if (turnIndex < 1 || turnIndex >= incomingPoints.length) {
+    turnIndex = Math.max(1, incomingPoints.length - 1);
+  }
+  state.routePoints = incomingPoints;
+  state.routeTurnIndex = turnIndex;
+  applyRoutePointsToInputs(state);
+  if (state.activeLocationIndex === 0 || state.activeLocationIndex === 1) {
+    const activeEntry = state.locations[state.activeLocationIndex];
+    const location = readLocationFields(activeEntry?.nameInput, activeEntry?.latInput, activeEntry?.lonInput);
+    emit(EVENTS.MANUAL_LOCATION_SELECTED, { location });
+  }
+  updateManualMetrics(state);
+  emitManualVoyagePreview(state);
+  updateRouteEditorUI(state, true);
 }
 
 /**
@@ -921,12 +1273,19 @@ function buildManualPayload(state) {
   });
   if (baseLocations.some(location => !location)) return null;
   let locations = baseLocations.slice();
+  const routeSummary = state.returnTrip ? getRouteDistanceSummary(state) : null;
   if (state.returnTrip && baseLocations.length === MIN_MANUAL_LOCATIONS) {
     const start = baseLocations[0];
     const via = baseLocations[1];
-    const legDistance = calculateDistanceNm(start.lat, start.lon, via.lat, via.lon);
-    if (!Number.isFinite(legDistance) || MANUAL_AVG_SPEED_KN <= 0) return null;
-    const durationMs = (legDistance / MANUAL_AVG_SPEED_KN) * 60 * 60 * 1000;
+    const outboundDistance = routeSummary && Number.isFinite(routeSummary.outboundDistanceNm)
+      ? routeSummary.outboundDistanceNm
+      : calculateDistanceNm(start.lat, start.lon, via.lat, via.lon);
+    if (!Number.isFinite(outboundDistance) || MANUAL_AVG_SPEED_KN <= 0) return null;
+    const totalDistance = routeSummary && Number.isFinite(routeSummary.totalDistanceNm)
+      ? routeSummary.totalDistanceNm
+      : outboundDistance * 2;
+    const returnDistance = Math.max(0, totalDistance - outboundDistance);
+    const durationMs = (returnDistance / MANUAL_AVG_SPEED_KN) * 60 * 60 * 1000;
     const viaTime = new Date(via.time);
     if (Number.isNaN(viaTime.getTime())) return null;
     const returnTime = new Date(viaTime.getTime() + durationMs);
@@ -961,7 +1320,9 @@ function buildManualPayload(state) {
     endTime,
     startLocation,
     endLocation,
-    returnTrip: Boolean(state.returnTrip)
+    returnTrip: Boolean(state.returnTrip),
+    routePoints: state.returnTrip ? normalizeRoutePoints(state.routePoints) || undefined : undefined,
+    routeTurnIndex: state.returnTrip && Number.isInteger(state.routeTurnIndex) ? state.routeTurnIndex : undefined
   };
 }
 
@@ -1111,6 +1472,11 @@ export function initManualVoyagePanel(options = {}) {
   const addStopBtn = document.getElementById('manualAddStopBtn');
   const dayTripInput = document.getElementById('manualDayTripInput');
   const overnightInput = document.getElementById('manualOvernightInput');
+  const routeEditor = document.getElementById('manualRouteEditor');
+  const routeToggleInput = document.getElementById('manualRouteToggle');
+  const routeToggleWrapper = routeToggleInput ? routeToggleInput.closest('.toggle-switch') : null;
+  const routeResetBtn = document.getElementById('manualRouteResetBtn');
+  const routeHint = document.getElementById('manualRouteHint');
   if (!panel || !form || !locationList || !tabList || !tabPanels || !locationTemplate) {
     return { updateLocationOptions: () => {} };
   }
@@ -1125,6 +1491,11 @@ export function initManualVoyagePanel(options = {}) {
     addStopBtn,
     dayTripInput,
     overnightInput,
+    routeEditor,
+    routeToggleInput,
+    routeToggleWrapper,
+    routeResetBtn,
+    routeHint,
     apiBasePath: options.apiBasePath || '',
     onSaved: typeof options.onSaved === 'function' ? options.onSaved : null,
     locationLookup: new Map(),
@@ -1133,6 +1504,9 @@ export function initManualVoyagePanel(options = {}) {
     addButton: document.getElementById('manualAddBtn'),
     deleteButton: document.getElementById('manualDeleteBtn'),
     returnTrip: false,
+    routePoints: [],
+    routeTurnIndex: null,
+    routeEditActive: false,
     locations: [],
     activeLocationIndex: 0,
     activePickIndex: null,
@@ -1151,6 +1525,7 @@ export function initManualVoyagePanel(options = {}) {
       if (state.overnightInput) {
         state.overnightInput.checked = true;
       }
+      setRouteEditActive(state, false);
       rebuildLocationEntries(state, []);
       updateManualMetrics(state);
     });
@@ -1186,6 +1561,7 @@ export function initManualVoyagePanel(options = {}) {
       if (state.dayTripInput) {
         state.dayTripInput.checked = false;
       }
+      setRouteEditActive(state, false);
       updateManualMetrics(state);
       refreshLocationLabels(state);
     });
@@ -1258,6 +1634,22 @@ export function initManualVoyagePanel(options = {}) {
     observer.observe(container, { attributes: true, attributeFilter: ['class'] });
   }
 
+  if (routeToggleInput) {
+    routeToggleInput.addEventListener('change', () => {
+      setRouteEditActive(state, routeToggleInput.checked);
+    });
+  }
+
+  if (routeResetBtn) {
+    routeResetBtn.addEventListener('click', () => {
+      resetRoutePoints(state);
+    });
+  }
+
+  on(EVENTS.MANUAL_ROUTE_UPDATED, (payload) => {
+    handleManualRouteUpdated(state, payload);
+  });
+
   if (addStopBtn) {
     addStopBtn.addEventListener('click', () => {
       state.returnTrip = false;
@@ -1267,6 +1659,7 @@ export function initManualVoyagePanel(options = {}) {
       if (state.overnightInput) {
         state.overnightInput.checked = true;
       }
+      setRouteEditActive(state, false);
       const insertIndex = Math.max(state.locations.length - 1, 1);
       createLocationEntry(state, {}, insertIndex);
       refreshLocationLabels(state);

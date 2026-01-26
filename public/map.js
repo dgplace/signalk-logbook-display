@@ -56,6 +56,9 @@ import {
 
 // Map state and configuration
 const MANUAL_VOYAGE_COLOR = '#94a3b8';
+const ROUTE_EDIT_ACTIVE_COLOR = '#1a9748';
+const ROUTE_EDIT_DIM_COLOR = MANUAL_VOYAGE_COLOR;
+const ROUTE_EDIT_DIM_OPACITY = 0.4;
 
 let mapInstance = null;
 let polylines = [];
@@ -68,6 +71,16 @@ let selectedWindGroup = null;
 let windIntensityLayer = null;
 let highlightedLocationMarker = null;
 let manualVoyagePreviewPolyline = null;
+let manualVoyagePreviewArrows = [];
+let manualRouteEditActive = false;
+let manualRouteEditLayer = null;
+let manualRouteEditMarkers = [];
+let manualRouteEditPoints = [];
+let manualRouteEditTurnIndex = null;
+let manualRouteEditClicker = null;
+let manualRouteEditHitPolyline = null;
+let manualRouteHiddenLayers = null;
+let manualRouteDimmedLayers = null;
 let currentVoyagePoints = [];
 let allVoyagesBounds = null;
 let suppressHistoryUpdate = false;
@@ -442,6 +455,13 @@ export function addVoyageToMap(voyage, row) {
   if (segments.length > 0) {
     segments.forEach((seg) => {
       const latLngs = seg.points.map(p => [p.lat, p.lon]);
+      if (seg.closeLoop && latLngs.length > 1) {
+        const first = latLngs[0];
+        const last = latLngs[latLngs.length - 1];
+        if (first && last && (Math.abs(first[0] - last[0]) > 1e-6 || Math.abs(first[1] - last[1]) > 1e-6)) {
+          latLngs.push(first);
+        }
+      }
       const polyline = L.polyline(latLngs, { color: baseColor, weight: 2 }).addTo(mapInstance);
       polyline._baseColor = baseColor;
       seg.polyline = polyline;
@@ -450,6 +470,7 @@ export function addVoyageToMap(voyage, row) {
       voyageBounds = voyageBounds ? voyageBounds.extend(bounds) : bounds;
       const voySelect = (ev) => {
         L.DomEvent.stopPropagation(ev);
+        if (manualRouteEditActive) return;
         emit(EVENTS.VOYAGE_SELECT_REQUESTED, {
           voyage,
           row,
@@ -470,6 +491,7 @@ export function addVoyageToMap(voyage, row) {
     voyageBounds = line.getBounds();
     const voySelect = (ev) => {
       L.DomEvent.stopPropagation(ev);
+      if (manualRouteEditActive) return;
       emit(EVENTS.VOYAGE_SELECT_REQUESTED, {
         voyage,
         row,
@@ -523,6 +545,7 @@ export function drawMaxSpeedMarkerFromCoord(coord, speed) {
   maxMarker = L.circleMarker([lat, lon], { color: 'orange', radius: 6 }).addTo(mapInstance);
   maxMarker.bindPopup(`Max SoG: ${Number(speed).toFixed(1)} kn`, { autoPan: false, autoClose: false, closeOnClick: false }).openPopup();
   const onMaxSelect = (e) => {
+    if (manualRouteEditActive) return;
     const clickLL = e.latlng || (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches[0]
       ? mapInstance.mouseEventToLatLng(e.originalEvent.touches[0])
       : null);
@@ -623,16 +646,127 @@ export function highlightLocation(lat, lon, name = '') {
 }
 
 /**
+ * Function: normalizeRoutePoints
+ * Description: Normalize a list of route points into lat/lon objects.
+ * Parameters:
+ *   points (object[]): Raw route points.
+ * Returns: object[]|null - Normalized points or null when invalid.
+ */
+function normalizeRoutePoints(points) {
+  if (!Array.isArray(points) || points.length < 2) return null;
+  const normalized = points.map((point) => {
+    const lat = Number(point?.lat);
+    const lon = Number(point?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return { lat, lon };
+  }).filter(Boolean);
+  if (normalized.length < 2) return null;
+  return normalized;
+}
+
+/**
+ * Function: buildRouteLatLngs
+ * Description: Build Leaflet lat/lon pairs for route rendering, closing the loop when requested.
+ * Parameters:
+ *   points (object[]): Normalized route points with lat/lon values.
+ *   closeLoop (boolean): When true, append the start point to close the loop.
+ * Returns: Array - Array of `[lat, lon]` pairs for Leaflet polylines.
+ */
+function buildRouteLatLngs(points, closeLoop) {
+  const latLngs = points.map(point => [point.lat, point.lon]);
+  if (closeLoop && latLngs.length > 1) {
+    const first = latLngs[0];
+    const last = latLngs[latLngs.length - 1];
+    if (first && last && (Math.abs(first[0] - last[0]) > 1e-6 || Math.abs(first[1] - last[1]) > 1e-6)) {
+      latLngs.push(first);
+    }
+  }
+  return latLngs;
+}
+
+/**
+ * Function: clearManualVoyagePreviewArrows
+ * Description: Remove direction arrow markers for manual voyage previews.
+ * Parameters: None.
+ * Returns: void.
+ */
+function clearManualVoyagePreviewArrows() {
+  if (!Array.isArray(manualVoyagePreviewArrows) || manualVoyagePreviewArrows.length === 0) {
+    manualVoyagePreviewArrows = [];
+    return;
+  }
+  manualVoyagePreviewArrows.forEach((marker) => {
+    if (marker && mapInstance) {
+      try { mapInstance.removeLayer(marker); } catch (_) {}
+    }
+  });
+  manualVoyagePreviewArrows = [];
+}
+
+/**
+ * Function: createRouteArrowIcon
+ * Description: Create a Leaflet div icon for route direction arrows.
+ * Parameters:
+ *   rotation (number): Rotation angle in degrees.
+ * Returns: object - Leaflet divIcon instance.
+ */
+function createRouteArrowIcon(rotation) {
+  const angle = Number.isFinite(rotation) ? rotation : 0;
+  return L.divIcon({
+    className: 'manual-route-arrow-icon',
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+    html: `<span class="manual-route-arrow" style="--rotation: ${angle}deg;"></span>`
+  });
+}
+
+/**
+ * Function: drawManualRouteArrows
+ * Description: Render direction arrows along the manual route preview.
+ * Parameters:
+ *   points (object[]): Normalized route points with lat/lon values.
+ *   closeLoop (boolean): When true, include the closing segment back to start.
+ * Returns: void.
+ */
+function drawManualRouteArrows(points, closeLoop) {
+  clearManualVoyagePreviewArrows();
+  if (!mapInstance || !Array.isArray(points) || points.length < 2) return;
+  const totalSegments = closeLoop ? points.length : points.length - 1;
+  const maxArrows = 12;
+  const step = Math.max(1, Math.ceil(totalSegments / maxArrows));
+  for (let i = 0; i < totalSegments; i += step) {
+    const start = points[i];
+    const end = (i === points.length - 1) ? points[0] : points[i + 1];
+    if (!start || !end) continue;
+    const midLat = (start.lat + end.lat) / 2;
+    const midLon = (start.lon + end.lon) / 2;
+    const rotation = bearingBetween(start.lat, start.lon, end.lat, end.lon);
+    const marker = L.marker([midLat, midLon], {
+      icon: createRouteArrowIcon(rotation),
+      interactive: false
+    });
+    marker.addTo(mapInstance);
+    manualVoyagePreviewArrows.push(marker);
+  }
+}
+
+/**
  * Function: clearManualVoyagePreview
  * Description: Remove the manual voyage preview polyline from the map.
  * Parameters: None.
  * Returns: void.
  */
 export function clearManualVoyagePreview() {
+  detachManualRouteInsertHandler();
   if (manualVoyagePreviewPolyline && mapInstance) {
     mapInstance.removeLayer(manualVoyagePreviewPolyline);
   }
   manualVoyagePreviewPolyline = null;
+  if (manualRouteEditHitPolyline && mapInstance) {
+    mapInstance.removeLayer(manualRouteEditHitPolyline);
+  }
+  manualRouteEditHitPolyline = null;
+  clearManualVoyagePreviewArrows();
 }
 
 /**
@@ -640,20 +774,23 @@ export function clearManualVoyagePreview() {
  * Description: Draw a preview polyline for manual voyage creation with valid locations.
  * Parameters:
  *   locations (array): Array of location objects with lat, lon properties.
+ *   options (object): Optional flags controlling loop closure and direction arrows.
  * Returns: void.
  */
-export function drawManualVoyagePreview(locations) {
+export function drawManualVoyagePreview(locations, options = {}) {
   clearManualVoyagePreview();
   if (!mapInstance || !Array.isArray(locations) || locations.length < 2) return;
 
-  const latLngs = locations
-    .filter(loc => Number.isFinite(loc.lat) && Number.isFinite(loc.lon))
-    .map(loc => [loc.lat, loc.lon]);
+  const normalized = normalizeRoutePoints(locations);
+  if (!normalized || normalized.length < 2) return;
+  const closeLoop = Boolean(options.closeLoop);
+  const latLngs = buildRouteLatLngs(normalized, closeLoop);
 
   if (latLngs.length < 2) return;
 
+  const previewColor = manualRouteEditActive ? ROUTE_EDIT_ACTIVE_COLOR : MANUAL_VOYAGE_COLOR;
   manualVoyagePreviewPolyline = L.polyline(latLngs, {
-    color: '#94a3b8',
+    color: previewColor,
     weight: 3,
     opacity: 0.7,
     dashArray: '5, 10',
@@ -662,6 +799,419 @@ export function drawManualVoyagePreview(locations) {
   });
 
   manualVoyagePreviewPolyline.addTo(mapInstance);
+
+  if (options.showDirection) {
+    drawManualRouteArrows(normalized, closeLoop);
+  }
+  if (manualRouteEditActive) {
+    ensureManualRouteEditHitPolyline(latLngs);
+    attachManualRouteInsertHandler();
+  }
+}
+
+/**
+ * Function: clampRouteTurnIndex
+ * Description: Clamp the turnaround index to the valid range for the route points.
+ * Parameters:
+ *   turnIndex (number): Proposed turnaround index.
+ *   length (number): Total number of route points.
+ * Returns: number - Clamped turnaround index.
+ */
+function clampRouteTurnIndex(turnIndex, length) {
+  if (!Number.isInteger(turnIndex)) return Math.max(1, length - 1);
+  return Math.max(1, Math.min(turnIndex, length - 1));
+}
+
+/**
+ * Function: createManualRouteMarkerIcon
+ * Description: Build a Leaflet div icon for manual route point markers.
+ * Parameters:
+ *   kind (string): Marker kind ("start", "turn", or "via").
+ * Returns: object - Leaflet divIcon instance.
+ */
+function createManualRouteMarkerIcon(kind) {
+  const label = kind === 'start' ? 'S' : (kind === 'turn' ? 'T' : '');
+  return L.divIcon({
+    className: `manual-route-marker manual-route-marker-${kind}`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+    html: `<span class="manual-route-marker-dot">${label}</span>`
+  });
+}
+
+/**
+ * Function: clearManualRouteEditLayer
+ * Description: Remove manual route editor markers from the map.
+ * Parameters: None.
+ * Returns: void.
+ */
+function clearManualRouteEditLayer() {
+  if (manualRouteEditLayer && mapInstance) {
+    mapInstance.removeLayer(manualRouteEditLayer);
+  }
+  manualRouteEditLayer = null;
+  manualRouteEditMarkers = [];
+}
+
+/**
+ * Function: capturePolylineStyleSnapshot
+ * Description: Capture the current style needed to restore a dimmed polyline.
+ * Parameters:
+ *   polyline (object): Leaflet polyline layer.
+ * Returns: object|null - Style snapshot or null when unavailable.
+ */
+function capturePolylineStyleSnapshot(polyline) {
+  if (!polyline || !polyline.options) return null;
+  return {
+    color: polyline.options.color,
+    weight: polyline.options.weight,
+    opacity: polyline.options.opacity,
+    dashArray: polyline.options.dashArray,
+    lineCap: polyline.options.lineCap,
+    lineJoin: polyline.options.lineJoin,
+    interactive: typeof polyline.options.interactive === 'boolean' ? polyline.options.interactive : true
+  };
+}
+
+/**
+ * Function: hideVoyageLayersForRouteEdit
+ * Description: Dim and disable voyage layers while editing a manual loop.
+ * Parameters: None.
+ * Returns: void.
+ */
+function hideVoyageLayersForRouteEdit() {
+  if (!mapInstance || manualRouteHiddenLayers || manualRouteDimmedLayers) return;
+  const hidden = new Set();
+  const hideLayer = (layer) => {
+    if (!layer || !mapInstance || !mapInstance.hasLayer(layer)) return;
+    mapInstance.removeLayer(layer);
+    hidden.add(layer);
+  };
+  const dimmed = new Map();
+  const dimLayer = (layer) => {
+    if (!layer || !mapInstance || !mapInstance.hasLayer(layer)) return;
+    if (dimmed.has(layer)) return;
+    if (typeof layer.setStyle !== 'function') return;
+    const snapshot = capturePolylineStyleSnapshot(layer);
+    if (!snapshot) return;
+    dimmed.set(layer, snapshot);
+    try {
+      layer.setStyle({
+        color: ROUTE_EDIT_DIM_COLOR,
+        opacity: ROUTE_EDIT_DIM_OPACITY,
+        interactive: false
+      });
+    } catch (_) {}
+  };
+  (polylines || []).forEach(dimLayer);
+  (activePolylines || []).forEach(dimLayer);
+  hideLayer(activePointMarkersGroup);
+  hideLayer(selectedPointMarker);
+  hideLayer(maxMarker);
+  hideLayer(selectedWindGroup);
+  hideLayer(windIntensityLayer);
+  manualRouteHiddenLayers = Array.from(hidden);
+  manualRouteDimmedLayers = dimmed;
+}
+
+/**
+ * Function: restoreVoyageLayersAfterRouteEdit
+ * Description: Restore voyage layers hidden during manual loop editing.
+ * Parameters: None.
+ * Returns: void.
+ */
+function restoreVoyageLayersAfterRouteEdit() {
+  if (!mapInstance) return;
+  if (manualRouteDimmedLayers) {
+    manualRouteDimmedLayers.forEach((style, layer) => {
+      try {
+        layer.setStyle({
+          color: style.color,
+          weight: style.weight,
+          opacity: style.opacity,
+          dashArray: style.dashArray,
+          lineCap: style.lineCap,
+          lineJoin: style.lineJoin,
+          interactive: style.interactive
+        });
+      } catch (_) {}
+    });
+    manualRouteDimmedLayers = null;
+  }
+  if (manualRouteHiddenLayers) {
+    manualRouteHiddenLayers.forEach((layer) => {
+      try { mapInstance.addLayer(layer); } catch (_) {}
+    });
+    manualRouteHiddenLayers = null;
+  }
+}
+
+/**
+ * Function: updateManualRoutePreviewFromEditor
+ * Description: Refresh the preview polyline and arrows while editing the route.
+ * Parameters: None.
+ * Returns: void.
+ */
+function updateManualRoutePreviewFromEditor() {
+  if (!manualRouteEditActive || !Array.isArray(manualRouteEditPoints) || manualRouteEditPoints.length < 2) return;
+  if (!manualVoyagePreviewPolyline) {
+    drawManualVoyagePreview(manualRouteEditPoints, { closeLoop: true, showDirection: true });
+    return;
+  }
+  const latLngs = buildRouteLatLngs(manualRouteEditPoints, true);
+  manualVoyagePreviewPolyline.setLatLngs(latLngs);
+  ensureManualRouteEditHitPolyline(latLngs);
+  drawManualRouteArrows(manualRouteEditPoints, true);
+}
+
+/**
+ * Function: emitManualRouteUpdated
+ * Description: Emit route updates from map edits back to the manual form.
+ * Parameters: None.
+ * Returns: void.
+ */
+function emitManualRouteUpdated() {
+  if (!manualRouteEditActive) return;
+  emit(EVENTS.MANUAL_ROUTE_UPDATED, {
+    points: manualRouteEditPoints.map(point => ({ lat: point.lat, lon: point.lon })),
+    turnIndex: manualRouteEditTurnIndex
+  });
+}
+
+/**
+ * Function: distanceToSegment
+ * Description: Calculate the distance from a point to a line segment in screen space.
+ * Parameters:
+ *   point (object): Screen point with x/y values.
+ *   start (object): Segment start point with x/y values.
+ *   end (object): Segment end point with x/y values.
+ * Returns: number - Distance in pixels.
+ */
+function distanceToSegment(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  if (dx === 0 && dy === 0) {
+    return Math.hypot(point.x - start.x, point.y - start.y);
+  }
+  const t = ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy);
+  const clamped = Math.max(0, Math.min(1, t));
+  const projX = start.x + clamped * dx;
+  const projY = start.y + clamped * dy;
+  return Math.hypot(point.x - projX, point.y - projY);
+}
+
+/**
+ * Function: findRouteInsertIndex
+ * Description: Find the best insertion index for a new point along the loop.
+ * Parameters:
+ *   latLng (object): Leaflet latlng for the insertion location.
+ *   points (object[]): Normalized route points.
+ * Returns: number|null - Insert index or null when unavailable.
+ */
+function findRouteInsertIndex(latLng, points) {
+  if (!mapInstance || !Array.isArray(points) || points.length < 2) return null;
+  const screenPoint = mapInstance.latLngToLayerPoint(latLng);
+  let bestIndex = null;
+  let bestDistance = Infinity;
+  const totalSegments = points.length;
+  for (let i = 0; i < totalSegments; i += 1) {
+    const start = points[i];
+    const end = (i === points.length - 1) ? points[0] : points[i + 1];
+    if (!start || !end) continue;
+    const startPt = mapInstance.latLngToLayerPoint([start.lat, start.lon]);
+    const endPt = mapInstance.latLngToLayerPoint([end.lat, end.lon]);
+    const dist = distanceToSegment(screenPoint, startPt, endPt);
+    if (dist < bestDistance) {
+      bestDistance = dist;
+      bestIndex = (i === points.length - 1) ? points.length : i + 1;
+    }
+  }
+  return bestIndex;
+}
+
+/**
+ * Function: insertRoutePoint
+ * Description: Insert a new route point at the supplied location.
+ * Parameters:
+ *   latLng (object): Leaflet latlng for the insertion location.
+ * Returns: void.
+ */
+function insertRoutePoint(latLng) {
+  if (!manualRouteEditActive || !Array.isArray(manualRouteEditPoints)) return;
+  const insertIndex = findRouteInsertIndex(latLng, manualRouteEditPoints);
+  if (insertIndex === null) return;
+  manualRouteEditPoints.splice(insertIndex, 0, { lat: latLng.lat, lon: latLng.lng });
+  if (insertIndex <= manualRouteEditTurnIndex) {
+    manualRouteEditTurnIndex += 1;
+  }
+  manualRouteEditTurnIndex = clampRouteTurnIndex(manualRouteEditTurnIndex, manualRouteEditPoints.length);
+  updateManualRoutePreviewFromEditor();
+  renderManualRouteEditMarkers();
+  emitManualRouteUpdated();
+}
+
+/**
+ * Function: ensureManualRouteEditHitPolyline
+ * Description: Maintain an invisible, wide polyline to capture route insert clicks.
+ * Parameters:
+ *   latLngs (array): Lat/lon pairs for the route line.
+ * Returns: void.
+ */
+function ensureManualRouteEditHitPolyline(latLngs) {
+  if (!mapInstance) return;
+  const hitStyle = {
+    color: '#000000',
+    opacity: 0,
+    weight: 16,
+    lineCap: 'round',
+    lineJoin: 'round',
+    interactive: true
+  };
+  if (!manualRouteEditHitPolyline) {
+    manualRouteEditHitPolyline = L.polyline(latLngs, hitStyle);
+  } else {
+    manualRouteEditHitPolyline.setLatLngs(latLngs);
+    manualRouteEditHitPolyline.setStyle(hitStyle);
+  }
+  if (!mapInstance.hasLayer(manualRouteEditHitPolyline)) {
+    manualRouteEditHitPolyline.addTo(mapInstance);
+  }
+}
+
+/**
+ * Function: detachManualRouteInsertHandler
+ * Description: Remove the route insert click handler from preview layers.
+ * Parameters: None.
+ * Returns: void.
+ */
+function detachManualRouteInsertHandler() {
+  if (!manualRouteEditClicker) return;
+  const targets = [manualRouteEditHitPolyline, manualVoyagePreviewPolyline];
+  targets.forEach((layer) => {
+    if (!layer) return;
+    try { layer.off('click', manualRouteEditClicker); } catch (_) {}
+    try { layer.off('tap', manualRouteEditClicker); } catch (_) {}
+  });
+  manualRouteEditClicker = null;
+}
+
+/**
+ * Function: attachManualRouteInsertHandler
+ * Description: Attach a click handler to insert route points along the preview line.
+ * Parameters: None.
+ * Returns: void.
+ */
+function attachManualRouteInsertHandler() {
+  if (!manualRouteEditActive || !manualVoyagePreviewPolyline) return;
+  detachManualRouteInsertHandler();
+  manualRouteEditClicker = (event) => {
+    if (!event?.latlng) return;
+    L.DomEvent.stopPropagation(event);
+    insertRoutePoint(event.latlng);
+  };
+  const target = manualRouteEditHitPolyline || manualVoyagePreviewPolyline;
+  target.on('click', manualRouteEditClicker);
+  target.on('tap', manualRouteEditClicker);
+}
+
+/**
+ * Function: renderManualRouteEditMarkers
+ * Description: Render draggable markers for each manual route point.
+ * Parameters: None.
+ * Returns: void.
+ */
+function renderManualRouteEditMarkers() {
+  clearManualRouteEditLayer();
+  if (!mapInstance || !manualRouteEditActive || !Array.isArray(manualRouteEditPoints)) return;
+  manualRouteEditLayer = L.layerGroup();
+  manualRouteEditMarkers = manualRouteEditPoints.map((point, index) => {
+    if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lon)) return null;
+    const kind = index === 0 ? 'start' : (index === manualRouteEditTurnIndex ? 'turn' : 'via');
+    const marker = L.marker([point.lat, point.lon], {
+      icon: createManualRouteMarkerIcon(kind),
+      draggable: true
+    });
+    marker.on('drag', (event) => {
+      const latlng = event?.target?.getLatLng();
+      if (!latlng) return;
+      manualRouteEditPoints[index] = { lat: latlng.lat, lon: latlng.lng };
+      updateManualRoutePreviewFromEditor();
+    });
+    marker.on('dragend', () => {
+      emitManualRouteUpdated();
+    });
+    marker.on('dblclick', (event) => {
+      L.DomEvent.stopPropagation(event);
+      if (manualRouteEditPoints.length <= 2) return;
+      if (index === 0 || index === manualRouteEditTurnIndex) return;
+      manualRouteEditPoints.splice(index, 1);
+      if (index < manualRouteEditTurnIndex) {
+        manualRouteEditTurnIndex -= 1;
+      }
+      manualRouteEditTurnIndex = clampRouteTurnIndex(manualRouteEditTurnIndex, manualRouteEditPoints.length);
+      updateManualRoutePreviewFromEditor();
+      renderManualRouteEditMarkers();
+      emitManualRouteUpdated();
+    });
+    marker.addTo(manualRouteEditLayer);
+    return marker;
+  }).filter(Boolean);
+  manualRouteEditLayer.addTo(mapInstance);
+}
+
+/**
+ * Function: setManualRouteEditing
+ * Description: Enable or disable manual route editing on the map.
+ * Parameters:
+ *   active (boolean): True when editing mode should be enabled.
+ *   points (object[]): Route points to edit.
+ *   turnIndex (number): Index of the turnaround point.
+ * Returns: void.
+ */
+function setManualRouteEditing(active, points, turnIndex) {
+  if (!active) {
+    manualRouteEditActive = false;
+    manualRouteEditPoints = [];
+    manualRouteEditTurnIndex = null;
+    clearManualRouteEditLayer();
+    detachManualRouteInsertHandler();
+    if (manualRouteEditHitPolyline && mapInstance) {
+      mapInstance.removeLayer(manualRouteEditHitPolyline);
+    }
+    manualRouteEditHitPolyline = null;
+    restoreVoyageLayersAfterRouteEdit();
+    return;
+  }
+  const normalized = normalizeRoutePoints(points);
+  if (!normalized || normalized.length < 2) {
+    manualRouteEditActive = false;
+    clearManualRouteEditLayer();
+    restoreVoyageLayersAfterRouteEdit();
+    return;
+  }
+  manualRouteEditActive = true;
+  manualRouteEditPoints = normalized;
+  manualRouteEditTurnIndex = clampRouteTurnIndex(turnIndex, normalized.length);
+  hideVoyageLayersForRouteEdit();
+  drawManualVoyagePreview(manualRouteEditPoints, { closeLoop: true, showDirection: true });
+  renderManualRouteEditMarkers();
+}
+
+/**
+ * Function: syncManualRouteEditor
+ * Description: Sync route editor markers with updated route points.
+ * Parameters:
+ *   points (object[]): Route points to render.
+ *   turnIndex (number): Index of the turnaround point.
+ * Returns: void.
+ */
+function syncManualRouteEditor(points, turnIndex) {
+  if (!manualRouteEditActive) return;
+  const normalized = normalizeRoutePoints(points);
+  if (!normalized || normalized.length < 2) return;
+  manualRouteEditPoints = normalized;
+  manualRouteEditTurnIndex = clampRouteTurnIndex(turnIndex, normalized.length);
+  renderManualRouteEditMarkers();
 }
 
 /**
@@ -681,6 +1231,7 @@ export function renderActivePointMarkers(points) {
     const marker = L.marker([point.lat, point.lon], { icon });
     marker.on('click', (event) => {
       L.DomEvent.stopPropagation(event);
+      if (manualRouteEditActive) return;
       updateSelectedPoint(point, { prev: points[idx - 1], next: points[idx + 1] });
     });
     marker.addTo(layer);
@@ -930,6 +1481,7 @@ export function resetVoyageSelection() {
  * Returns: void.
  */
 function onPolylineClick(event, points) {
+  if (manualRouteEditActive) return;
   if (!points || points.length === 0) return;
   const clickLL = event.latlng;
   let bestIdx = 0;
@@ -1112,6 +1664,17 @@ export function initializeMap(onBackgroundClick) {
   activePointMarkersGroup = null;
   selectedWindGroup = null;
   windIntensityLayer = null;
+  manualVoyagePreviewPolyline = null;
+  manualVoyagePreviewArrows = [];
+  manualRouteEditActive = false;
+  manualRouteEditLayer = null;
+  manualRouteEditMarkers = [];
+  manualRouteEditPoints = [];
+  manualRouteEditTurnIndex = null;
+  manualRouteEditClicker = null;
+  manualRouteEditHitPolyline = null;
+  manualRouteHiddenLayers = null;
+  manualRouteDimmedLayers = null;
   currentVoyagePoints = [];
   baseTileLayer = null;
   mapInstance = L.map('map').setView([0, 0], 2);
@@ -1181,6 +1744,7 @@ function findNearestVoyageSelection(latLng) {
 }
 
 export function handleMapBackgroundClick(event) {
+  if (manualRouteEditActive) return;
   const latLng = event?.latlng;
   if (!latLng) return;
   const nearest = findNearestVoyageSelection(latLng);
@@ -1347,11 +1911,43 @@ function handleManualLocationSelected(payload = {}) {
  */
 function handleManualVoyagePreview(payload = {}) {
   const locations = payload?.locations;
-  if (!locations || !Array.isArray(locations) || locations.length < 2) {
+  const returnTrip = Boolean(payload?.returnTrip);
+  const routePoints = payload?.routePoints;
+  const routeTurnIndex = Number.isInteger(payload?.routeTurnIndex) ? payload.routeTurnIndex : null;
+  const hasLocations = Array.isArray(locations) && locations.length >= 2;
+  const hasRoutePoints = Array.isArray(routePoints) && routePoints.length >= 2;
+  if (!hasLocations && !hasRoutePoints) {
     clearManualVoyagePreview();
     return;
   }
-  drawManualVoyagePreview(locations);
+  if (returnTrip) {
+    if (hasRoutePoints) {
+      drawManualVoyagePreview(routePoints, { closeLoop: true, showDirection: true });
+    } else if (hasLocations) {
+      drawManualVoyagePreview(locations, { closeLoop: true, showDirection: true });
+    }
+  } else if (hasLocations) {
+    drawManualVoyagePreview(locations, { closeLoop: false, showDirection: false });
+  }
+  if (manualRouteEditActive && hasRoutePoints) {
+    syncManualRouteEditor(routePoints, routeTurnIndex);
+  }
+}
+
+/**
+ * Function: handleManualRouteEditRequested
+ * Description: Toggle manual route editing in response to UI requests.
+ * Parameters:
+ *   payload (object): Event payload containing active state and route metadata.
+ * Returns: void.
+ */
+function handleManualRouteEditRequested(payload = {}) {
+  const active = Boolean(payload?.active);
+  if (!active) {
+    setManualRouteEditing(false, null, null);
+    return;
+  }
+  setManualRouteEditing(true, payload?.points, payload?.turnIndex);
 }
 
 on(EVENTS.VOYAGE_SELECT_REQUESTED, handleVoyageSelectRequested);
@@ -1361,6 +1957,7 @@ on(EVENTS.SEGMENT_MAX_SPEED_REQUESTED, handleSegmentMaxSpeedRequested);
 on(EVENTS.SELECTION_RESET_REQUESTED, handleSelectionResetRequested);
 on(EVENTS.MANUAL_LOCATION_SELECTED, handleManualLocationSelected);
 on(EVENTS.MANUAL_VOYAGE_PREVIEW, handleManualVoyagePreview);
+on(EVENTS.MANUAL_ROUTE_EDIT_REQUESTED, handleManualRouteEditRequested);
 
 function wireDetailsControls(panel) {
   if (!panel) return;

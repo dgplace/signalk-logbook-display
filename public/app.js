@@ -230,7 +230,12 @@ async function load() {
   const voyages = combinedVoyages.map((voyage, index) => {
     voyage._tripIndex = index + 1;
     if (voyage.manual && voyage.returnTrip && Array.isArray(voyage.manualLocations)) {
-      const returnSegment = buildManualReturnSegmentFromStops(voyage.manualLocations);
+      const returnSegment = buildManualReturnSegmentFromStops(voyage.manualLocations, {
+        routePoints: voyage.manualRoutePoints,
+        routeTurnIndex: voyage.manualRouteTurnIndex,
+        startName: voyage.manualLocations[0]?.name || voyage.startLocation?.name || '',
+        turnName: voyage.manualLocations[1]?.name || voyage.endLocation?.name || ''
+      });
       voyage._segments = returnSegment ? [returnSegment] : [];
     } else if (voyage.manual && Array.isArray(voyage.manualLocations) && voyage.manualLocations.length > 1) {
       voyage._segments = buildManualSegmentsFromStops(voyage.manualLocations);
