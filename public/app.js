@@ -361,6 +361,14 @@ async function deleteManualVoyage(manualId) {
 function handleManualVoyageEditRequested(payload = {}) {
   const voyage = payload?.voyage;
   if (!voyage || !voyage.manualId) return;
+
+  // Auto-focus the voyage on the map when editing starts
+  emit(EVENTS.VOYAGE_SELECT_REQUESTED, {
+    voyage,
+    row: payload?.row || null,
+    fit: true
+  });
+
   if (manualPanelApi && typeof manualPanelApi.openForEdit === 'function') {
     manualPanelApi.openForEdit(voyage);
   }

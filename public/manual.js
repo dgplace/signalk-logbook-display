@@ -13,6 +13,7 @@
 
 import { calculateDistanceNm, formatDurationMs, MANUAL_AVG_SPEED_KN } from './data.js';
 import { setMapClickCapture, clearMapClickCapture } from './map.js';
+import { emit, EVENTS } from './events.js';
 
 const PLACEHOLDER_VALUE = '—';
 const MIN_MANUAL_LOCATIONS = 2;
@@ -142,8 +143,8 @@ function coerceDateValue(value) {
  */
 function buildLocationLabel(index, total) {
   if (index === 0) return 'Start';
-  if (index === total - 1) return 'End';
-  return `Stop ${index}`;
+  if (index === total - 1) return 'To';
+  return `Anchorage ${index}`;
 }
 
 /**
@@ -170,6 +171,13 @@ function setActiveLocation(state, index) {
       entry.panel.hidden = !isActive;
     }
   });
+
+  // Emit event to highlight the active location on the map
+  if (nextIndex >= 0 && nextIndex < state.locations.length) {
+    const activeEntry = state.locations[nextIndex];
+    const location = readLocationFields(activeEntry.nameInput, activeEntry.latInput, activeEntry.lonInput);
+    emit(EVENTS.MANUAL_LOCATION_SELECTED, { location });
+  }
 }
 
 /**
@@ -182,8 +190,8 @@ function setActiveLocation(state, index) {
 function refreshLocationLabels(state) {
   if (!state || !Array.isArray(state.locations)) return;
   const total = state.locations.length;
-  const allowReturn = total === MIN_MANUAL_LOCATIONS;
-  if (!allowReturn && state.returnTrip) {
+  const allowDayTrip = total === MIN_MANUAL_LOCATIONS;
+  if (!allowDayTrip && state.returnTrip) {
     state.returnTrip = false;
   }
   state.locations.forEach((entry, index) => {
@@ -202,16 +210,47 @@ function refreshLocationLabels(state) {
         entry.timeEdited = false;
       }
     }
-    if (entry.returnToggle) {
-      const showReturn = allowReturn && index === total - 1;
-      entry.returnToggle.hidden = !showReturn;
-    }
-    if (entry.returnInput) {
-      const allowToggle = allowReturn && index === total - 1;
-      entry.returnInput.checked = Boolean(state.returnTrip);
-      entry.returnInput.disabled = !allowToggle;
-    }
   });
+  // Sync trip type inputs and add-anchorage state
+  syncTripTypeInputs(state, allowDayTrip);
+  updateAddAnchorageButtonState(state, allowDayTrip);
+}
+
+/**
+ * Function: updateAddAnchorageButtonState
+ * Description: Enable or disable Add Anchorage button based on day trip state.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ *   allowDayTrip (boolean): Whether day trip is possible (2 locations).
+ * Returns: void.
+ */
+function updateAddAnchorageButtonState(state, allowDayTrip) {
+  if (!state || !state.addStopBtn) return;
+  const isDayTrip = state.returnTrip && allowDayTrip;
+  state.addStopBtn.disabled = isDayTrip;
+  if (isDayTrip) {
+    state.addStopBtn.title = 'Cannot add anchorages for day trips. Select Overnight to add anchorages.';
+  } else {
+    state.addStopBtn.title = '';
+  }
+}
+
+/**
+ * Function: syncTripTypeInputs
+ * Description: Sync day/overnight radio inputs with current trip type rules.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ *   allowDayTrip (boolean): Whether day trip is allowed (2 locations).
+ * Returns: void.
+ */
+function syncTripTypeInputs(state, allowDayTrip) {
+  if (!state) return;
+  if (state.dayTripInput) {
+    state.dayTripInput.checked = state.returnTrip;
+  }
+  if (state.overnightInput) {
+    state.overnightInput.checked = !state.returnTrip;
+  }
 }
 
 /**
@@ -236,8 +275,6 @@ function createLocationEntry(state, data = {}, insertIndex = null) {
   const lonInput = panel.querySelector('.manual-lon-input');
   const pickBtn = panel.querySelector('.manual-pick-btn');
   const pickHint = panel.querySelector('.manual-pick-hint');
-  const returnToggle = panel.querySelector('.manual-return-toggle');
-  const returnInput = panel.querySelector('.manual-return-input');
   const removeBtn = panel.querySelector('.manual-remove-btn');
   const entryId = `manual-location-${state.locationIdCounter += 1}`;
   const tab = document.createElement('button');
@@ -263,8 +300,6 @@ function createLocationEntry(state, data = {}, insertIndex = null) {
     lonInput,
     pickBtn,
     pickHint,
-    returnToggle,
-    returnInput,
     removeBtn,
     timeEdited: false
   };
@@ -305,7 +340,17 @@ function createLocationEntry(state, data = {}, insertIndex = null) {
     }
   });
 
-  const updateHandler = () => updateManualMetrics(state);
+  const updateHandler = () => {
+    updateManualMetrics(state);
+    // Emit location update when coordinates change
+    const idx = state.locations.indexOf(entry);
+    if (idx === state.activeLocationIndex) {
+      const location = readLocationFields(entry.nameInput, entry.latInput, entry.lonInput);
+      emit(EVENTS.MANUAL_LOCATION_SELECTED, { location });
+    }
+    // Emit all locations to draw preview track
+    emitManualVoyagePreview(state);
+  };
   [latInput, lonInput].filter(Boolean).forEach((input) => {
     input.addEventListener('input', updateHandler);
     input.addEventListener('change', updateHandler);
@@ -342,14 +387,6 @@ function createLocationEntry(state, data = {}, insertIndex = null) {
     });
   }
 
-  if (returnInput) {
-    returnInput.addEventListener('change', () => {
-      state.returnTrip = returnInput.checked;
-      updateManualMetrics(state);
-      refreshLocationLabels(state);
-    });
-  }
-
   if (removeBtn) {
     removeBtn.addEventListener('click', () => {
       const idx = state.locations.indexOf(entry);
@@ -366,6 +403,7 @@ function createLocationEntry(state, data = {}, insertIndex = null) {
       refreshLocationLabels(state);
       setActiveLocation(state, state.activeLocationIndex);
       updateManualMetrics(state);
+      emitManualVoyagePreview(state);
     });
   }
 
@@ -400,6 +438,7 @@ function rebuildLocationEntries(state, locations = []) {
   refreshLocationLabels(state);
   setActiveLocation(state, 0);
   setPickMode(state, null);
+  emitManualVoyagePreview(state);
 }
 
 /**
@@ -643,6 +682,9 @@ function setPanelVisibility(state, isVisible) {
   if (!isVisible) {
     clearMapClickCapture();
     setPickMode(state, null);
+    // Clear location highlight and preview when panel closes
+    emit(EVENTS.MANUAL_LOCATION_SELECTED, { location: null });
+    emit(EVENTS.MANUAL_VOYAGE_PREVIEW, { locations: null });
   }
 }
 
@@ -656,6 +698,7 @@ function setPanelVisibility(state, isVisible) {
  */
 function setEditMode(state, voyage) {
   if (!state) return;
+  const wasEdit = Boolean(state.editId);
   const isEdit = Boolean(voyage && voyage.manualId);
   state.editId = isEdit ? voyage.manualId : null;
   if (state.panelTitle) {
@@ -673,6 +716,10 @@ function setEditMode(state, voyage) {
   }
   if (state.deleteButton) {
     state.deleteButton.hidden = !isEdit;
+  }
+  // Clear location highlight when exiting edit mode
+  if (wasEdit && !isEdit) {
+    emit(EVENTS.MANUAL_LOCATION_SELECTED, { location: null });
   }
 }
 
@@ -725,6 +772,12 @@ function extractVoyageLocations(voyage, returnTrip) {
 function populateFormFromVoyage(state, voyage) {
   if (!state || !voyage) return;
   state.returnTrip = Boolean(voyage.returnTrip);
+  if (state.dayTripInput) {
+    state.dayTripInput.checked = state.returnTrip;
+  }
+  if (state.overnightInput) {
+    state.overnightInput.checked = !state.returnTrip;
+  }
   const locations = extractVoyageLocations(voyage, state.returnTrip);
   rebuildLocationEntries(state, locations);
   updateManualMetrics(state);
@@ -795,6 +848,10 @@ function handleMapPick(state, target, event) {
   if (entry.nameInput) entry.nameInput.focus();
   updateManualMetrics(state);
   setPickMode(state, null);
+  // Update location highlight and preview after picking coordinates
+  const location = readLocationFields(entry.nameInput, entry.latInput, entry.lonInput);
+  emit(EVENTS.MANUAL_LOCATION_SELECTED, { location });
+  emitManualVoyagePreview(state);
   return true;
 }
 
@@ -815,6 +872,28 @@ function applyLocationLookup(state, entry) {
   entry.latInput.value = Number(match.lat).toFixed(6);
   entry.lonInput.value = Number(match.lon).toFixed(6);
   updateManualMetrics(state);
+  emitManualVoyagePreview(state);
+}
+
+/**
+ * Function: emitManualVoyagePreview
+ * Description: Emit all valid locations to draw a preview track on the map.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ * Returns: void.
+ */
+function emitManualVoyagePreview(state) {
+  if (!state || !Array.isArray(state.locations)) return;
+  const validLocations = state.locations
+    .map(entry => readLocationFields(entry.nameInput, entry.latInput, entry.lonInput))
+    .filter(loc => loc !== null);
+
+  if (validLocations.length >= 2) {
+    emit(EVENTS.MANUAL_VOYAGE_PREVIEW, { locations: validLocations });
+  } else {
+    // Clear preview if we don't have enough valid locations
+    emit(EVENTS.MANUAL_VOYAGE_PREVIEW, { locations: null });
+  }
 }
 
 /**
@@ -1030,6 +1109,8 @@ export function initManualVoyagePanel(options = {}) {
   const tabPanels = document.getElementById('manualTabPanels');
   const locationTemplate = document.getElementById('manualLocationTemplate');
   const addStopBtn = document.getElementById('manualAddStopBtn');
+  const dayTripInput = document.getElementById('manualDayTripInput');
+  const overnightInput = document.getElementById('manualOvernightInput');
   if (!panel || !form || !locationList || !tabList || !tabPanels || !locationTemplate) {
     return { updateLocationOptions: () => {} };
   }
@@ -1042,6 +1123,8 @@ export function initManualVoyagePanel(options = {}) {
     tabPanels,
     locationTemplate,
     addStopBtn,
+    dayTripInput,
+    overnightInput,
     apiBasePath: options.apiBasePath || '',
     onSaved: typeof options.onSaved === 'function' ? options.onSaved : null,
     locationLookup: new Map(),
@@ -1062,11 +1145,51 @@ export function initManualVoyagePanel(options = {}) {
   form.addEventListener('reset', () => {
     window.requestAnimationFrame(() => {
       state.returnTrip = false;
+      if (state.dayTripInput) {
+        state.dayTripInput.checked = false;
+      }
+      if (state.overnightInput) {
+        state.overnightInput.checked = true;
+      }
       rebuildLocationEntries(state, []);
       updateManualMetrics(state);
     });
     setPickMode(state, null);
   });
+
+  if (dayTripInput) {
+    dayTripInput.addEventListener('change', () => {
+      if (!dayTripInput.checked) return;
+      const allowDayTrip = state.locations.length === MIN_MANUAL_LOCATIONS;
+      if (!allowDayTrip) {
+        dayTripInput.checked = false;
+        if (state.overnightInput) {
+          state.overnightInput.checked = true;
+        }
+        state.returnTrip = false;
+        alert('All anchorages must be removed first.');
+        return;
+      }
+      state.returnTrip = true;
+      if (state.overnightInput) {
+        state.overnightInput.checked = false;
+      }
+      updateManualMetrics(state);
+      refreshLocationLabels(state);
+    });
+  }
+
+  if (overnightInput) {
+    overnightInput.addEventListener('change', () => {
+      if (!overnightInput.checked) return;
+      state.returnTrip = false;
+      if (state.dayTripInput) {
+        state.dayTripInput.checked = false;
+      }
+      updateManualMetrics(state);
+      refreshLocationLabels(state);
+    });
+  }
 
   if (panelToggleBtn) {
     panelToggleBtn.addEventListener('click', () => {
@@ -1075,6 +1198,12 @@ export function initManualVoyagePanel(options = {}) {
         form.reset();
         setEditMode(state, null);
         state.returnTrip = false;
+        if (state.dayTripInput) {
+          state.dayTripInput.checked = false;
+        }
+        if (state.overnightInput) {
+          state.overnightInput.checked = true;
+        }
         rebuildLocationEntries(state, []);
       }
       setPanelVisibility(state, shouldShow);
@@ -1132,11 +1261,18 @@ export function initManualVoyagePanel(options = {}) {
   if (addStopBtn) {
     addStopBtn.addEventListener('click', () => {
       state.returnTrip = false;
+      if (state.dayTripInput) {
+        state.dayTripInput.checked = false;
+      }
+      if (state.overnightInput) {
+        state.overnightInput.checked = true;
+      }
       const insertIndex = Math.max(state.locations.length - 1, 1);
       createLocationEntry(state, {}, insertIndex);
       refreshLocationLabels(state);
       setActiveLocation(state, insertIndex);
       updateManualMetrics(state);
+      emitManualVoyagePreview(state);
     });
   }
 

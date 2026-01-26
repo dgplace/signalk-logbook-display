@@ -2,6 +2,28 @@
 
 ## 2026-01-26
 
+- Improve manual voyage creation and editing UX:
+  - Auto-focus and fit voyage on map when clicking Edit button
+  - Highlight active stop with pulsing orange marker during both creation and editing
+  - Draw preview track in real-time as stops are added/edited (dashed gray line)
+  - Update highlight and track instantly when switching stops or editing coordinates
+  - Show stop name in tooltip above highlighted marker
+  - Clear highlight and preview when closing panel or exiting edit mode
+- Add `MANUAL_LOCATION_SELECTED` event to coordinate stop highlighting
+- Add `MANUAL_VOYAGE_PREVIEW` event to coordinate preview track drawing
+- Add map functions: `highlightLocation()`, `clearHighlightedLocationMarker()`, `drawManualVoyagePreview()`, `clearManualVoyagePreview()`
+- Add `emitManualVoyagePreview()` helper in manual.js to broadcast location updates
+- Refactor day trip UI for manual voyages:
+  - Move "Day trip (return to start)" checkbox to top of form (next to tab buttons)
+  - Remove per-location "Return to start" toggle
+  - Rename "End" location to "To"
+  - Rename "Add stop" button to "Add Anchorage"
+  - Rename intermediate stops from "Stop N" to "Anchorage N"
+  - Disable "Add Anchorage" button when day trip is checked with tooltip guidance
+- Replace day trip checkbox with a trip type radio group and only allow day trips when there are no anchorages
+- Lay out trip type radios inline and alert when day trip is selected while anchorages are present
+- Rename manual stop removal control to "Remove anchorage"
+- Add mandatory documentation update requirement to AGENTS.md
 - Simplify voyage sync scripts (`scripts/fetch-voyages.sh` and `scripts/push-voyages.sh`)
 - Remove `scripts/update-voyages.sh` and add `scripts/push-voyages.sh` to copy assets into a local Signal K install
 - Update manual voyage metadata timestamp in `public/manual-voyages.json`

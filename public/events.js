@@ -138,6 +138,8 @@ export function getEventNames() {
     VOYAGE_SELECTED: 'voyage:selected',
     VOYAGE_MAX_SPEED_REQUESTED: 'voyage:max-speed-requested',
     MANUAL_VOYAGE_EDIT_REQUESTED: 'voyage:manual-edit-requested',
+    MANUAL_LOCATION_SELECTED: 'voyage:manual-location-selected',
+    MANUAL_VOYAGE_PREVIEW: 'voyage:manual-preview',
     SEGMENT_SELECT_REQUESTED: 'segment:select-requested',
     SEGMENT_MAX_SPEED_REQUESTED: 'segment:max-speed-requested',
     SELECTION_RESET_REQUESTED: 'selection:reset-requested',

@@ -65,9 +65,22 @@
             <button type="button" class="manual-close-btn" id="manualCloseBtn">Close</button>
           </div>
           <form id="manualVoyageForm">
+            <div class="manual-trip-type">
+              <fieldset>
+                <legend>Trip type</legend>
+                <label>
+                  <input type="radio" id="manualDayTripInput" name="manualTripType" value="day">
+                  <span>Day trip (return to start)</span>
+                </label>
+                <label>
+                  <input type="radio" id="manualOvernightInput" name="manualTripType" value="overnight" checked>
+                  <span>Overnight with one or more anchorage</span>
+                </label>
+              </fieldset>
+            </div>
             <div class="manual-tabs">
               <div class="manual-tablist" id="manualTabList" role="tablist" aria-label="Manual voyage locations"></div>
-              <button type="button" class="manual-tab-add" id="manualAddStopBtn">Add stop</button>
+              <button type="button" class="manual-tab-add" id="manualAddStopBtn" title="">Add Anchorage</button>
             </div>
             <div class="manual-tab-panels" id="manualTabPanels"></div>
             <template id="manualLocationTemplate">
@@ -80,10 +93,6 @@
                 <label class="manual-location-label">
                   <span class="manual-label-row">
                     <span>Location</span>
-                    <span class="manual-return-toggle" hidden>
-                      <input type="checkbox" class="manual-return-input" aria-label="Return to start">
-                      <span>Return to start</span>
-                    </span>
                   </span>
                   <input type="text" class="manual-name-input" list="manualLocationList" required placeholder="e.g. Moreton Bay">
                 </label>
@@ -102,7 +111,7 @@
                   <span class="manual-pick-hint" hidden>Click on the map to set coordinates.</span>
                 </div>
                 <div class="manual-location-actions">
-                  <button type="button" class="manual-remove-btn">Remove stop</button>
+                  <button type="button" class="manual-remove-btn">Remove anchorage</button>
                 </div>
               </section>
             </template>

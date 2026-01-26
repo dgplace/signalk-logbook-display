@@ -66,6 +66,8 @@ let selectedPointMarker = null;
 let activePointMarkersGroup = null;
 let selectedWindGroup = null;
 let windIntensityLayer = null;
+let highlightedLocationMarker = null;
+let manualVoyagePreviewPolyline = null;
 let currentVoyagePoints = [];
 let allVoyagesBounds = null;
 let suppressHistoryUpdate = false;
@@ -574,6 +576,95 @@ export function clearActivePointMarkers() {
 }
 
 /**
+ * Function: clearHighlightedLocationMarker
+ * Description: Remove the highlighted location marker from the map.
+ * Parameters: None.
+ * Returns: void.
+ */
+export function clearHighlightedLocationMarker() {
+  if (highlightedLocationMarker && mapInstance) {
+    mapInstance.removeLayer(highlightedLocationMarker);
+  }
+  highlightedLocationMarker = null;
+}
+
+/**
+ * Function: highlightLocation
+ * Description: Highlight a specific location on the map with a large marker.
+ * Parameters:
+ *   lat (number): Latitude of the location.
+ *   lon (number): Longitude of the location.
+ *   name (string): Optional name of the location for display.
+ * Returns: void.
+ */
+export function highlightLocation(lat, lon, name = '') {
+  clearHighlightedLocationMarker();
+  if (!mapInstance || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+  const markerIcon = L.divIcon({
+    className: 'highlighted-location-icon',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+    html: '<span class="highlighted-location-marker"></span>'
+  });
+
+  highlightedLocationMarker = L.marker([lat, lon], { icon: markerIcon });
+
+  if (name) {
+    highlightedLocationMarker.bindTooltip(name, {
+      permanent: true,
+      direction: 'top',
+      offset: [0, -12],
+      className: 'highlighted-location-tooltip'
+    });
+  }
+
+  highlightedLocationMarker.addTo(mapInstance);
+}
+
+/**
+ * Function: clearManualVoyagePreview
+ * Description: Remove the manual voyage preview polyline from the map.
+ * Parameters: None.
+ * Returns: void.
+ */
+export function clearManualVoyagePreview() {
+  if (manualVoyagePreviewPolyline && mapInstance) {
+    mapInstance.removeLayer(manualVoyagePreviewPolyline);
+  }
+  manualVoyagePreviewPolyline = null;
+}
+
+/**
+ * Function: drawManualVoyagePreview
+ * Description: Draw a preview polyline for manual voyage creation with valid locations.
+ * Parameters:
+ *   locations (array): Array of location objects with lat, lon properties.
+ * Returns: void.
+ */
+export function drawManualVoyagePreview(locations) {
+  clearManualVoyagePreview();
+  if (!mapInstance || !Array.isArray(locations) || locations.length < 2) return;
+
+  const latLngs = locations
+    .filter(loc => Number.isFinite(loc.lat) && Number.isFinite(loc.lon))
+    .map(loc => [loc.lat, loc.lon]);
+
+  if (latLngs.length < 2) return;
+
+  manualVoyagePreviewPolyline = L.polyline(latLngs, {
+    color: '#94a3b8',
+    weight: 3,
+    opacity: 0.7,
+    dashArray: '5, 10',
+    lineCap: 'round',
+    lineJoin: 'round'
+  });
+
+  manualVoyagePreviewPolyline.addTo(mapInstance);
+}
+
+/**
  * Function: renderActivePointMarkers
  * Description: Display clickable point markers for the supplied voyage point collection.
  * Parameters:
@@ -807,6 +898,8 @@ export function resetVoyageSelection() {
   clearActivePointMarkers();
   clearSelectedWindGraphics();
   clearWindIntensityLayer();
+  clearHighlightedLocationMarker();
+  clearManualVoyagePreview();
   removeActivePolylines();
   clearMaxSpeedMarker();
   if (selectedPointMarker && mapInstance) {
@@ -1223,11 +1316,51 @@ function handleSelectionResetRequested() {
   resetVoyageSelection();
 }
 
+/**
+ * Function: handleManualLocationSelected
+ * Description: Highlight a manual voyage location on the map when selected in the edit form.
+ * Parameters:
+ *   payload (object): Event payload containing location data.
+ * Returns: void.
+ */
+function handleManualLocationSelected(payload = {}) {
+  const location = payload?.location;
+  if (!location) {
+    clearHighlightedLocationMarker();
+    return;
+  }
+  const lat = Number(location.lat);
+  const lon = Number(location.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    clearHighlightedLocationMarker();
+    return;
+  }
+  highlightLocation(lat, lon, location.name || '');
+}
+
+/**
+ * Function: handleManualVoyagePreview
+ * Description: Draw or clear preview polyline for manual voyage being created/edited.
+ * Parameters:
+ *   payload (object): Event payload containing locations array.
+ * Returns: void.
+ */
+function handleManualVoyagePreview(payload = {}) {
+  const locations = payload?.locations;
+  if (!locations || !Array.isArray(locations) || locations.length < 2) {
+    clearManualVoyagePreview();
+    return;
+  }
+  drawManualVoyagePreview(locations);
+}
+
 on(EVENTS.VOYAGE_SELECT_REQUESTED, handleVoyageSelectRequested);
 on(EVENTS.VOYAGE_MAX_SPEED_REQUESTED, handleVoyageMaxSpeedRequested);
 on(EVENTS.SEGMENT_SELECT_REQUESTED, handleSegmentSelectRequested);
 on(EVENTS.SEGMENT_MAX_SPEED_REQUESTED, handleSegmentMaxSpeedRequested);
 on(EVENTS.SELECTION_RESET_REQUESTED, handleSelectionResetRequested);
+on(EVENTS.MANUAL_LOCATION_SELECTED, handleManualLocationSelected);
+on(EVENTS.MANUAL_VOYAGE_PREVIEW, handleManualVoyagePreview);
 
 function wireDetailsControls(panel) {
   if (!panel) return;

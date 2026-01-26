@@ -333,6 +333,49 @@ html, body { height: 100%; }
   gap: 12px;
 }
 
+.manual-day-trip-toggle,
+.manual-trip-type {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: var(--table-hover);
+  border-radius: 4px;
+}
+
+.manual-day-trip-toggle label,
+.manual-trip-type fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.manual-trip-type fieldset {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.manual-trip-type legend {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted-text-color);
+  margin: 0 6px 0 0;
+}
+
+.manual-day-trip-toggle label,
+.manual-trip-type label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.manual-day-trip-toggle input[type="checkbox"],
+.manual-trip-type input[type="radio"] {
+  cursor: pointer;
+}
+
 .manual-tabs {
   display: flex;
   align-items: center;
@@ -376,8 +419,13 @@ html, body { height: 100%; }
   font-size: 0.85rem;
 }
 
-.manual-tab-add:hover {
+.manual-tab-add:hover:not(:disabled) {
   background: var(--table-hover);
+}
+
+.manual-tab-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .manual-tab-panels {
@@ -1037,4 +1085,43 @@ body.is-loading * {
 
 .container.mobile-layout .manual-toggle {
   display: none;
+}
+
+/* Highlighted location marker for manual voyage editing */
+.highlighted-location-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.highlighted-location-marker {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #f59e0b;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+  animation: pulse-highlight 2s ease-in-out infinite;
+}
+
+@keyframes pulse-highlight {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+.highlighted-location-tooltip {
+  background: rgba(245, 158, 11, 0.95) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 4px !important;
+  padding: 4px 8px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
 }

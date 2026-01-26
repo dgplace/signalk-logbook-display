@@ -13,6 +13,13 @@ These directives guide AI assistants working on this codebase.
 
 ## Documentation
 
+**CRITICAL: For EVERY change to the codebase, you MUST update ALL relevant documentation files:**
+- **LOG.md** - ALWAYS update with dated entries for every change
+- **ARCHITECTURE.md** - Update when architecture, data flow, or file responsibilities change
+- **README.md** - Update when user-facing features or behavior changes
+
+**This is mandatory, not optional. No code change is complete without documentation updates.**
+
 * Consult [ARCHITECTURE.md](ARCHITECTURE.md) for system architecture, data flow, and file responsibilities.
 * Update [LOG.md](LOG.md) with dated change entries (YYYY-MM-DD format) summarizing what was changed.
   - LOG entries must include the date at the start of each section.

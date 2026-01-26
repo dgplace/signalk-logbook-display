@@ -29,13 +29,13 @@
 ### Front-End
 
 - **public/app.js**: Front-end orchestrator that wires data fetching, module initialisation, and high-level user interactions.
-- **public/map.js**: Leaflet controller that builds voyage overlays (including gray manual tracks), handles map/background interactions, and coordinates selection state with other modules.
+- **public/map.js**: Leaflet controller that builds voyage overlays (including gray manual tracks), handles map/background interactions, coordinates selection state with other modules, and provides real-time manual voyage feedback via `highlightLocation()`, `clearHighlightedLocationMarker()`, `drawManualVoyagePreview()`, and `clearManualVoyagePreview()`.
 - **public/view.js**: Responsive layout utility that manages mobile/desktop toggles, tab/desktop overrides that sync with auto layout changes, tab behaviour, and layout-driven map resizing.
 - **public/table.js**: Table controller responsible for rendering voyage/leg rows (including total-time hours with unit suffixes and summed multi-leg voyage durations on desktop), suppressing max speed and wind columns for manual voyages, maintaining row state, and raising callbacks for row events.
-- **public/manual.js**: Desktop-only manual voyage entry panel logic including tabbed multi-stop editing, return-trip toggles for single-leg entries, calculations, autocomplete, persistence calls, stop-time auto-fill from leg durations (deriving the final stop time), manual-duration estimates at 5 kn, and table-panel resizing to keep the manual form fully visible.
+- **public/manual.js**: Desktop-only manual voyage entry panel logic including tabbed multi-stop editing, return-trip toggles for single-leg entries, calculations, autocomplete, persistence calls, stop-time auto-fill from leg durations (deriving the final stop time), manual-duration estimates at 5 kn, table-panel resizing to keep the manual form fully visible, real-time location highlighting via `MANUAL_LOCATION_SELECTED` events, and real-time preview track drawing via `MANUAL_VOYAGE_PREVIEW` events during both creation and editing.
 - **public/data.js**: Data helpers focused on voyage datasets, totals aggregation (including Active Time from voyage total hours/leg durations), leg segmentation, per-leg duration/average-speed calculations based on anchored activity/skip-connection gaps while discarding legs under 1 nm, manual stop normalization for multi-leg entries, and manual-duration assumptions at 5 kn.
 - **public/util.js**: Shared presentation helpers including heading/DMS formatting and datetime labelling.
-- **public/events.js**: Shared pub/sub bus for coordinating cross-module interactions (voyage selection, segment selection, max-speed display, reset workflows).
+- **public/events.js**: Shared pub/sub bus for coordinating cross-module interactions (voyage selection, segment selection, max-speed display, manual location highlighting, manual voyage preview, reset workflows).
 - **public/overlays.js**: Overlay and icon builders for Leaflet map layers.
 - **public/types.js**: TypeScript-style JSDoc typedefs documenting cross-module voyage structures.
 - **public/index.html**: Base HTML shell loading the SPA, styles, and UI scaffolding.
@@ -73,7 +73,10 @@
 ### Manual Voyage Features
 
 - Manual voyage entries are stored in `public/manual-voyages.json`, loaded alongside other JSON assets, and surfaced through a desktop-only entry panel beneath the voyage table.
-- Manual voyage entry is toggled by the Add manual voyage button, supports tabbed start/stop/end entries with map clicks to populate coordinates, includes a Return to start toggle for single-leg trips that still renders as one leg in the table, auto-fills stop times from the previous stop plus leg duration (deriving a read-only final stop time), manual durations assume 5 kn average speed, and manual rows expose an Edit button for in-place updates via the panel.
+- Manual voyage entry is toggled by the Add manual voyage button, supports tabbed Start/To entries with "Add Anchorage" to insert intermediate stops (labeled "Anchorage N"), map clicks to populate coordinates, includes a top-level "Day trip (return to start)" checkbox for round trips that doubles distance/time and prevents adding anchorages, auto-fills stop times from the previous stop plus leg duration (deriving a read-only final stop time), manual durations assume 5 kn average speed, and manual rows expose an Edit button for in-place updates via the panel.
+- During both creation and editing, the manual voyage panel provides real-time map feedback: clicking Edit automatically selects and focuses the voyage on the map, the currently active stop is highlighted with a pulsing orange marker (including stop name in tooltip), and a dashed gray preview track connects all valid stops.
+- The highlighted location marker and preview track update instantly when switching between stop tabs, editing coordinates, adding stops, or removing stops, and both clear automatically when closing the panel or exiting edit mode.
+- Event coordination: `MANUAL_LOCATION_SELECTED` event triggers `highlightLocation()` for stop markers, `MANUAL_VOYAGE_PREVIEW` event triggers `drawManualVoyagePreview()` for the preview track, both emitted from manual.js to map.js with location payloads, enabling cross-module coordination without tight coupling.
 - Manual voyage map tracks render in gray and hide max speed, max wind, avg wind, and wind direction cells in the table.
 - Opening the manual voyage panel expands the table panel to fit the full form; closing restores the prior table panel height.
 
