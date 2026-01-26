@@ -128,3 +128,17 @@ python scripts/merge_course_changes_dir.py logs/ --inplace --fix-maxima-pos
 ```bash
 python scripts/generate_polar.py --polar-file public/Polar.json --output polar_diagram.png
 ```
+
+For a quick local refresh from an installed Signal K plugin, copy the generated JSON assets into this repo:
+
+```bash
+scripts/fetch-voyages.sh                                   # copy from ~/.signalk/node_modules/voyage-webapp/public
+scripts/fetch-voyages.sh /custom/signalk/path/public       # custom Signal K public directory
+```
+
+Push local JSON assets back into a Signal K install:
+
+```bash
+scripts/push-voyages.sh                                    # copy into ~/.signalk/node_modules/voyage-webapp/public
+scripts/push-voyages.sh /custom/signalk/path/public        # custom Signal K public directory
+```

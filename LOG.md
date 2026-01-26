@@ -37,7 +37,8 @@
 - `scripts/generate_polar.py`: Matplotlib-based utility that plots polar diagrams from `public/Polar.json`, supporting saving or interactive display.
 - `scripts/merge_course_changes.py`: Cleans and merges course change log entries, with optional maxima position fixes.
 - `scripts/merge_course_changes_dir.py`: Batch wrapper around `merge_course_changes.py` for directory-wide processing.
-- `scripts/fetch-voyages.sh`: Convenience shell script for retrieving voyage data (if configured by the user).
+- `scripts/fetch-voyages.sh`: Copies voyages, polar, and manual voyage JSON assets from a local Signal K install into the repo `public/` directory.
+- `scripts/push-voyages.sh`: Copies voyages, polar, and manual voyage JSON assets from the repo `public/` directory into a local Signal K install.
 - `scripts/deploy-to-signalk.sh`: Deploys `public/` assets (excluding `voyages.json`) and root-level helper scripts into a local Signal K install.
 - `scripts/build-plugin.sh`: Bundles plugin assets for distribution.
 
@@ -66,6 +67,8 @@
 - Voyages split on inactivity gaps over 48 hours, with voyages under 1 nm discarded and repeated anchored fixes within 100 meters of the leg-end anchor pruned, while legs split on anchored gaps (>= 1 hour) flagged via anchored activity or skip-connection markers so legs can span multiple days and multiple legs can occur within a single day, with leg segments under 1 nm removed from the UI.
 
 ## Change Log
+- Remove `scripts/update-voyages.sh` and add `scripts/push-voyages.sh` to copy assets into a local Signal K install.
+- Simplify `scripts/fetch-voyages.sh` to copy `voyages.json`, `Polar.json`, and `manual-voyages.json` from a local Signal K install into the repo.
 - Update manual voyage metadata timestamp in `public/manual-voyages.json`.
 - Load manual voyage data from the static `public/manual-voyages.json` asset with an API fallback to mirror `voyages.json` handling.
 - Align totals Active Time with the summed voyage total hours and cap Sailing Time to Active Time.

@@ -1,29 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Fetch voyages.json from a remote Signal K server into the local public/ directory.
-REMOTE_HOST="${1:-pi@tequila}"
-REMOTE_PATH="${2:-~/.signalk/node_modules/voyage-webapp/public/voyages.json}"
-REMOTE_PATH2="${2:-~/.signalk/node_modules/voyage-webapp/public/Polar.json}"
+# Copy voyage JSON assets from a local Signal K install into the repo public/ directory.
+SIGNALK_PUBLIC_DIR="${1:-$HOME/.signalk/node_modules/voyage-webapp/public}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-DEST_FILE="$REPO_ROOT/public/voyages.json"
-DEST_FILE2="$REPO_ROOT/public/Polar.json"
+DEST_DIR="$REPO_ROOT/public"
 
-if ! command -v scp >/dev/null 2>&1; then
-  echo "Error: scp command not found" >&2
+if [[ ! -d "$SIGNALK_PUBLIC_DIR" ]]; then
+  echo "Error: source directory $SIGNALK_PUBLIC_DIR does not exist" >&2
   exit 1
 fi
 
-if [[ ! -d "$(dirname "$DEST_FILE")" ]]; then
-  echo "Error: destination directory $(dirname "$DEST_FILE") does not exist" >&2
+if [[ ! -d "$DEST_DIR" ]]; then
+  echo "Error: destination directory $DEST_DIR does not exist" >&2
   exit 1
 fi
 
-echo "Copying $REMOTE_HOST:$REMOTE_PATH to $DEST_FILE"
-scp "${REMOTE_HOST}:${REMOTE_PATH}" "$DEST_FILE"
-echo "Copying $REMOTE_HOST:$REMOTE_PATH2 to $DEST_FILE2"
-scp "${REMOTE_HOST}:${REMOTE_PATH2}" "$DEST_FILE2"
+for asset_name in voyages.json Polar.json manual-voyages.json; do
+  source_path="$SIGNALK_PUBLIC_DIR/$asset_name"
+  dest_path="$DEST_DIR/$asset_name"
+  echo "Copying $source_path to $dest_path"
+  cp -p "$source_path" "$dest_path"
+done
 
 echo "Done."
