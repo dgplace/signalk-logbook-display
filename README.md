@@ -30,7 +30,7 @@ A Signal K plugin/webapp that provides a voyage summary and map viewer.
    node -e "const generatePolar = require('./parse_polar'); const fs = require('fs'); const voyages = JSON.parse(fs.readFileSync('public/voyages.json', 'utf8')); fs.writeFileSync('public/Polar.json', JSON.stringify(generatePolar(voyages), null, 2));"
    ```
 
-For architectural details and file responsibilities, see `LOG.md`.
+For architectural details and file responsibilities, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Map Theme
 
@@ -80,14 +80,8 @@ Restart the Signal K server after installation if necessary.
 
 - The repository `.gitignore` excludes `__pycache__/` and `voyage-webapp-*.tgz` artifacts.
 - To release a new tarball, bump the `version` in `package.json` and rerun the build script.
-- The voyage parser skips speed and wind samples that do not include a valid GPS position so sensor spikes without coordinates cannot inflate voyage statistics.
-- The voyage parser ignores GPS fixes that jump more than 100 nm from the last accepted position to avoid plotting AIS outliers.
-- The voyage parser prunes repeated anchored fixes within 100 meters of the leg-end anchor so only the earliest anchored point is kept.
-- Voyages are grouped by inactivity gaps over 48 hours and voyages under 1 nm are discarded, while legs split on anchored gaps (>= 1 hour) flagged by activity/skip-connection markers so legs can span multiple days and multiple legs can occur within a single day; leg segments under 1 nm are omitted from the UI.
-- The development server (`server.js`) returns `ETag` and `Last-Modified` headers (handling Safari’s `; length=` suffixes and unquoted validators on conditional headers) with `must-revalidate` caching so browsers reuse existing `voyages.json` unless it changes.
-- The front-end fetches `voyages.json` with `cache: 'no-cache'` so browsers revalidate rather than bypassing the cache during reloads.
-- Front-end JavaScript now uses ES modules: `public/app.js` orchestrates data loading and event wiring, `public/events.js` provides the shared pub/sub bus, `public/map.js` manages Leaflet lifecycle plus history updates, `public/overlays.js` builds map overlays and icons, `public/view.js` owns responsive layout and tab controls, `public/table.js` renders voyage rows while emitting events, `public/util.js` centralises formatting helpers, `public/data.js` exposes voyage data utilities, and `public/types.js` documents shared voyage typedefs for tooling.
 - Publishing to npm is not covered here; this script only creates a local package tarball.
+- For technical details on voyage/leg segmentation, GPS filtering, caching strategy, and module architecture, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Local Deploy for Testing
 
