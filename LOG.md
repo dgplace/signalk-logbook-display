@@ -66,6 +66,7 @@
 - Voyages split on inactivity gaps over 48 hours, with voyages under 1 nm discarded and repeated anchored fixes within 100 meters of the leg-end anchor pruned, while legs split on anchored gaps (>= 1 hour) flagged via anchored activity or skip-connection markers so legs can span multiple days and multiple legs can occur within a single day, with leg segments under 1 nm removed from the UI.
 
 ## Change Log
+- Update manual voyage metadata timestamp in `public/manual-voyages.json`.
 - Load manual voyage data from the static `public/manual-voyages.json` asset with an API fallback to mirror `voyages.json` handling.
 - Align totals Active Time with the summed voyage total hours and cap Sailing Time to Active Time.
 - Auto-reset the manual voyage end time to the start when missing or earlier than the start time.
