@@ -21,7 +21,9 @@ export {
   setMapClickCapture,
   clearMapClickCapture,
   getMapClickCaptureHandler,
-  getBasePathname
+  getBasePathname,
+  setOpenSeaMapEnabled,
+  getOpenSeaMapEnabled
 } from './map/core.js';
 
 // Re-export from layers module

@@ -302,7 +302,7 @@ async function load() {
   syncInitialMobileView();
 }
 
-load().then(() => setDetailsHint('Select a voyage, then click the highlighted track to inspect points.')).catch(console.error);
+load().then(() => setDetailsHint('Select a voyage, then click track to inspect.')).catch(console.error);
 
 const regenBtn = document.getElementById('regenBtn');
 if (regenBtn) {

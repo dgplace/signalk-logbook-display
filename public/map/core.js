@@ -18,6 +18,8 @@ import { registerMapResizeCallback, isMobileLayoutActive } from '../view.js';
 // Map state
 let mapInstance = null;
 let baseTileLayer = null;
+let openSeaMapLayer = null;
+let openSeaMapEnabled = false;
 let themeListenerRegistered = false;
 let allVoyagesBounds = null;
 let mapClickCaptureHandler = null;
@@ -26,6 +28,9 @@ let mapClickCaptureHandler = null;
 const BASE_TILESET_URL_LIGHT = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 const BASE_TILESET_URL_DARK = BASE_TILESET_URL_LIGHT;
 const BASE_TILESET_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+
+const OPENSEAMAP_TILESET_URL = 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png';
+const OPENSEAMAP_ATTRIBUTION = '&copy; <a href="https://www.openseamap.org">OpenSeaMap</a> contributors';
 
 const prefersColorSchemeQuery = (typeof window !== 'undefined' && typeof window.matchMedia === 'function')
   ? window.matchMedia('(prefers-color-scheme: dark)')
@@ -92,6 +97,81 @@ function createBaseLayer(mode = 'light') {
   });
   layer._colorMode = useDark ? 'dark' : 'light';
   return layer;
+}
+
+// DOM references for OpenSeaMap toggle
+const openSeaMapToggleInput = document.getElementById('openSeaMapToggle');
+const openSeaMapToggleWrapper = openSeaMapToggleInput ? openSeaMapToggleInput.closest('.toggle-switch') : null;
+
+/**
+ * Function: createOpenSeaMapLayer
+ * Description: Instantiate the Leaflet tile layer for OpenSeaMap nautical overlay.
+ * Parameters: None.
+ * Returns: L.TileLayer - Tile layer for OpenSeaMap seamark overlay.
+ */
+function createOpenSeaMapLayer() {
+  return L.tileLayer(OPENSEAMAP_TILESET_URL, {
+    maxZoom: 18,
+    attribution: OPENSEAMAP_ATTRIBUTION,
+    opacity: 1
+  });
+}
+
+/**
+ * Function: updateOpenSeaMapToggleUI
+ * Description: Sync the OpenSeaMap toggle button state with the current setting.
+ * Parameters: None.
+ * Returns: void.
+ */
+function updateOpenSeaMapToggleUI() {
+  if (!openSeaMapToggleInput) return;
+  openSeaMapToggleInput.checked = openSeaMapEnabled;
+  if (openSeaMapToggleWrapper) {
+    openSeaMapToggleWrapper.classList.toggle('is-active', openSeaMapEnabled);
+  }
+}
+
+/**
+ * Function: setOpenSeaMapEnabled
+ * Description: Toggle the OpenSeaMap overlay visibility.
+ * Parameters:
+ *   enabled (boolean): When true the overlay is shown on the map.
+ * Returns: void.
+ */
+export function setOpenSeaMapEnabled(enabled) {
+  openSeaMapEnabled = Boolean(enabled);
+  updateOpenSeaMapToggleUI();
+  if (!mapInstance) return;
+
+  if (openSeaMapEnabled) {
+    if (!openSeaMapLayer) {
+      openSeaMapLayer = createOpenSeaMapLayer();
+    }
+    if (!mapInstance.hasLayer(openSeaMapLayer)) {
+      openSeaMapLayer.addTo(mapInstance);
+    }
+  } else {
+    if (openSeaMapLayer && mapInstance.hasLayer(openSeaMapLayer)) {
+      mapInstance.removeLayer(openSeaMapLayer);
+    }
+  }
+}
+
+/**
+ * Function: getOpenSeaMapEnabled
+ * Description: Get the current OpenSeaMap overlay state.
+ * Parameters: None.
+ * Returns: boolean - Whether OpenSeaMap overlay is enabled.
+ */
+export function getOpenSeaMapEnabled() {
+  return openSeaMapEnabled;
+}
+
+// Wire up OpenSeaMap toggle event
+if (openSeaMapToggleInput) {
+  openSeaMapToggleInput.addEventListener('change', (event) => {
+    setOpenSeaMapEnabled(event.target.checked);
+  });
 }
 
 /**
@@ -270,6 +350,8 @@ export function getMapInstance() {
 export function resetMapState() {
   mapInstance = null;
   baseTileLayer = null;
+  openSeaMapLayer = null;
+  openSeaMapEnabled = false;
   allVoyagesBounds = null;
   mapClickCaptureHandler = null;
 }

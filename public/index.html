@@ -158,14 +158,19 @@
       <div id="pointDetails" class="details-panel" aria-live="polite">
         <div class="floating-header">
           <span class="drag-handle" aria-hidden="true">⋮⋮</span>
-          <span class="floating-title">Point Details</span>
+          <span class="floating-title">Overlays</span>
           <button class="close-details" aria-label="Close">×</button>
         </div>
         <div class="details-controls">
+          <label class="toggle-switch" id="openSeaMapToggleWrapper">
+            <input type="checkbox" id="openSeaMapToggle" aria-label="Toggle nautical chart overlay">
+            <span class="toggle-slider" aria-hidden="true"></span>
+            <span class="toggle-text">Nautical</span>
+          </label>
           <label class="toggle-switch" id="windOverlayToggleWrapper">
             <input type="checkbox" id="windOverlayToggle" aria-label="Toggle wind overlay">
             <span class="toggle-slider" aria-hidden="true"></span>
-            <span class="toggle-text">Wind overlay</span>
+            <span class="toggle-text">Wind</span>
           </label>
         </div>
         <div class="details-body"></div>

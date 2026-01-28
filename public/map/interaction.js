@@ -375,7 +375,7 @@ export function resetVoyageSelection() {
     const hash = window.location.hash || '';
     window.history.replaceState({}, '', `${basePathname}${search}${hash}`);
   }
-  setDetailsHint('Select a voyage, then click the highlighted track to inspect points.');
+  setDetailsHint('Select a voyage, then click track to inspect.');
   emit(EVENTS.SELECTION_RESET_COMPLETE, {});
 }
 
@@ -483,7 +483,7 @@ export function selectVoyage(voyage, row, options = {}) {
     suppressHistoryUpdate = previousSuppress;
   }
 
-  setDetailsHint('Click on the highlighted track to inspect a point.');
+  setDetailsHint('Click track to inspect a point.');
 }
 
 /**
@@ -534,7 +534,7 @@ export function focusSegment(segment, options = {}) {
   });
   refreshWindOverlay(segmentPoints);
   setWindOverlayToggleAvailability(true);
-  setDetailsHint('Click on the highlighted track to inspect a point.');
+  setDetailsHint('Click track to inspect a point.');
 }
 
 /**

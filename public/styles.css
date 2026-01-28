@@ -267,7 +267,7 @@ html, body { height: 100%; }
 .details-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 18px;
   padding: 6px 0 8px;
   border-bottom: 1px solid var(--details-border);
   margin-bottom: 8px;
