@@ -534,8 +534,8 @@ function createRouteArrowIcon(rotation) {
   const angle = Number.isFinite(rotation) ? rotation : 0;
   return L.divIcon({
     className: 'manual-route-arrow-icon',
-    iconSize: [16, 16],
-    iconAnchor: [8, 8],
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
     html: `<span class="manual-route-arrow" style="transform: rotate(${angle}deg);"></span>`
   });
 }
