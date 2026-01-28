@@ -548,7 +548,7 @@ function createRouteArrowIcon(rotation) {
  *   closeLoop (boolean): When true, include the closing segment back to start.
  * Returns: void.
  */
-function drawManualRouteArrows(points, closeLoop) {
+export function drawManualRouteArrows(points, closeLoop) {
   const mapInstance = getMapInstance();
   clearManualVoyagePreviewArrows();
   if (!mapInstance || !Array.isArray(points) || points.length < 2) return;
@@ -559,9 +559,13 @@ function drawManualRouteArrows(points, closeLoop) {
     const start = points[i];
     const end = (i === points.length - 1) ? points[0] : points[i + 1];
     if (!start || !end) continue;
-    const midLat = (start.lat + end.lat) / 2;
-    const midLon = (start.lon + end.lon) / 2;
-    const rotation = bearingBetween(start.lat, start.lon, end.lat, end.lon);
+    if (Math.abs(start.lat - end.lat) < 1e-6 && Math.abs(start.lon - end.lon) < 1e-6) continue;
+    const factor = 0.35;
+    const midLat = start.lat + (end.lat - start.lat) * factor;
+    const midLon = start.lon + (end.lon - start.lon) * factor;
+    const bearing = bearingBetween(start.lat, start.lon, end.lat, end.lon);
+    // CSS arrow shape points East (90° compass) by default, so subtract 90° to align with compass bearing
+    const rotation = bearing - 90;
     const marker = L.marker([midLat, midLon], {
       icon: createRouteArrowIcon(rotation),
       interactive: false

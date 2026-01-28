@@ -29,6 +29,7 @@ import {
   setWindOverlayToggleAvailability,
   renderActivePointMarkers,
   drawManualVoyagePreview,
+  drawManualRouteArrows,
   ensureManualRouteEditHitPolyline,
   attachManualRouteInsertHandler,
   detachManualRouteInsertHandler,
@@ -801,6 +802,7 @@ function updateManualRoutePreviewFromEditor() {
   const latLngs = buildRouteLatLngs(manualRouteEditPoints, true);
   updateManualVoyagePreviewLatLngs(latLngs);
   ensureManualRouteEditHitPolyline(latLngs);
+  drawManualRouteArrows(manualRouteEditPoints, true);
 }
 
 /**
