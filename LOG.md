@@ -1,5 +1,28 @@
 # Change Log
 
+## 2026-01-28
+
+- Refactor `public/manual.js` and `public/map.js` into maintainable modules:
+  - Extract pure calculation functions into `public/manual-logic.js`:
+    - `normalizeLocationName`, `parseDateInput`, `isSameCoordinate`
+    - `normalizeRoutePoints`, `calculateRouteDistanceNm`, `calculateOutboundDistanceNm`
+    - `stitchRoutePoints`, `splitRoutePoints` for multi-leg support
+  - Create `public/manual-state.js` with `ManualVoyageState` class for testable state management
+  - Decompose `public/map.js` into directory-based modules:
+    - `public/map/core.js`: Map lifecycle, base layers, theme switching
+    - `public/map/layers.js`: Voyage rendering, wind overlays, markers
+    - `public/map/interaction.js`: Selection, click handlers, route editing
+    - `public/map.js`: Facade re-exporting all public APIs
+- Add test infrastructure using Node.js built-in `node:test` module:
+  - `test/manual-logic.test.mjs`: Tests for pure calculation functions
+  - `test/manual-state.test.mjs`: Tests for ManualVoyageState class
+  - Run tests with `node --test test/*.test.mjs`
+- Update `public/manual.js` to import from `manual-logic.js`
+- Fix day-trip loop editing UX issues:
+  - Show updated route as red highlight polyline when exiting map edit mode
+  - Allow adding multiple points during map editing (reattach insert handler after route updates)
+  - Close the loop when highlighting return trip voyages so all segments show in red
+
 ## 2026-01-26
 
 - Improve manual voyage creation and editing UX:

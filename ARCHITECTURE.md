@@ -29,10 +29,15 @@
 ### Front-End
 
 - **public/app.js**: Front-end orchestrator that wires data fetching, module initialisation, and high-level user interactions.
-- **public/map.js**: Leaflet controller that builds voyage overlays (including gray manual tracks), handles map/background interactions, coordinates selection state with other modules, provides real-time manual voyage feedback via `highlightLocation()`, `clearHighlightedLocationMarker()`, `drawManualVoyagePreview()`, and `clearManualVoyagePreview()`, and supports day-trip loop editing with route point markers and direction arrows.
+- **public/map.js**: Facade module re-exporting map functionality from subdirectory modules (`map/core.js`, `map/layers.js`, `map/interaction.js`). Provides backward-compatible API for consumers.
+- **public/map/core.js**: Leaflet map lifecycle, base layers, theme switching, and responsive resizing. Exports `initializeMap`, `getMapInstance`, `fitMapToBounds`, `apiBasePath`, `historyUpdatesEnabled`, `setMapClickCapture`, `clearMapClickCapture`.
+- **public/map/layers.js**: Voyage polyline rendering, wind overlays, point markers, and manual voyage preview visuals. Exports `addVoyageToMap`, `removeActivePolylines`, `refreshWindOverlay`, `drawManualVoyagePreview`, `highlightLocation`, `drawMaxSpeedMarkerFromCoord`.
+- **public/map/interaction.js**: Voyage selection, point interactions, click handlers, and manual route editing state coordination. Exports `selectVoyage`, `resetVoyageSelection`, `updateSelectedPoint`, `handleMapBackgroundClick`, `setManualRouteEditing`.
 - **public/view.js**: Responsive layout utility that manages mobile/desktop toggles, tab/desktop overrides that sync with auto layout changes, tab behaviour, and layout-driven map resizing.
 - **public/table.js**: Table controller responsible for rendering voyage/leg rows (including total-time hours with unit suffixes and summed multi-leg voyage durations on desktop), suppressing max speed and wind columns for manual voyages, maintaining row state, and raising callbacks for row events.
 - **public/manual.js**: Desktop-only manual voyage entry panel logic including tabbed multi-stop editing, return-trip toggles for single-leg entries, day-trip route editing controls, calculations, autocomplete, persistence calls, stop-time auto-fill from leg durations (deriving the final stop time), manual-duration estimates at 5 kn, table-panel resizing to keep the manual form fully visible, real-time location highlighting via `MANUAL_LOCATION_SELECTED` events, real-time preview track drawing via `MANUAL_VOYAGE_PREVIEW` events, and map route edit coordination via `MANUAL_ROUTE_EDIT_REQUESTED`/`MANUAL_ROUTE_UPDATED` events during both creation and editing.
+- **public/manual-logic.js**: Pure calculation functions for manual voyage operations, extracted for testability. Exports `normalizeLocationName`, `parseDateInput`, `isSameCoordinate`, `normalizeRoutePoints`, `calculateRouteDistanceNm`, `calculateOutboundDistanceNm`, `stitchRoutePoints`, `splitRoutePoints`.
+- **public/manual-state.js**: State container class for manual voyage panel, enabling testable state mutations independent of DOM. Exports `ManualVoyageState` class with methods for stop management, route points, distance calculations, and payload generation.
 - **public/data.js**: Data helpers focused on voyage datasets, totals aggregation (including Active Time from voyage total hours/leg durations), leg segmentation, per-leg duration/average-speed calculations based on anchored activity/skip-connection gaps while discarding legs under 1 nm, manual stop normalization for multi-leg entries, and manual-duration assumptions at 5 kn.
 - **public/util.js**: Shared presentation helpers including heading/DMS formatting and datetime labelling.
 - **public/events.js**: Shared pub/sub bus for coordinating cross-module interactions (voyage selection, segment selection, max-speed display, manual location highlighting, manual voyage preview, reset workflows).
@@ -40,6 +45,11 @@
 - **public/types.js**: TypeScript-style JSDoc typedefs documenting cross-module voyage structures.
 - **public/index.html**: Base HTML shell loading the SPA, styles, and UI scaffolding.
 - **public/styles.css**: Styling for the logbook UI, including map layout, table presentation, and responsive behaviour.
+
+### Test Files
+
+- **test/manual-logic.test.mjs**: Unit tests for `public/manual-logic.js` pure functions using Node.js built-in `node:test` module.
+- **test/manual-state.test.mjs**: Unit tests for `ManualVoyageState` class using Node.js built-in `node:test` module.
 
 ### Data Files
 
@@ -134,3 +144,6 @@
 - **Event-driven coordination**: Pub/sub bus (`events.js`) decouples map, table, and view modules
 - **Separation of concerns**: Data utilities, overlays, formatting, and types in dedicated modules
 - **ES modules**: Modern import/export syntax throughout front-end code
+- **Map module decomposition**: Map functionality split into `core.js` (lifecycle), `layers.js` (rendering), and `interaction.js` (selection) with `map.js` serving as a facade
+- **Pure logic extraction**: Testable calculation functions in `manual-logic.js` and state management in `manual-state.js` enable unit testing without DOM dependencies
+- **Test infrastructure**: Node.js built-in `node:test` module for unit tests (run with `node --test test/*.test.mjs`)

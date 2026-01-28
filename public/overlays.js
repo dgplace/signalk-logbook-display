@@ -95,7 +95,8 @@ export function createPointMarkerIcon(point) {
   });
 }
 
-function segmentPointsByActivity(points) {
+function segmentPointsByActivity(points, options = {}) {
+  const { closeLoop = false } = options;
   if (!Array.isArray(points) || points.length < 2) return [];
   const segments = [];
   let current = null;
@@ -105,9 +106,11 @@ function segmentPointsByActivity(points) {
     current = null;
   };
 
-  for (let i = 0; i < points.length - 1; i += 1) {
+  // Process all consecutive pairs, plus the closing segment if closeLoop is true
+  const totalPairs = closeLoop ? points.length : points.length - 1;
+  for (let i = 0; i < totalPairs; i += 1) {
     const start = points[i];
-    const end = points[i + 1];
+    const end = points[(i + 1) % points.length];
     const startValid = typeof start?.lat === 'number' && typeof start?.lon === 'number';
     const endValid = typeof end?.lat === 'number' && typeof end?.lon === 'number';
     if (!startValid || !endValid) {
@@ -142,14 +145,15 @@ function segmentPointsByActivity(points) {
  * Parameters:
  *   map (L.Map): Leaflet map instance receiving the polylines.
  *   points (object[]): Voyage points used to derive segments.
- *   options (object): Optional overrides for line weight and opacity.
+ *   options (object): Optional overrides for line weight, opacity, and closeLoop.
  * Returns: object[] - Array of Leaflet polylines added to the map.
  */
 export function createActivityHighlightPolylines(map, points, options = {}) {
   if (!map || !Array.isArray(points) || points.length < 2) return [];
   const weight = typeof options.weight === 'number' ? options.weight : DEFAULT_HIGHLIGHT_WEIGHT;
   const opacity = typeof options.opacity === 'number' ? options.opacity : DEFAULT_HIGHLIGHT_OPACITY;
-  const segments = segmentPointsByActivity(points);
+  const closeLoop = Boolean(options.closeLoop);
+  const segments = segmentPointsByActivity(points, { closeLoop });
   return segments.map((seg) => {
     const polyline = L.polyline(seg.latLngs, {
       color: seg.color,

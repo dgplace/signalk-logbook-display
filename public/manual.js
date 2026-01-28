@@ -14,35 +14,17 @@
 import { calculateDistanceNm, formatDurationMs, MANUAL_AVG_SPEED_KN } from './data.js';
 import { setMapClickCapture, clearMapClickCapture } from './map.js';
 import { emit, on, EVENTS } from './events.js';
+import {
+  normalizeLocationName,
+  parseDateInput,
+  isSameCoordinate,
+  normalizeRoutePoints,
+  calculateRouteDistanceNm,
+  calculateOutboundDistanceNm
+} from './manual-logic.js';
 
 const PLACEHOLDER_VALUE = '—';
 const MIN_MANUAL_LOCATIONS = 2;
-
-/**
- * Function: normalizeLocationName
- * Description: Normalize a location name for case-insensitive lookup keys.
- * Parameters:
- *   name (string): Location name to normalize.
- * Returns: string - Normalized lookup key.
- */
-function normalizeLocationName(name) {
-  if (typeof name !== 'string') return '';
-  return name.trim().toLowerCase();
-}
-
-/**
- * Function: parseDateInput
- * Description: Parse a datetime-local input value into a Date object.
- * Parameters:
- *   value (string): Raw input value to parse.
- * Returns: Date|null - Parsed Date instance or null when invalid.
- */
-function parseDateInput(value) {
-  if (typeof value !== 'string' || !value.trim()) return null;
-  const dt = new Date(value);
-  if (Number.isNaN(dt.getTime())) return null;
-  return dt;
-}
 
 /**
  * Function: formatDatetimeLocal
@@ -99,89 +81,6 @@ function parseNumberInput(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return null;
   return num;
-}
-
-/**
- * Function: isSameCoordinate
- * Description: Compare two latitude/longitude pairs with a small tolerance.
- * Parameters:
- *   a (object): First coordinate with lat/lon values.
- *   b (object): Second coordinate with lat/lon values.
- *   epsilon (number): Optional tolerance for comparisons.
- * Returns: boolean - True when the coordinates are effectively the same.
- */
-function isSameCoordinate(a, b, epsilon = 1e-6) {
-  if (!a || !b) return false;
-  const latA = Number(a.lat);
-  const lonA = Number(a.lon);
-  const latB = Number(b.lat);
-  const lonB = Number(b.lon);
-  if (!Number.isFinite(latA) || !Number.isFinite(lonA) || !Number.isFinite(latB) || !Number.isFinite(lonB)) return false;
-  return Math.abs(latA - latB) <= epsilon && Math.abs(lonA - lonB) <= epsilon;
-}
-
-/**
- * Function: normalizeRoutePoints
- * Description: Normalize a list of route points into lat/lon objects.
- * Parameters:
- *   points (object[]): Raw route point list.
- * Returns: object[]|null - Normalized points or null when invalid.
- */
-function normalizeRoutePoints(points) {
-  if (!Array.isArray(points) || points.length < 2) return null;
-  const normalized = points.map((point) => {
-    const lat = Number(point?.lat);
-    const lon = Number(point?.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-    return { lat, lon };
-  });
-  if (normalized.some(point => !point) || normalized.length < 2) return null;
-  return normalized;
-}
-
-/**
- * Function: calculateRouteDistanceNm
- * Description: Sum the total route distance across points, optionally closing the loop.
- * Parameters:
- *   points (object[]): Ordered route points with lat/lon values.
- *   closeLoop (boolean): When true, include the final leg back to the start.
- * Returns: number|null - Route distance in nautical miles or null when invalid.
- */
-function calculateRouteDistanceNm(points, closeLoop) {
-  if (!Array.isArray(points) || points.length < 2) return null;
-  let distanceNm = 0;
-  for (let i = 1; i < points.length; i += 1) {
-    const prev = points[i - 1];
-    const next = points[i];
-    const legDistance = calculateDistanceNm(prev.lat, prev.lon, next.lat, next.lon);
-    distanceNm += Number.isFinite(legDistance) ? legDistance : 0;
-  }
-  if (closeLoop && points.length > 1) {
-    const first = points[0];
-    const last = points[points.length - 1];
-    if (!isSameCoordinate(first, last)) {
-      const legDistance = calculateDistanceNm(last.lat, last.lon, first.lat, first.lon);
-      distanceNm += Number.isFinite(legDistance) ? legDistance : 0;
-    }
-  }
-  return distanceNm;
-}
-
-/**
- * Function: calculateOutboundDistanceNm
- * Description: Sum the outbound distance from start to the turnaround index.
- * Parameters:
- *   points (object[]): Ordered route points with lat/lon values.
- *   turnIndex (number): Index of the turnaround point.
- * Returns: number|null - Outbound distance in nautical miles or null when invalid.
- */
-function calculateOutboundDistanceNm(points, turnIndex) {
-  if (!Array.isArray(points) || points.length < 2) return null;
-  const safeIndex = Number.isInteger(turnIndex)
-    ? Math.max(1, Math.min(turnIndex, points.length - 1))
-    : points.length - 1;
-  const outboundPoints = points.slice(0, safeIndex + 1);
-  return calculateRouteDistanceNm(outboundPoints, false);
 }
 
 /**
@@ -504,6 +403,7 @@ function setRouteEditActive(state, isActive) {
     state.routeEditActive = false;
     updateRouteToggleUI(state, allowDayTrip, canEdit);
     emit(EVENTS.MANUAL_ROUTE_EDIT_REQUESTED, { active: false });
+    emitManualVoyagePreview(state);
     return;
   }
   state.routeEditActive = Boolean(isActive);
@@ -513,6 +413,9 @@ function setRouteEditActive(state, isActive) {
     points: state.routePoints,
     turnIndex: state.routeTurnIndex
   });
+  if (!state.routeEditActive) {
+    emitManualVoyagePreview(state);
+  }
 }
 
 /**
