@@ -1,5 +1,17 @@
 # Change Log
 
+## 2026-01-29
+
+- Refactor manual voyage panel into a movable overlay map control:
+  - Move panel markup from table section to map panel in `public/index.html`
+  - Style panel as a `.details-panel` overlay with absolute positioning and z-index layering
+  - Implement `makeDraggable` utility in `public/view.js` and apply it to the panel header
+  - Add drag handle (⋮⋮) to the manual voyage panel header
+  - Hide latitude/longitude input fields to compact the UI (values populated via map pick/autocomplete)
+  - Remove table panel expansion logic as the overlay no longer affects document flow
+  - Update `public/manual.js` to manage overlay visibility and initialization
+  - Hide Point Details panel when Manual Voyage panel is open to reduce clutter, restoring it when closed
+
 ## 2026-01-28
 
 - Refactor `public/manual.js` and `public/map.js` into maintainable modules:

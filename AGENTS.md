@@ -30,6 +30,7 @@ These directives guide AI assistants working on this codebase.
 
 ## Commits
 
+* do not commits changes unless asked to
 * Use clear, concise commit messages summarizing the changes.
 * Always propose a commit message before committing.
 

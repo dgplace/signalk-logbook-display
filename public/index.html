@@ -56,102 +56,105 @@
         <div class="manual-toggle">
           <button type="button" id="manualToggleBtn">Add manual voyage</button>
         </div>
-        <section class="manual-voyage-panel" id="manualVoyagePanel" aria-label="Manual voyage entry" hidden>
-          <div class="manual-panel-header">
-            <div>
-              <h4 id="manualPanelTitle">Manual voyage</h4>
-              <p id="manualPanelSubtitle">Add voyages that do not exist in the logbook parser output.</p>
-            </div>
-            <button type="button" class="manual-close-btn" id="manualCloseBtn">Close</button>
-          </div>
-          <form id="manualVoyageForm">
-            <div class="manual-trip-type">
-              <fieldset>
-                <legend>Trip type</legend>
-                <label>
-                  <input type="radio" id="manualDayTripInput" name="manualTripType" value="day">
-                  <span>Day trip (return to start)</span>
-                </label>
-                <label>
-                  <input type="radio" id="manualOvernightInput" name="manualTripType" value="overnight" checked>
-                  <span>Overnight with one or more anchorage</span>
-                </label>
-              </fieldset>
-            </div>
-            <div class="manual-tabs">
-              <div class="manual-tablist" id="manualTabList" role="tablist" aria-label="Manual voyage locations"></div>
-              <button type="button" class="manual-tab-add" id="manualAddStopBtn" title="">Add Anchorage</button>
-            </div>
-            <div class="manual-tab-panels" id="manualTabPanels"></div>
-            <template id="manualLocationTemplate">
-              <section class="manual-group manual-location-panel" role="tabpanel">
-                <div class="manual-group-title">Start</div>
-                <label>
-                  Date/time
-                  <input type="datetime-local" class="manual-time-input" required>
-                </label>
-                <label class="manual-location-label">
-                  <span class="manual-label-row">
-                    <span>Location</span>
-                  </span>
-                  <input type="text" class="manual-name-input" list="manualLocationList" required placeholder="e.g. Moreton Bay">
-                </label>
-                <div class="manual-coords">
-                  <label>
-                    Lat
-                    <input type="number" class="manual-lat-input" required step="0.000001" min="-90" max="90" inputmode="decimal" placeholder="-27.470125">
-                  </label>
-                  <label>
-                    Long
-                    <input type="number" class="manual-lon-input" required step="0.000001" min="-180" max="180" inputmode="decimal" placeholder="153.021072">
-                  </label>
-                </div>
-                <div class="manual-pick">
-                  <button type="button" class="manual-pick-btn">Pick on map</button>
-                  <span class="manual-pick-hint" hidden>Click on the map to set coordinates.</span>
-                </div>
-                <div class="manual-location-actions">
-                  <button type="button" class="manual-remove-btn">Remove anchorage</button>
-                </div>
-              </section>
-            </template>
-            <datalist id="manualLocationList"></datalist>
-            <div class="manual-metrics">
-              <div class="manual-metric">
-                <span>Distance</span>
-                <strong id="manualDistance">—</strong>
-              </div>
-              <div class="manual-metric">
-                <span>Duration</span>
-                <strong id="manualDuration">—</strong>
-              </div>
-            </div>
-            <div class="manual-route-editor" id="manualRouteEditor" hidden>
-              <div class="manual-route-controls">
-                <label class="toggle-switch manual-route-toggle" id="manualRouteToggleWrapper">
-                  <input type="checkbox" id="manualRouteToggle" aria-label="Edit day trip loop on map">
-                  <span class="toggle-slider" aria-hidden="true"></span>
-                  <span class="toggle-text">Edit loop on map</span>
-                </label>
-                <button type="button" class="manual-secondary-btn" id="manualRouteResetBtn">Reset loop</button>
-              </div>
-              <p class="manual-route-hint" id="manualRouteHint">
-                Click the loop to insert a point, drag points to move them, and double-click a point to remove it.
-                Arrows show the loop direction.
-              </p>
-            </div>
-            <div class="manual-actions">
-              <button type="submit" id="manualAddBtn">Add manual voyage</button>
-              <button type="reset" class="manual-secondary-btn">Clear</button>
-              <button type="button" class="manual-danger-btn" id="manualDeleteBtn" hidden>Delete manual voyage</button>
-            </div>
-          </form>
-        </section>
+
       </div>
     </div>
     <div id="hDivider" class="h-divider" role="separator" aria-orientation="horizontal" aria-label="Resize panels"></div>
     <div class="map-row" id="mapPanel" role="tabpanel" aria-labelledby="mobileTabMap">
       <div id="map"></div>
+      
+      <section class="manual-voyage-panel details-panel" id="manualVoyagePanel" aria-label="Manual voyage entry" hidden style="right: auto; left: 12px; top: 12px; max-width: 380px; z-index: 1500; display: none;">
+        <div class="floating-header">
+           <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+           <span class="floating-title" id="manualPanelTitle">Manual voyage</span>
+           <button type="button" class="close-details" id="manualCloseBtn" aria-label="Close">×</button>
+        </div>
+        <div class="details-body">
+            <p id="manualPanelSubtitle" style="display:none">Add voyages that do not exist in the logbook parser output.</p>
+            <form id="manualVoyageForm">
+              <div class="manual-trip-type">
+                <fieldset>
+                  <legend>Trip type</legend>
+                  <label>
+                    <input type="radio" id="manualDayTripInput" name="manualTripType" value="day">
+                    <span>Day trip</span>
+                  </label>
+                  <label>
+                    <input type="radio" id="manualOvernightInput" name="manualTripType" value="overnight" checked>
+                    <span>Overnight / Anch...</span>
+                  </label>
+                </fieldset>
+              </div>
+              <div class="manual-tabs">
+                <div class="manual-tablist" id="manualTabList" role="tablist" aria-label="Manual voyage locations"></div>
+                <button type="button" class="manual-tab-add" id="manualAddStopBtn" title="">+ Anchorage</button>
+              </div>
+              <div class="manual-tab-panels" id="manualTabPanels"></div>
+              <template id="manualLocationTemplate">
+                <section class="manual-group manual-location-panel" role="tabpanel">
+                  <div class="manual-group-title">Start</div>
+                  <label>
+                    Date/time
+                    <input type="datetime-local" class="manual-time-input" required>
+                  </label>
+                  <label class="manual-location-label">
+                    <span class="manual-label-row">
+                      <span>Location</span>
+                    </span>
+                    <input type="text" class="manual-name-input" list="manualLocationList" required placeholder="Name">
+                  </label>
+                  <div class="manual-coords" hidden style="display:none">
+                    <label>
+                      Lat
+                      <input type="number" class="manual-lat-input" step="0.000001" min="-90" max="90" inputmode="decimal" placeholder="-27.470125">
+                    </label>
+                    <label>
+                      Long
+                      <input type="number" class="manual-lon-input" step="0.000001" min="-180" max="180" inputmode="decimal" placeholder="153.021072">
+                    </label>
+                  </div>
+                  <div class="manual-pick">
+                    <button type="button" class="manual-pick-btn">Pick on map</button>
+                    <span class="manual-pick-hint" hidden>Click map to set.</span>
+                  </div>
+                  <div class="manual-location-actions">
+                    <button type="button" class="manual-remove-btn">Remove</button>
+                  </div>
+                </section>
+              </template>
+              <datalist id="manualLocationList"></datalist>
+              <div class="manual-metrics">
+                <div class="manual-metric">
+                  <span>Dist</span>
+                  <strong id="manualDistance">—</strong>
+                </div>
+                <div class="manual-metric">
+                  <span>Dur</span>
+                  <strong id="manualDuration">—</strong>
+                </div>
+              </div>
+              <div class="manual-route-editor" id="manualRouteEditor" hidden>
+                <div class="manual-route-controls">
+                  <label class="toggle-switch manual-route-toggle" id="manualRouteToggleWrapper">
+                    <input type="checkbox" id="manualRouteToggle" aria-label="Edit day trip loop on map">
+                    <span class="toggle-slider" aria-hidden="true"></span>
+                    <span class="toggle-text">Edit loop</span>
+                  </label>
+                  <button type="button" class="manual-secondary-btn" id="manualRouteResetBtn">Reset</button>
+                </div>
+                <p class="manual-route-hint" id="manualRouteHint">
+                  Drag points to move. Dbl-click to remove.
+                </p>
+              </div>
+              <div class="manual-actions">
+                <button type="submit" id="manualAddBtn">Save</button>
+                <button type="reset" class="manual-secondary-btn">Clear</button>
+                <button type="button" class="manual-danger-btn" id="manualDeleteBtn" hidden>Delete</button>
+              </div>
+            </form>
+        </div>
+      </section>
+
       <div id="pointDetails" class="details-panel" aria-live="polite">
         <div class="floating-header">
           <span class="drag-handle" aria-hidden="true">⋮⋮</span>

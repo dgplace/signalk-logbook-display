@@ -13,6 +13,7 @@
 
 import { calculateDistanceNm, formatDurationMs, MANUAL_AVG_SPEED_KN } from './data.js';
 import { setMapClickCapture, clearMapClickCapture } from './map.js';
+import { makeDraggable } from './view.js';
 import { emit, on, EVENTS } from './events.js';
 import {
   normalizeLocationName,
@@ -797,81 +798,6 @@ function updateManualMetrics(state) {
 }
 
 /**
- * Function: captureTablePanelLayout
- * Description: Cache the current container sizing before expanding for the manual panel.
- * Parameters:
- *   state (object): Manual voyage panel state.
- * Returns: void.
- */
-function captureTablePanelLayout(state) {
-  if (!state || state.panelLayoutRestore) return;
-  const container = document.querySelector('.container');
-  if (!container) return;
-  state.panelLayoutRestore = {
-    height: container.style.height,
-    topHeight: container.style.getPropertyValue('--top-height')
-  };
-}
-
-/**
- * Function: restoreTablePanelLayout
- * Description: Restore the container sizing captured before the manual panel opened.
- * Parameters:
- *   state (object): Manual voyage panel state.
- * Returns: void.
- */
-function restoreTablePanelLayout(state) {
-  if (!state || !state.panelLayoutRestore) return;
-  const container = document.querySelector('.container');
-  if (!container) return;
-  const { height, topHeight } = state.panelLayoutRestore;
-  container.style.height = height || '';
-  if (topHeight) {
-    container.style.setProperty('--top-height', topHeight);
-  } else {
-    container.style.removeProperty('--top-height');
-  }
-  state.panelLayoutRestore = null;
-}
-
-/**
- * Function: expandTablePanelForManual
- * Description: Extend the table panel to fully display the manual voyage form.
- * Parameters:
- *   state (object): Manual voyage panel state.
- * Returns: void.
- */
-function expandTablePanelForManual(state) {
-  if (!state || !state.panel || state.panel.hidden) return;
-  const container = document.querySelector('.container');
-  const topSection = document.querySelector('.top-section');
-  const tableWrapper = document.querySelector('.table-wrapper');
-  if (!container || !topSection || !tableWrapper) return;
-  if (container.classList.contains('mobile-layout')) return;
-  captureTablePanelLayout(state);
-
-  const panelRect = state.panel.getBoundingClientRect();
-  if (!panelRect || panelRect.height <= 0) return;
-  const panelStyles = getComputedStyle(state.panel);
-  const marginTop = parseFloat(panelStyles.marginTop || '0');
-  const marginBottom = parseFloat(panelStyles.marginBottom || '0');
-  const panelBlockHeight = panelRect.height + marginTop + marginBottom;
-
-  const headerBar = document.querySelector('.header-bar');
-  const headerHeight = headerBar ? headerBar.getBoundingClientRect().height : 0;
-  const wrapperHeight = tableWrapper.getBoundingClientRect().height;
-  const requiredWrapperHeight = Math.max(wrapperHeight, panelBlockHeight);
-  const requiredTopHeight = Math.ceil(headerHeight + requiredWrapperHeight);
-  const currentTopHeight = topSection.getBoundingClientRect().height;
-  if (requiredTopHeight <= currentTopHeight) return;
-
-  const containerRect = container.getBoundingClientRect();
-  const delta = requiredTopHeight - currentTopHeight;
-  container.style.height = `${Math.ceil(containerRect.height + delta)}px`;
-  container.style.setProperty('--top-height', `${requiredTopHeight}px`);
-}
-
-/**
  * Function: setPanelVisibility
  * Description: Toggle the manual voyage panel visibility and update the toggle button label.
  * Parameters:
@@ -882,14 +808,24 @@ function expandTablePanelForManual(state) {
 function setPanelVisibility(state, isVisible) {
   if (!state || !state.panel) return;
   state.panel.hidden = !isVisible;
+  state.panel.style.display = isVisible ? '' : 'none';
   if (state.panelToggleBtn) {
     state.panelToggleBtn.textContent = isVisible ? 'Hide manual voyage' : 'Add manual voyage';
   }
-  if (isVisible) {
-    expandTablePanelForManual(state);
-  } else {
-    restoreTablePanelLayout(state);
+
+  const pointDetails = document.getElementById('pointDetails');
+  if (pointDetails) {
+    if (isVisible) {
+      state.pointDetailsWasHidden = pointDetails.style.display === 'none';
+      pointDetails.style.display = 'none';
+    } else {
+      if (!state.pointDetailsWasHidden) {
+        pointDetails.style.display = '';
+      }
+      state.pointDetailsWasHidden = undefined;
+    }
   }
+
   if (!isVisible) {
     clearMapClickCapture();
     setPickMode(state, null);
@@ -1413,9 +1349,13 @@ export function initManualVoyagePanel(options = {}) {
     locations: [],
     activeLocationIndex: 0,
     activePickIndex: null,
-    locationIdCounter: 0,
-    panelLayoutRestore: null
+    locationIdCounter: 0
   };
+
+  const dragHandle = panel.querySelector('.drag-handle');
+  if (dragHandle) {
+    makeDraggable(panel, dragHandle.parentElement);
+  }
 
   rebuildLocationEntries(state, []);
 

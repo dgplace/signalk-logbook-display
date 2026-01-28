@@ -487,3 +487,61 @@ export function initMaximizeControl() {
 
   update();
 }
+
+/**
+ * Function: makeDraggable
+ * Description: specific drag logic for overlay panels
+ * Parameters:
+ *  element (HTMLElement): The element to make draggable
+ *  handle (HTMLElement): The element that initiates the drag
+ * Returns: void
+ */
+export function makeDraggable(element, handle) {
+  if (!element || !handle) return;
+  
+  let isDragging = false;
+  let startX, startY, initialLeft, initialTop;
+
+  handle.style.cursor = 'move';
+
+  const onMouseDown = (e) => {
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    
+    // Get current position
+    const rect = element.getBoundingClientRect();
+    const parentRect = element.offsetParent ? element.offsetParent.getBoundingClientRect() : { left: 0, top: 0 };
+    
+    // Calculate initial position relative to offset parent
+    initialLeft = element.offsetLeft;
+    initialTop = element.offsetTop;
+    
+    document.body.classList.add('resizing'); // Reuse resizing cursor/selection block
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    e.preventDefault();
+  };
+
+  const onMouseMove = (e) => {
+    if (!isDragging) return;
+    
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    
+    element.style.left = `${initialLeft + dx}px`;
+    element.style.top = `${initialTop + dy}px`;
+    // Remove right/bottom if set to avoid conflict
+    element.style.right = 'auto';
+    element.style.bottom = 'auto';
+  };
+
+  const onMouseUp = () => {
+    isDragging = false;
+    document.body.classList.remove('resizing');
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+  };
+
+  handle.addEventListener('mousedown', onMouseDown);
+}

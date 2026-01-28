@@ -307,8 +307,9 @@ html, body { height: 100%; }
 }
 
 .manual-voyage-panel {
-  margin-top: 12px;
+  margin-top: 0;
   padding: 14px 16px;
+  /* Border/bg handled by details-panel if paired, but kept here for fallback */
   border: 1px solid var(--table-border);
   border-radius: 12px;
   background: var(--panel-bg);
