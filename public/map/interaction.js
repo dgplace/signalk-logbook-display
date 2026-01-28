@@ -802,7 +802,7 @@ function updateManualRoutePreviewFromEditor() {
   const latLngs = buildRouteLatLngs(manualRouteEditPoints, true);
   updateManualVoyagePreviewLatLngs(latLngs);
   ensureManualRouteEditHitPolyline(latLngs);
-  drawManualRouteArrows(manualRouteEditPoints, true);
+  //drawManualRouteArrows(manualRouteEditPoints, true);
 }
 
 /**
