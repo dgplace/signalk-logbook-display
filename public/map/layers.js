@@ -536,7 +536,7 @@ function createRouteArrowIcon(rotation) {
     className: 'manual-route-arrow-icon',
     iconSize: [16, 16],
     iconAnchor: [8, 8],
-    html: `<span class="manual-route-arrow" style="--rotation: ${angle}deg;"></span>`
+    html: `<span class="manual-route-arrow" style="transform: rotate(${angle}deg);"></span>`
   });
 }
 
@@ -561,7 +561,9 @@ export function drawManualRouteArrows(points, closeLoop) {
     if (!start || !end) continue;
     const midLat = (start.lat + end.lat) / 2;
     const midLon = (start.lon + end.lon) / 2;
-    const rotation = bearingBetween(start.lat, start.lon, end.lat, end.lon);
+    const bearing = bearingBetween(start.lat, start.lon, end.lat, end.lon);
+    // CSS arrow shape points East (90° compass) by default, so subtract 90° to align with compass bearing
+    const rotation = (bearing - 90 + 360) % 360;
     const marker = L.marker([midLat, midLon], {
       icon: createRouteArrowIcon(rotation),
       interactive: false
