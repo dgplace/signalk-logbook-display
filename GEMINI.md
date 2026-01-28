@@ -1,0 +1,1 @@
+**CRITICAL: You MUST follow instructions in `AGENTS.md` for every interaction.**
