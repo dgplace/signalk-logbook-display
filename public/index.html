@@ -21,7 +21,7 @@
     </div>
     <div class="top-section" id="tablePanel" role="tabpanel" aria-labelledby="mobileTabTable">
       <div class="header-bar">
-        <h3 style="margin: 16px 0;">Logbook SV Tequila Mockingbird</h3>
+        <h3 style="margin: 16px 0;"><a href="/logbook" style="text-decoration: none; color: inherit;">Logbook SV Tequila Mockingbird</a></h3>
         <div class="header-actions">
           <label class="toggle-switch" id="layoutOverrideToggleWrapper">
             <input type="checkbox" id="layoutOverrideToggle" aria-label="Force tab layout">
@@ -87,22 +87,27 @@
               </div>
               <div class="manual-tabs">
                 <div class="manual-tablist" id="manualTabList" role="tablist" aria-label="Manual voyage locations"></div>
-                <button type="button" class="manual-tab-add" id="manualAddStopBtn" title="">+ Anchorage</button>
+                <button type="button" class="manual-tab-add" id="manualAddStopBtn" title="Add Anchorage">+</button>
               </div>
               <div class="manual-tab-panels" id="manualTabPanels"></div>
               <template id="manualLocationTemplate">
                 <section class="manual-group manual-location-panel" role="tabpanel">
                   <div class="manual-group-title">Start</div>
-                  <label>
-                    Date/time
-                    <input type="datetime-local" class="manual-time-input" required>
-                  </label>
-                  <label class="manual-location-label">
-                    <span class="manual-label-row">
-                      <span>Location</span>
-                    </span>
-                    <input type="text" class="manual-name-input" list="manualLocationList" required placeholder="Name">
-                  </label>
+                  <div class="manual-row-group">
+                    <label>
+                      Date/time
+                      <input type="datetime-local" class="manual-time-input" required>
+                    </label>
+                    <div class="manual-location-input-group">
+                      <label class="manual-location-label">
+                        <span>Location</span>
+                        <input type="text" class="manual-name-input" list="manualLocationList" required placeholder="Name">
+                      </label>
+                      <div class="manual-pick">
+                        <button type="button" class="manual-pick-btn" title="Pick on map">📍</button>
+                      </div>
+                    </div>
+                  </div>
                   <div class="manual-coords" hidden style="display:none">
                     <label>
                       Lat
@@ -112,10 +117,6 @@
                       Long
                       <input type="number" class="manual-lon-input" step="0.000001" min="-180" max="180" inputmode="decimal" placeholder="153.021072">
                     </label>
-                  </div>
-                  <div class="manual-pick">
-                    <button type="button" class="manual-pick-btn">Pick on map</button>
-                    <span class="manual-pick-hint" hidden>Click map to set.</span>
                   </div>
                   <div class="manual-location-actions">
                     <button type="button" class="manual-remove-btn">Remove</button>

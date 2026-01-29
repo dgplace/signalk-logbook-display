@@ -311,6 +311,9 @@ export function initializeMap(onBackgroundClick, handleMapBackgroundClick) {
   baseTileLayer = null;
   mapInstance = L.map('map').setView([0, 0], 2);
   applyBaseLayerForMode(getPreferredColorMode());
+  if (openSeaMapEnabled) {
+    setOpenSeaMapEnabled(true);
+  }
   registerThemeChangeHandler();
   registerMapResizeCallback(() => {
     if (mapInstance) {

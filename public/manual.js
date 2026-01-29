@@ -991,19 +991,6 @@ function setPanelVisibility(state, isVisible) {
     state.panelToggleBtn.textContent = isVisible ? 'Hide manual voyage' : 'Add manual voyage';
   }
 
-  const pointDetails = document.getElementById('pointDetails');
-  if (pointDetails) {
-    if (isVisible) {
-      state.pointDetailsWasHidden = pointDetails.style.display === 'none';
-      pointDetails.style.display = 'none';
-    } else {
-      if (!state.pointDetailsWasHidden) {
-        pointDetails.style.display = '';
-      }
-      state.pointDetailsWasHidden = undefined;
-    }
-  }
-
   if (!isVisible) {
     clearMapClickCapture();
     setPickMode(state, null);

@@ -24,6 +24,7 @@
   - Remove table panel expansion logic as the overlay no longer affects document flow
   - Update `public/manual.js` to manage overlay visibility and initialization
   - Hide Point Details panel when Manual Voyage panel is open to reduce clutter, restoring it when closed
+- Keep the nautical (OpenSeaMap) overlay active after saving a manual voyage by reapplying it on map reloads
 
 ## 2026-01-28
 
