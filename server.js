@@ -212,7 +212,17 @@ function normalizeManualStop(raw) {
   if (!name || !time) return null;
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
   if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
-  return { name, lat, lon, time };
+
+  // Validate optional routePoints for this leg
+  let routePoints;
+  if (Array.isArray(raw.routePoints) && raw.routePoints.length >= 2) {
+    const normalized = raw.routePoints.map(normalizeManualRoutePoint);
+    if (normalized.every(p => p !== null)) {
+      routePoints = normalized;
+    }
+  }
+
+  return routePoints ? { name, lat, lon, time, routePoints } : { name, lat, lon, time };
 }
 
 /**

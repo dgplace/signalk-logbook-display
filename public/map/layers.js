@@ -682,6 +682,72 @@ export function attachManualRouteInsertHandler(insertHandler) {
 }
 
 /**
+ * Function: stitchLegRoutes
+ * Description: Stitch together per-leg route points from locations into a continuous path.
+ * Parameters:
+ *   locations (array): Array of location objects with lat, lon, and optional routePoints.
+ * Returns: object[]|null - Continuous route points or null when invalid.
+ */
+function stitchLegRoutes(locations) {
+  if (!Array.isArray(locations) || locations.length < 2) return null;
+
+  const result = [];
+  for (let i = 0; i < locations.length - 1; i += 1) {
+    const current = locations[i];
+    const next = locations[i + 1];
+    if (!current || !next) continue;
+
+    const currentLat = Number(current.lat);
+    const currentLon = Number(current.lon);
+    const nextLat = Number(next.lat);
+    const nextLon = Number(next.lon);
+
+    if (!Number.isFinite(currentLat) || !Number.isFinite(currentLon) ||
+        !Number.isFinite(nextLat) || !Number.isFinite(nextLon)) continue;
+
+    // Use custom routePoints for this leg if available
+    if (Array.isArray(current.routePoints) && current.routePoints.length >= 2) {
+      const legPoints = normalizeRoutePoints(current.routePoints);
+      if (legPoints) {
+        // Ensure leg starts at current location and ends at next location
+        legPoints[0] = { lat: currentLat, lon: currentLon };
+        legPoints[legPoints.length - 1] = { lat: nextLat, lon: nextLon };
+
+        if (result.length === 0) {
+          result.push(...legPoints);
+        } else {
+          // Skip first point if it matches the last result point
+          const lastPoint = result[result.length - 1];
+          const firstOfLeg = legPoints[0];
+          const sameStart = Math.abs(lastPoint.lat - firstOfLeg.lat) < 1e-6 &&
+                            Math.abs(lastPoint.lon - firstOfLeg.lon) < 1e-6;
+          result.push(...(sameStart ? legPoints.slice(1) : legPoints));
+        }
+        continue;
+      }
+    }
+
+    // Default: straight line for this leg
+    const startPoint = { lat: currentLat, lon: currentLon };
+    const endPoint = { lat: nextLat, lon: nextLon };
+
+    if (result.length === 0) {
+      result.push(startPoint, endPoint);
+    } else {
+      const lastPoint = result[result.length - 1];
+      const sameStart = Math.abs(lastPoint.lat - startPoint.lat) < 1e-6 &&
+                        Math.abs(lastPoint.lon - startPoint.lon) < 1e-6;
+      if (!sameStart) {
+        result.push(startPoint);
+      }
+      result.push(endPoint);
+    }
+  }
+
+  return result.length >= 2 ? result : null;
+}
+
+/**
  * Function: drawManualVoyagePreview
  * Description: Draw a preview polyline for manual voyage creation with valid locations.
  * Parameters:
@@ -694,10 +760,24 @@ export function drawManualVoyagePreview(locations, options = {}) {
   clearManualVoyagePreview();
   if (!mapInstance || !Array.isArray(locations) || locations.length < 2) return;
 
-  const normalized = normalizeRoutePoints(locations);
-  if (!normalized || normalized.length < 2) return;
   const closeLoop = Boolean(options.closeLoop);
-  const latLngs = buildRouteLatLngs(normalized, closeLoop);
+
+  // Check if any location has per-leg routePoints
+  const hasPerLegRoutes = locations.some(loc => Array.isArray(loc?.routePoints) && loc.routePoints.length >= 2);
+
+  let routePoints;
+  if (hasPerLegRoutes || (!closeLoop && !options.forceSimple)) {
+    // Stitch together per-leg routes
+    routePoints = stitchLegRoutes(locations);
+  }
+
+  // Fall back to simple route normalization
+  if (!routePoints) {
+    routePoints = normalizeRoutePoints(locations);
+  }
+
+  if (!routePoints || routePoints.length < 2) return;
+  const latLngs = buildRouteLatLngs(routePoints, closeLoop);
 
   if (latLngs.length < 2) return;
 
@@ -714,7 +794,7 @@ export function drawManualVoyagePreview(locations, options = {}) {
   manualVoyagePreviewPolyline.addTo(mapInstance);
 
   if (options.showDirection) {
-    drawManualRouteArrows(normalized, closeLoop);
+    drawManualRouteArrows(routePoints, closeLoop);
   }
   if (manualRouteEditActive) {
     ensureManualRouteEditHitPolyline(latLngs);

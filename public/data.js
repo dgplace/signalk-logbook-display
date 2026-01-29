@@ -275,12 +275,28 @@ function extractManualStops(record) {
       if (!name || !Number.isFinite(lat) || !Number.isFinite(lon) || typeof timeValue !== 'string') return null;
       const dt = new Date(timeValue);
       if (Number.isNaN(dt.getTime())) return null;
-      return {
+      let routePoints;
+      if (Array.isArray(location.routePoints) && location.routePoints.length >= 2) {
+        const normalized = location.routePoints.map((point) => {
+          const pointLat = Number(point?.lat);
+          const pointLon = Number(point?.lon);
+          if (!Number.isFinite(pointLat) || !Number.isFinite(pointLon)) return null;
+          return { lat: pointLat, lon: pointLon };
+        });
+        if (normalized.every(point => point)) {
+          routePoints = normalized;
+        }
+      }
+      const stop = {
         name,
         lat,
         lon,
         time: dt.toISOString()
       };
+      if (routePoints) {
+        stop.routePoints = routePoints;
+      }
+      return stop;
     });
     if (stops.some(stop => !stop)) return [];
     return stops;
@@ -457,12 +473,16 @@ export function buildManualVoyageFromRecord(record) {
     ? normalizeManualRoutePoints(record, startStop, turnStop)
     : null;
   let tripStops = stops.slice();
-  let distanceNm = stops.reduce((sum, stop, index) => {
-    if (index === 0) return 0;
-    const prev = stops[index - 1];
-    const legDistance = calculateDistanceNm(prev.lat, prev.lon, stop.lat, stop.lon);
-    return sum + (Number.isFinite(legDistance) ? legDistance : 0);
-  }, 0);
+  let distanceNm = 0;
+  for (let i = 1; i < stops.length; i += 1) {
+    const prev = stops[i - 1];
+    const curr = stops[i];
+    const routePoints = normalizeLegRoutePoints(prev.routePoints, prev, curr);
+    const legDistance = routePoints
+      ? calculateRouteDistanceNm(routePoints, false)
+      : calculateDistanceNm(prev.lat, prev.lon, curr.lat, curr.lon);
+    distanceNm += Number.isFinite(legDistance) ? legDistance : 0;
+  }
 
   if (manualRoute && Array.isArray(manualRoute.points)) {
     const routeDistance = calculateRouteDistanceNm(manualRoute.points, true);
@@ -510,6 +530,18 @@ export function buildManualVoyageFromRecord(record) {
   const routePointEntries = routePoints
     ? buildRoutePointEntries(routePoints, startTime, routeTurnIndex, start?.name, turnStop?.name)
     : null;
+  const legRoutePointEntries = !isReturnTrip ? buildManualLegRoutePointEntries(tripStops) : null;
+  const points = routePointEntries || legRoutePointEntries || tripStops.map(stop => ({
+    lat: stop.lat,
+    lon: stop.lon,
+    entry: { datetime: stop.time, activity: 'sailing' },
+    manualLocationName: stop.name
+  }));
+  const coords = routePointEntries
+    ? routePoints.map(point => [point.lon, point.lat])
+    : (legRoutePointEntries
+      ? legRoutePointEntries.map(point => [point.lon, point.lat])
+      : tripStops.map(stop => [stop.lon, stop.lat]));
   return {
     manual: true,
     manualId: record.id || null,
@@ -529,16 +561,118 @@ export function buildManualVoyageFromRecord(record) {
     avgWindSpeed: 0,
     avgWindHeading: null,
     totalHours,
-    points: routePointEntries || tripStops.map(stop => ({
-      lat: stop.lat,
-      lon: stop.lon,
-      entry: { datetime: stop.time, activity: 'sailing' },
-      manualLocationName: stop.name
-    })),
-    coords: routePoints
-      ? routePoints.map(point => [point.lon, point.lat])
-      : tripStops.map(stop => [stop.lon, stop.lat])
+    points,
+    coords
   };
+}
+
+/**
+ * Function: normalizeLegRoutePoints
+ * Description: Validate and align stored route points for a leg.
+ * Parameters:
+ *   points (object[]): Raw route points payload for a leg.
+ *   start (object): Start stop containing lat/lon coordinates.
+ *   end (object): End stop containing lat/lon coordinates.
+ * Returns: object[]|null - Normalized route points or null when invalid.
+ */
+function normalizeLegRoutePoints(points, start, end) {
+  if (!Array.isArray(points) || points.length < 2 || !start || !end) return null;
+  const startLat = Number(start.lat);
+  const startLon = Number(start.lon);
+  const endLat = Number(end.lat);
+  const endLon = Number(end.lon);
+  if (!Number.isFinite(startLat) || !Number.isFinite(startLon) || !Number.isFinite(endLat) || !Number.isFinite(endLon)) {
+    return null;
+  }
+  const normalized = points.map((point) => {
+    const lat = Number(point?.lat);
+    const lon = Number(point?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return { lat, lon };
+  });
+  if (normalized.some(point => !point) || normalized.length < 2) return null;
+  normalized[0] = { lat: startLat, lon: startLon };
+  normalized[normalized.length - 1] = { lat: endLat, lon: endLon };
+  return normalized;
+}
+
+/**
+ * Function: buildLegRoutePointEntries
+ * Description: Build voyage point entries for a leg route using interpolated times.
+ * Parameters:
+ *   points (object[]): Normalized route points for the leg.
+ *   start (object): Start stop containing name and time.
+ *   end (object): End stop containing name and time.
+ * Returns: object[] - Voyage point entries for the leg.
+ */
+function buildLegRoutePointEntries(points, start, end) {
+  if (!Array.isArray(points) || points.length < 2 || !start || !end) return [];
+  const cumulativeDistances = [0];
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = points[i - 1];
+    const next = points[i];
+    const legDistance = calculateDistanceNm(prev.lat, prev.lon, next.lat, next.lon);
+    const increment = Number.isFinite(legDistance) ? legDistance : 0;
+    cumulativeDistances[i] = (cumulativeDistances[i - 1] || 0) + increment;
+  }
+  const totalDistance = cumulativeDistances[cumulativeDistances.length - 1] || 0;
+  const startMs = new Date(start.time).getTime();
+  const endMs = new Date(end.time).getTime();
+  const canInterpolate = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs && totalDistance > 0;
+  const lastIndex = points.length - 1;
+  return points.map((point, index) => {
+    let time = '';
+    if (canInterpolate) {
+      const ratio = cumulativeDistances[index] / totalDistance;
+      const ms = startMs + ratio * (endMs - startMs);
+      time = new Date(ms).toISOString();
+    } else if (index === 0 && start.time) {
+      time = start.time;
+    } else if (index === lastIndex && end.time) {
+      time = end.time;
+    }
+    const entry = time ? { datetime: time, activity: 'sailing' } : { activity: 'sailing' };
+    const manualLocationName = index === 0 ? start.name : (index === lastIndex ? end.name : undefined);
+    return {
+      lat: point.lat,
+      lon: point.lon,
+      entry,
+      manualLocationName
+    };
+  });
+}
+
+/**
+ * Function: buildManualLegRoutePointEntries
+ * Description: Build a continuous point list for multi-leg manual voyages.
+ * Parameters:
+ *   stops (object[]): Ordered manual stop descriptors.
+ * Returns: object[]|null - Continuous route point entries or null when unavailable.
+ */
+function buildManualLegRoutePointEntries(stops) {
+  if (!Array.isArray(stops) || stops.length < 2) return null;
+  const entries = [];
+  for (let i = 0; i < stops.length - 1; i += 1) {
+    const start = stops[i];
+    const end = stops[i + 1];
+    if (!start || !end) continue;
+    const routePoints = normalizeLegRoutePoints(start.routePoints, start, end);
+    const legPoints = routePoints || [
+      { lat: start.lat, lon: start.lon },
+      { lat: end.lat, lon: end.lon }
+    ];
+    let legEntries = buildLegRoutePointEntries(legPoints, start, end);
+    if (!legEntries.length) continue;
+    if (entries.length) {
+      const last = entries[entries.length - 1];
+      const first = legEntries[0];
+      if (isSameCoordinate(last, first)) {
+        legEntries = legEntries.slice(1);
+      }
+    }
+    entries.push(...legEntries);
+  }
+  return entries.length >= 2 ? entries : null;
 }
 
 /**
@@ -555,7 +689,11 @@ export function buildManualSegmentsFromStops(stops = []) {
     const start = stops[i];
     const end = stops[i + 1];
     if (!start || !end) continue;
-    const distanceNm = calculateDistanceNm(start.lat, start.lon, end.lat, end.lon) ?? 0;
+    const routePoints = normalizeLegRoutePoints(start.routePoints, start, end);
+    const routeDistance = routePoints ? calculateRouteDistanceNm(routePoints, false) : null;
+    const distanceNm = Number.isFinite(routeDistance)
+      ? routeDistance
+      : (calculateDistanceNm(start.lat, start.lon, end.lat, end.lon) ?? 0);
     const startTime = start.time;
     const endTime = end.time;
     const startDate = new Date(startTime);
@@ -564,17 +702,9 @@ export function buildManualSegmentsFromStops(stops = []) {
       ? ((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60))
       : 0;
     const avgSpeed = totalHours > 0 ? (distanceNm / totalHours) : 0;
-    segments.push({
-      startTime,
-      endTime,
-      nm: Number(distanceNm.toFixed(1)),
-      maxSpeed: 0,
-      avgSpeed,
-      maxWind: 0,
-      avgWindSpeed: 0,
-      avgWindHeading: null,
-      totalHours,
-      points: [
+    const points = routePoints
+      ? buildLegRoutePointEntries(routePoints, start, end)
+      : [
         {
           lat: start.lat,
           lon: start.lon,
@@ -587,7 +717,18 @@ export function buildManualSegmentsFromStops(stops = []) {
           entry: { datetime: end.time, activity: 'sailing' },
           manualLocationName: end.name
         }
-      ],
+      ];
+    segments.push({
+      startTime,
+      endTime,
+      nm: Number(distanceNm.toFixed(1)),
+      maxSpeed: 0,
+      avgSpeed,
+      maxWind: 0,
+      avgWindSpeed: 0,
+      avgWindHeading: null,
+      totalHours,
+      points,
       maxSpeedCoord: null,
       polyline: null
     });

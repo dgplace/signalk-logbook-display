@@ -2,6 +2,19 @@
 
 ## 2026-01-29
 
+- Add per-leg route editing for multi-stop voyages:
+  - Enable custom route paths for individual legs of overnight/multi-stop voyages
+  - Support open segment editing (A→B) in addition to closed day-trip loops
+  - Store `routePoints` array within each location object for per-leg persistence
+  - Add "end" marker type (red) for open segment editing
+  - Stitch per-leg routes into continuous voyage preview on the map
+  - Calculate distances using custom routes when available
+  - Update backend validation to accept nested `routePoints` in location objects
+  - Update `public/types.js` with `routePoints` field in `ManualVoyageStop` typedef
+  - Update `public/map/layers.js` with `stitchLegRoutes()` function
+  - Update `public/map/interaction.js` for open segment support
+  - Update `public/manual.js` for per-leg route editing UI
+
 - Refactor manual voyage panel into a movable overlay map control:
   - Move panel markup from table section to map panel in `public/index.html`
   - Style panel as a `.details-panel` overlay with absolute positioning and z-index layering
@@ -13,6 +26,16 @@
   - Hide Point Details panel when Manual Voyage panel is open to reduce clutter, restoring it when closed
 
 ## 2026-01-28
+
+- Fix manual voyage leg route editing:
+  - Preserve per-leg `routePoints` on manual-voyage save requests in the plugin API
+  - Target per-leg route edits from the previous stop to the current one and disable editing on Start
+- Fix manual route edit persistence and map editing UX:
+  - Load per-leg `routePoints` from stored manual voyages and use them for voyage distance/segments
+  - Reattach the map insert handler during route edits so multiple points can be added without toggling
+  - Add regression test coverage for per-leg route persistence in overnight manual voyages
+  - Render saved multi-leg manual voyages using per-leg route points when highlighting or selecting trips
+  - Keep route edit arrows/insert clicks active during multi-leg edits and highlight the full voyage when exiting edit mode
 
 - Refactor `public/manual.js` and `public/map.js` into maintainable modules:
   - Extract pure calculation functions into `public/manual-logic.js`:

@@ -258,6 +258,12 @@ function setActiveLocation(state, index) {
     }
   });
 
+  const allowDayTrip = state.locations.length === MIN_MANUAL_LOCATIONS;
+  updateRouteEditorUI(state, allowDayTrip);
+  if (state.routeEditActive) {
+    setRouteEditActive(state, true);
+  }
+
   // Emit event to highlight the active location on the map
   if (nextIndex >= 0 && nextIndex < state.locations.length) {
     const activeEntry = state.locations[nextIndex];
@@ -341,6 +347,26 @@ function syncTripTypeInputs(state, allowDayTrip) {
 }
 
 /**
+ * Function: canEditLegRoute
+ * Description: Check if the current leg (from previous location to active) can have route edited.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ * Returns: boolean - True when the current leg can be edited.
+ */
+function canEditLegRoute(state) {
+  if (!state || !Array.isArray(state.locations)) return false;
+  const activeIdx = state.activeLocationIndex;
+  // Cannot edit route to the start location (no previous leg)
+  if (activeIdx <= 0) return false;
+  const prev = state.locations[activeIdx - 1];
+  const current = state.locations[activeIdx];
+  if (!prev || !current) return false;
+  const prevLoc = readLocationFields(prev.nameInput, prev.latInput, prev.lonInput);
+  const currentLoc = readLocationFields(current.nameInput, current.latInput, current.lonInput);
+  return Boolean(prevLoc && currentLoc);
+}
+
+/**
  * Function: updateRouteToggleUI
  * Description: Sync the route edit toggle UI with the current state.
  * Parameters:
@@ -353,7 +379,10 @@ function updateRouteToggleUI(state, allowDayTrip, canEdit) {
   if (!state) return;
   const toggleInput = state.routeToggleInput;
   const toggleWrapper = state.routeToggleWrapper;
-  const enabled = allowDayTrip && state.returnTrip && canEdit;
+  // For day trips, use legacy behavior; for multi-stop, check if current leg can be edited
+  const isDayTrip = allowDayTrip && state.returnTrip;
+  const canEditLeg = !isDayTrip && canEditLegRoute(state);
+  const enabled = (isDayTrip && canEdit) || canEditLeg;
   if (toggleInput) {
     toggleInput.disabled = !enabled;
     toggleInput.checked = enabled && state.routeEditActive;
@@ -366,7 +395,7 @@ function updateRouteToggleUI(state, allowDayTrip, canEdit) {
 
 /**
  * Function: updateRouteEditorUI
- * Description: Show or hide route editing controls based on day-trip availability.
+ * Description: Show or hide route editing controls based on leg availability.
  * Parameters:
  *   state (object): Manual voyage panel state.
  *   allowDayTrip (boolean): Whether day trip editing is available.
@@ -375,17 +404,80 @@ function updateRouteToggleUI(state, allowDayTrip, canEdit) {
 function updateRouteEditorUI(state, allowDayTrip) {
   if (!state || !state.routeEditor) return;
   const canEdit = syncRoutePointsWithStops(state);
-  const showEditor = allowDayTrip && state.returnTrip;
+  const isDayTrip = allowDayTrip && state.returnTrip;
+  const canEditLeg = canEditLegRoute(state);
+  // Show editor for day trips OR when editing a leg of a multi-stop voyage
+  const showEditor = isDayTrip || canEditLeg;
   state.routeEditor.hidden = !showEditor;
   updateRouteToggleUI(state, allowDayTrip, canEdit);
-  if ((!showEditor || !canEdit) && state.routeEditActive) {
+
+  // Update route hint label based on context
+  if (state.routeHint) {
+    if (isDayTrip) {
+      state.routeHint.textContent = 'Edit the day trip loop on the map';
+    } else if (canEditLeg) {
+      const activeIdx = state.activeLocationIndex;
+      const prevEntry = state.locations[activeIdx - 1];
+      const prevName = prevEntry?.nameInput?.value?.trim() || 'previous stop';
+      const currentEntry = state.locations[activeIdx];
+      const currentName = currentEntry?.nameInput?.value?.trim() || 'current stop';
+      state.routeHint.textContent = `Edit route from ${prevName} to ${currentName}`;
+    }
+  }
+
+  if ((!showEditor || (!canEdit && !canEditLeg)) && state.routeEditActive) {
     state.routeEditActive = false;
+    state.routeEditLegIndex = null;
     emit(EVENTS.MANUAL_ROUTE_EDIT_REQUESTED, { active: false });
   }
+
   if (state.routeResetBtn) {
-    const hasCustomRoute = canEdit && Array.isArray(state.routePoints) && state.routePoints.length > MIN_MANUAL_LOCATIONS;
+    let hasCustomRoute = false;
+    if (isDayTrip) {
+      hasCustomRoute = canEdit && Array.isArray(state.routePoints) && state.routePoints.length > MIN_MANUAL_LOCATIONS;
+    } else if (canEditLeg) {
+      const legIndex = state.activeLocationIndex - 1;
+      const legEntry = state.locations[legIndex];
+      hasCustomRoute = Array.isArray(legEntry?.routePoints) && legEntry.routePoints.length > 2;
+    }
     state.routeResetBtn.disabled = !showEditor || !hasCustomRoute;
   }
+}
+
+/**
+ * Function: getLegRoutePoints
+ * Description: Get or initialize route points for a leg starting at the given index.
+ * Parameters:
+ *   state (object): Manual voyage panel state.
+ *   legIndex (number): Index of the starting location for the leg.
+ * Returns: object[]|null - Route points for the leg or null when invalid.
+ */
+function getLegRoutePoints(state, legIndex) {
+  if (!state || !Array.isArray(state.locations)) return null;
+  if (legIndex < 0 || legIndex >= state.locations.length - 1) return null;
+  const current = state.locations[legIndex];
+  const next = state.locations[legIndex + 1];
+  if (!current || !next) return null;
+  const currentLoc = readLocationFields(current.nameInput, current.latInput, current.lonInput);
+  const nextLoc = readLocationFields(next.nameInput, next.latInput, next.lonInput);
+  if (!currentLoc || !nextLoc) return null;
+
+  // If the entry has custom route points, use them
+  if (Array.isArray(current.routePoints) && current.routePoints.length >= 2) {
+    const normalized = normalizeRoutePoints(current.routePoints);
+    if (normalized) {
+      // Ensure endpoints match the location coordinates
+      normalized[0] = { lat: currentLoc.lat, lon: currentLoc.lon };
+      normalized[normalized.length - 1] = { lat: nextLoc.lat, lon: nextLoc.lon };
+      return normalized;
+    }
+  }
+
+  // Default: straight line
+  return [
+    { lat: currentLoc.lat, lon: currentLoc.lon },
+    { lat: nextLoc.lat, lon: nextLoc.lon }
+  ];
 }
 
 /**
@@ -399,21 +491,47 @@ function updateRouteEditorUI(state, allowDayTrip) {
 function setRouteEditActive(state, isActive) {
   if (!state) return;
   const allowDayTrip = Array.isArray(state.locations) && state.locations.length === MIN_MANUAL_LOCATIONS;
-  const canEdit = syncRoutePointsWithStops(state);
-  if (!allowDayTrip || !state.returnTrip || !canEdit) {
+  const isDayTrip = allowDayTrip && state.returnTrip;
+  const canEditDayTrip = isDayTrip && syncRoutePointsWithStops(state);
+  const canEditLeg = !isDayTrip && canEditLegRoute(state);
+
+  if (!canEditDayTrip && !canEditLeg) {
     state.routeEditActive = false;
-    updateRouteToggleUI(state, allowDayTrip, canEdit);
+    state.routeEditLegIndex = null;
+    updateRouteToggleUI(state, allowDayTrip, false);
     emit(EVENTS.MANUAL_ROUTE_EDIT_REQUESTED, { active: false });
     emitManualVoyagePreview(state);
     return;
   }
+
   state.routeEditActive = Boolean(isActive);
-  updateRouteToggleUI(state, allowDayTrip, canEdit);
-  emit(EVENTS.MANUAL_ROUTE_EDIT_REQUESTED, {
-    active: state.routeEditActive,
-    points: state.routePoints,
-    turnIndex: state.routeTurnIndex
-  });
+
+  if (isDayTrip) {
+    // Day trip: closed loop editing (legacy behavior)
+    state.routeEditLegIndex = null;
+    updateRouteToggleUI(state, allowDayTrip, true);
+    emit(EVENTS.MANUAL_ROUTE_EDIT_REQUESTED, {
+      active: state.routeEditActive,
+      points: state.routePoints,
+      turnIndex: state.routeTurnIndex,
+      closeLoop: true,
+      legIndex: null
+    });
+  } else {
+    // Multi-stop: open segment editing for leg ending at the active stop
+    const legIndex = state.activeLocationIndex - 1;
+    state.routeEditLegIndex = state.routeEditActive ? legIndex : null;
+    const legPoints = getLegRoutePoints(state, legIndex);
+    updateRouteToggleUI(state, allowDayTrip, true);
+    emit(EVENTS.MANUAL_ROUTE_EDIT_REQUESTED, {
+      active: state.routeEditActive,
+      points: legPoints,
+      turnIndex: null,
+      closeLoop: false,
+      legIndex
+    });
+  }
+
   if (!state.routeEditActive) {
     emitManualVoyagePreview(state);
   }
@@ -421,31 +539,60 @@ function setRouteEditActive(state, isActive) {
 
 /**
  * Function: resetRoutePoints
- * Description: Reset the day-trip route back to start and turn points.
+ * Description: Reset the route back to straight line (day trip loop or per-leg segment).
  * Parameters:
  *   state (object): Manual voyage panel state.
  * Returns: void.
  */
 function resetRoutePoints(state) {
   if (!state) return;
-  if (!syncRoutePointsWithStops(state)) return;
-  const startPoint = state.routePoints[0];
-  const turnPoint = state.routePoints[state.routeTurnIndex] || state.routePoints[1];
-  if (!startPoint || !turnPoint) return;
-  state.routePoints = [
-    { lat: startPoint.lat, lon: startPoint.lon },
-    { lat: turnPoint.lat, lon: turnPoint.lon }
-  ];
-  state.routeTurnIndex = 1;
-  emitManualVoyagePreview(state);
-  updateManualMetrics(state);
-  updateRouteEditorUI(state, true);
-  if (state.routeEditActive) {
-    emit(EVENTS.MANUAL_ROUTE_EDIT_REQUESTED, {
-      active: true,
-      points: state.routePoints,
-      turnIndex: state.routeTurnIndex
-    });
+  const allowDayTrip = Array.isArray(state.locations) && state.locations.length === MIN_MANUAL_LOCATIONS;
+  const isDayTrip = allowDayTrip && state.returnTrip;
+
+  if (isDayTrip) {
+    // Reset day trip loop
+    if (!syncRoutePointsWithStops(state)) return;
+    const startPoint = state.routePoints[0];
+    const turnPoint = state.routePoints[state.routeTurnIndex] || state.routePoints[1];
+    if (!startPoint || !turnPoint) return;
+    state.routePoints = [
+      { lat: startPoint.lat, lon: startPoint.lon },
+      { lat: turnPoint.lat, lon: turnPoint.lon }
+    ];
+    state.routeTurnIndex = 1;
+    emitManualVoyagePreview(state);
+    updateManualMetrics(state);
+    updateRouteEditorUI(state, true);
+    if (state.routeEditActive) {
+      emit(EVENTS.MANUAL_ROUTE_EDIT_REQUESTED, {
+        active: true,
+        points: state.routePoints,
+        turnIndex: state.routeTurnIndex,
+        closeLoop: true,
+        legIndex: null
+      });
+    }
+  } else {
+    // Reset per-leg route to straight line
+    const legIndex = state.activeLocationIndex - 1;
+    if (legIndex < 0 || legIndex >= state.locations.length - 1) return;
+    const entry = state.locations[legIndex];
+    if (!entry) return;
+    // Clear custom route points for this leg
+    entry.routePoints = undefined;
+    emitManualVoyagePreview(state);
+    updateManualMetrics(state);
+    updateRouteEditorUI(state, allowDayTrip);
+    if (state.routeEditActive && state.routeEditLegIndex === legIndex) {
+      const legPoints = getLegRoutePoints(state, legIndex);
+      emit(EVENTS.MANUAL_ROUTE_EDIT_REQUESTED, {
+        active: true,
+        points: legPoints,
+        turnIndex: null,
+        closeLoop: false,
+        legIndex
+      });
+    }
   }
 }
 
@@ -497,7 +644,8 @@ function createLocationEntry(state, data = {}, insertIndex = null) {
     pickBtn,
     pickHint,
     removeBtn,
-    timeEdited: false
+    timeEdited: false,
+    routePoints: undefined
   };
 
   if (data && typeof data === 'object') {
@@ -514,6 +662,10 @@ function createLocationEntry(state, data = {}, insertIndex = null) {
     }
     if (Number.isFinite(data.lon) && lonInput) {
       lonInput.value = Number(data.lon).toFixed(6);
+    }
+    // Load per-leg routePoints if present
+    if (Array.isArray(data.routePoints) && data.routePoints.length >= 2) {
+      entry.routePoints = normalizeRoutePoints(data.routePoints);
     }
   }
 
@@ -754,6 +906,31 @@ function validateTimeOrder(state, resolvedTimes = null) {
 }
 
 /**
+ * Function: calculateLegDistance
+ * Description: Calculate the distance for a single leg, using custom route points if available.
+ * Parameters:
+ *   entry (object): Location entry with optional routePoints.
+ *   currentLoc (object): Current location coordinates.
+ *   nextLoc (object): Next location coordinates.
+ * Returns: number - Distance in nautical miles.
+ */
+function calculateLegDistance(entry, currentLoc, nextLoc) {
+  // If the entry has custom route points, calculate distance along the route
+  if (Array.isArray(entry?.routePoints) && entry.routePoints.length >= 2) {
+    const normalized = normalizeRoutePoints(entry.routePoints);
+    if (normalized) {
+      const routeDistance = calculateRouteDistanceNm(normalized, false);
+      if (Number.isFinite(routeDistance)) {
+        return routeDistance;
+      }
+    }
+  }
+  // Default: straight line distance
+  const legDistance = calculateDistanceNm(currentLoc.lat, currentLoc.lon, nextLoc.lat, nextLoc.lon);
+  return Number.isFinite(legDistance) ? legDistance : 0;
+}
+
+/**
  * Function: updateManualMetrics
  * Description: Recalculate and display distance and duration based on current input values.
  * Parameters:
@@ -773,12 +950,13 @@ function updateManualMetrics(state) {
     if (routeSummary && Number.isFinite(routeSummary.totalDistanceNm)) {
       distanceNm = routeSummary.totalDistanceNm;
     } else {
-      distanceNm = locations.reduce((sum, location, index) => {
-        if (index === 0) return 0;
-        const prev = locations[index - 1];
-        const legDistance = calculateDistanceNm(prev.lat, prev.lon, location.lat, location.lon);
-        return sum + (Number.isFinite(legDistance) ? legDistance : 0);
-      }, 0);
+      // Calculate total distance, using per-leg route points when available
+      distanceNm = 0;
+      for (let i = 0; i < locations.length - 1; i += 1) {
+        const entry = state.locations[i];
+        const legDistance = calculateLegDistance(entry, locations[i], locations[i + 1]);
+        distanceNm += legDistance;
+      }
       if (state.returnTrip && locations.length === MIN_MANUAL_LOCATIONS) {
         distanceNm = distanceNm * 2;
       }
@@ -876,6 +1054,7 @@ function setEditMode(state, voyage) {
  * Description: Build a location list from a manual voyage entry for editing.
  * Parameters:
  *   voyage (object): Manual voyage data to extract.
+ *   returnTrip (boolean): Whether this is a return trip.
  * Returns: ManualVoyageStop[] - Ordered manual locations for the edit panel.
  */
 function extractVoyageLocations(voyage, returnTrip) {
@@ -883,12 +1062,19 @@ function extractVoyageLocations(voyage, returnTrip) {
   const manualLocations = Array.isArray(voyage.manualLocations) ? voyage.manualLocations : [];
   if (manualLocations.length >= MIN_MANUAL_LOCATIONS) {
     const usableLocations = returnTrip ? manualLocations.slice(0, 2) : manualLocations;
-    return usableLocations.map((location) => ({
-      name: location?.name || '',
-      lat: Number.isFinite(Number(location?.lat)) ? Number(location.lat) : null,
-      lon: Number.isFinite(Number(location?.lon)) ? Number(location.lon) : null,
-      time: location?.time || location?.datetime || location?.startTime || ''
-    }));
+    return usableLocations.map((location) => {
+      const result = {
+        name: location?.name || '',
+        lat: Number.isFinite(Number(location?.lat)) ? Number(location.lat) : null,
+        lon: Number.isFinite(Number(location?.lon)) ? Number(location.lon) : null,
+        time: location?.time || location?.datetime || location?.startTime || ''
+      };
+      // Include per-leg routePoints if present
+      if (Array.isArray(location?.routePoints) && location.routePoints.length >= 2) {
+        result.routePoints = location.routePoints;
+      }
+      return result;
+    });
   }
   if (voyage.startTime && voyage.endTime) {
     return [
@@ -1038,9 +1224,21 @@ function applyLocationLookup(state, entry) {
  */
 function emitManualVoyagePreview(state) {
   if (!state || !Array.isArray(state.locations)) return;
+
+  // Build locations with per-leg routePoints included
   const validLocations = state.locations
-    .map(entry => readLocationFields(entry.nameInput, entry.latInput, entry.lonInput))
+    .map(entry => {
+      const loc = readLocationFields(entry.nameInput, entry.latInput, entry.lonInput);
+      if (!loc) return null;
+      // Include per-leg routePoints if present
+      if (Array.isArray(entry.routePoints) && entry.routePoints.length >= 2) {
+        return { ...loc, routePoints: entry.routePoints };
+      }
+      return loc;
+    })
     .filter(loc => loc !== null);
+
+  // For day trips, use voyage-level routePoints
   const routePoints = state.returnTrip && syncRoutePointsWithStops(state) ? state.routePoints : null;
   const routeTurnIndex = state.returnTrip && Number.isInteger(state.routeTurnIndex) ? state.routeTurnIndex : null;
 
@@ -1066,10 +1264,52 @@ function emitManualVoyagePreview(state) {
  * Returns: void.
  */
 function handleManualRouteUpdated(state, payload = {}) {
-  if (!state || !state.returnTrip || !Array.isArray(state.locations)) return;
-  if (state.locations.length !== MIN_MANUAL_LOCATIONS) return;
+  if (!state || !Array.isArray(state.locations)) return;
+
   const incomingPoints = normalizeRoutePoints(payload.points);
   if (!incomingPoints) return;
+
+  const legIndex = payload.legIndex;
+  const closeLoop = payload.closeLoop !== false;
+  const allowDayTrip = state.locations.length === MIN_MANUAL_LOCATIONS;
+
+  // Handle per-leg route updates (open segments)
+  if (Number.isInteger(legIndex) && !closeLoop) {
+    if (legIndex < 0 || legIndex >= state.locations.length - 1) return;
+    const entry = state.locations[legIndex];
+    if (!entry) return;
+
+    // Store route points on the starting location entry
+    entry.routePoints = incomingPoints;
+
+    // Update endpoint coordinates if they were dragged
+    const nextEntry = state.locations[legIndex + 1];
+    if (entry.latInput && entry.lonInput && incomingPoints[0]) {
+      entry.latInput.value = incomingPoints[0].lat.toFixed(6);
+      entry.lonInput.value = incomingPoints[0].lon.toFixed(6);
+    }
+    if (nextEntry && nextEntry.latInput && nextEntry.lonInput && incomingPoints.length >= 2) {
+      const lastPoint = incomingPoints[incomingPoints.length - 1];
+      nextEntry.latInput.value = lastPoint.lat.toFixed(6);
+      nextEntry.lonInput.value = lastPoint.lon.toFixed(6);
+    }
+
+    // Update active location highlight
+    if (state.activeLocationIndex === legIndex || state.activeLocationIndex === legIndex + 1) {
+      const activeEntry = state.locations[state.activeLocationIndex];
+      const location = readLocationFields(activeEntry?.nameInput, activeEntry?.latInput, activeEntry?.lonInput);
+      emit(EVENTS.MANUAL_LOCATION_SELECTED, { location });
+    }
+
+    updateManualMetrics(state);
+    emitManualVoyagePreview(state);
+    updateRouteEditorUI(state, allowDayTrip);
+    return;
+  }
+
+  // Handle day trip loop updates (legacy behavior)
+  if (!state.returnTrip || state.locations.length !== MIN_MANUAL_LOCATIONS) return;
+
   let turnIndex = Number.isInteger(payload.turnIndex) ? payload.turnIndex : 1;
   if (turnIndex < 1 || turnIndex >= incomingPoints.length) {
     turnIndex = Math.max(1, incomingPoints.length - 1);
@@ -1103,12 +1343,23 @@ function buildManualPayload(state) {
     if (!location) return null;
     const time = resolvedTimes[index] || parseDateInput(entry.timeInput?.value || '');
     if (!time) return null;
-    return {
+
+    const result = {
       name: location.name,
       lat: location.lat,
       lon: location.lon,
       time: time.toISOString()
     };
+
+    // Include per-leg routePoints if present (for multi-stop voyages)
+    if (Array.isArray(entry.routePoints) && entry.routePoints.length >= 2) {
+      const normalized = normalizeRoutePoints(entry.routePoints);
+      if (normalized) {
+        result.routePoints = normalized;
+      }
+    }
+
+    return result;
   });
   if (baseLocations.some(location => !location)) return null;
   let locations = baseLocations.slice();
@@ -1346,6 +1597,7 @@ export function initManualVoyagePanel(options = {}) {
     routePoints: [],
     routeTurnIndex: null,
     routeEditActive: false,
+    routeEditLegIndex: null,
     locations: [],
     activeLocationIndex: 0,
     activePickIndex: null,

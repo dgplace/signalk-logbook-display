@@ -78,9 +78,13 @@ let manualRouteEditLayer = null;
 let manualRouteEditMarkers = [];
 let manualRouteEditPoints = [];
 let manualRouteEditTurnIndex = null;
+let manualRouteEditCloseLoop = true;
+let manualRouteEditLegIndex = null;
 let manualRouteHiddenLayers = null;
 let manualRouteDimmedLayers = null;
 let skipNextManualPreview = false;
+let manualPreviewRoutePoints = null;
+let manualPreviewCloseLoop = false;
 
 // Constants
 const MAP_CLICK_SELECT_THRESHOLD_METERS = 1500;
@@ -637,14 +641,84 @@ function normalizeRoutePoints(points) {
 }
 
 /**
+ * Function: isSameCoordinate
+ * Description: Compare two latitude/longitude pairs with a small tolerance.
+ * Parameters:
+ *   a (object): First coordinate with lat/lon values.
+ *   b (object): Second coordinate with lat/lon values.
+ *   epsilon (number): Optional tolerance for coordinate comparisons.
+ * Returns: boolean - True when the coordinates are effectively the same.
+ */
+function isSameCoordinate(a, b, epsilon = 1e-6) {
+  if (!a || !b) return false;
+  const latA = Number(a.lat);
+  const lonA = Number(a.lon);
+  const latB = Number(b.lat);
+  const lonB = Number(b.lon);
+  if (!Number.isFinite(latA) || !Number.isFinite(lonA) || !Number.isFinite(latB) || !Number.isFinite(lonB)) return false;
+  return Math.abs(latA - latB) <= epsilon && Math.abs(lonA - lonB) <= epsilon;
+}
+
+/**
+ * Function: stitchLegRoutePoints
+ * Description: Stitch together per-leg route points from manual locations.
+ * Parameters:
+ *   locations (object[]): Manual location list with lat/lon and optional routePoints.
+ * Returns: object[]|null - Continuous route points or null when invalid.
+ */
+function stitchLegRoutePoints(locations) {
+  if (!Array.isArray(locations) || locations.length < 2) return null;
+  const result = [];
+  for (let i = 0; i < locations.length - 1; i += 1) {
+    const current = locations[i];
+    const next = locations[i + 1];
+    if (!current || !next) continue;
+    const currentLat = Number(current.lat);
+    const currentLon = Number(current.lon);
+    const nextLat = Number(next.lat);
+    const nextLon = Number(next.lon);
+    if (!Number.isFinite(currentLat) || !Number.isFinite(currentLon) ||
+        !Number.isFinite(nextLat) || !Number.isFinite(nextLon)) continue;
+    let legPoints = null;
+    if (Array.isArray(current.routePoints) && current.routePoints.length >= 2) {
+      const normalized = normalizeRoutePoints(current.routePoints);
+      if (normalized) {
+        normalized[0] = { lat: currentLat, lon: currentLon };
+        normalized[normalized.length - 1] = { lat: nextLat, lon: nextLon };
+        legPoints = normalized;
+      }
+    }
+    if (!legPoints) {
+      legPoints = [
+        { lat: currentLat, lon: currentLon },
+        { lat: nextLat, lon: nextLon }
+      ];
+    }
+    if (result.length) {
+      const lastPoint = result[result.length - 1];
+      const firstPoint = legPoints[0];
+      if (isSameCoordinate(lastPoint, firstPoint)) {
+        result.push(...legPoints.slice(1));
+        continue;
+      }
+    }
+    result.push(...legPoints);
+  }
+  return result.length >= 2 ? result : null;
+}
+
+/**
  * Function: createManualRouteMarkerIcon
  * Description: Build a Leaflet div icon for manual route point markers.
  * Parameters:
- *   kind (string): Marker kind ("start", "turn", or "via").
+ *   kind (string): Marker kind ("start", "turn", "end", or "via").
  * Returns: object - Leaflet divIcon instance.
  */
 function createManualRouteMarkerIcon(kind) {
-  const label = kind === 'start' ? 'S' : (kind === 'turn' ? 'T' : '');
+  let label = '';
+  if (kind === 'start') label = 'S';
+  else if (kind === 'turn') label = 'T';
+  else if (kind === 'end') label = 'E';
   return L.divIcon({
     className: `manual-route-marker manual-route-marker-${kind}`,
     iconSize: [22, 22],
@@ -796,13 +870,13 @@ function buildRouteLatLngs(points, closeLoop) {
 function updateManualRoutePreviewFromEditor() {
   if (!getManualRouteEditActive() || !Array.isArray(manualRouteEditPoints) || manualRouteEditPoints.length < 2) return;
   if (!getManualVoyagePreviewPolyline()) {
-    drawManualVoyagePreview(manualRouteEditPoints, { closeLoop: true, showDirection: true });
+    drawManualVoyagePreview(manualRouteEditPoints, { closeLoop: manualRouteEditCloseLoop, showDirection: true });
     return;
   }
-  const latLngs = buildRouteLatLngs(manualRouteEditPoints, true);
+  const latLngs = buildRouteLatLngs(manualRouteEditPoints, manualRouteEditCloseLoop);
   updateManualVoyagePreviewLatLngs(latLngs);
   ensureManualRouteEditHitPolyline(latLngs);
-  //drawManualRouteArrows(manualRouteEditPoints, true);
+  drawManualRouteArrows(manualRouteEditPoints, manualRouteEditCloseLoop);
 }
 
 /**
@@ -815,7 +889,9 @@ function emitManualRouteUpdated() {
   if (!getManualRouteEditActive()) return;
   emit(EVENTS.MANUAL_ROUTE_UPDATED, {
     points: manualRouteEditPoints.map(point => ({ lat: point.lat, lon: point.lon })),
-    turnIndex: manualRouteEditTurnIndex
+    turnIndex: manualRouteEditTurnIndex,
+    legIndex: manualRouteEditLegIndex,
+    closeLoop: manualRouteEditCloseLoop
   });
 }
 
@@ -843,7 +919,7 @@ function distanceToSegment(point, start, end) {
 
 /**
  * Function: findRouteInsertIndex
- * Description: Find the best insertion index for a new point along the loop.
+ * Description: Find the best insertion index for a new point along the route.
  * Parameters:
  *   latLng (object): Leaflet latlng for the insertion location.
  *   points (object[]): Normalized route points.
@@ -855,7 +931,8 @@ function findRouteInsertIndex(latLng, points) {
   const screenPoint = mapInstance.latLngToLayerPoint(latLng);
   let bestIndex = null;
   let bestDistance = Infinity;
-  const totalSegments = points.length;
+  // For closed loops, include segment from last to first; for open, only consecutive segments
+  const totalSegments = manualRouteEditCloseLoop ? points.length : points.length - 1;
   for (let i = 0; i < totalSegments; i += 1) {
     const start = points[i];
     const end = (i === points.length - 1) ? points[0] : points[i + 1];
@@ -883,10 +960,10 @@ function insertRoutePoint(latLng) {
   const insertIndex = findRouteInsertIndex(latLng, manualRouteEditPoints);
   if (insertIndex === null) return;
   manualRouteEditPoints.splice(insertIndex, 0, { lat: latLng.lat, lon: latLng.lng });
-  if (insertIndex <= manualRouteEditTurnIndex) {
+  if (manualRouteEditCloseLoop && insertIndex <= manualRouteEditTurnIndex) {
     manualRouteEditTurnIndex += 1;
+    manualRouteEditTurnIndex = clampRouteTurnIndex(manualRouteEditTurnIndex, manualRouteEditPoints.length);
   }
-  manualRouteEditTurnIndex = clampRouteTurnIndex(manualRouteEditTurnIndex, manualRouteEditPoints.length);
   updateManualRoutePreviewFromEditor();
   renderManualRouteEditMarkers();
   emitManualRouteUpdated();
@@ -903,9 +980,20 @@ function renderManualRouteEditMarkers() {
   clearManualRouteEditLayer();
   if (!mapInstance || !getManualRouteEditActive() || !Array.isArray(manualRouteEditPoints)) return;
   manualRouteEditLayer = L.layerGroup();
+  const lastIndex = manualRouteEditPoints.length - 1;
   manualRouteEditMarkers = manualRouteEditPoints.map((point, index) => {
     if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lon)) return null;
-    const kind = index === 0 ? 'start' : (index === manualRouteEditTurnIndex ? 'turn' : 'via');
+
+    // Determine marker kind based on mode (closed loop vs open segment)
+    let kind = 'via';
+    if (index === 0) {
+      kind = 'start';
+    } else if (manualRouteEditCloseLoop && index === manualRouteEditTurnIndex) {
+      kind = 'turn';
+    } else if (!manualRouteEditCloseLoop && index === lastIndex) {
+      kind = 'end';
+    }
+
     const marker = L.marker([point.lat, point.lon], {
       icon: createManualRouteMarkerIcon(kind),
       draggable: true
@@ -922,12 +1010,18 @@ function renderManualRouteEditMarkers() {
     marker.on('dblclick', (event) => {
       L.DomEvent.stopPropagation(event);
       if (manualRouteEditPoints.length <= 2) return;
-      if (index === 0 || index === manualRouteEditTurnIndex) return;
+      // Protect start and end points
+      if (index === 0) return;
+      if (manualRouteEditCloseLoop && index === manualRouteEditTurnIndex) return;
+      if (!manualRouteEditCloseLoop && index === lastIndex) return;
+
       manualRouteEditPoints.splice(index, 1);
-      if (index < manualRouteEditTurnIndex) {
+      if (manualRouteEditCloseLoop && index < manualRouteEditTurnIndex) {
         manualRouteEditTurnIndex -= 1;
       }
-      manualRouteEditTurnIndex = clampRouteTurnIndex(manualRouteEditTurnIndex, manualRouteEditPoints.length);
+      if (manualRouteEditCloseLoop) {
+        manualRouteEditTurnIndex = clampRouteTurnIndex(manualRouteEditTurnIndex, manualRouteEditPoints.length);
+      }
       updateManualRoutePreviewFromEditor();
       renderManualRouteEditMarkers();
       emitManualRouteUpdated();
@@ -944,14 +1038,17 @@ function renderManualRouteEditMarkers() {
  * Parameters:
  *   active (boolean): True when editing mode should be enabled.
  *   points (object[]): Route points to edit.
- *   turnIndex (number): Index of the turnaround point.
+ *   turnIndex (number): Index of the turnaround point (for closed loops).
+ *   options (object): Optional settings including closeLoop and legIndex.
  * Returns: void.
  */
-export function setManualRouteEditing(active, points, turnIndex) {
+export function setManualRouteEditing(active, points, turnIndex, options = {}) {
   if (!active) {
     setManualRouteEditState(false);
     manualRouteEditPoints = [];
     manualRouteEditTurnIndex = null;
+    manualRouteEditCloseLoop = true;
+    manualRouteEditLegIndex = null;
     clearManualRouteEditLayer();
     detachManualRouteInsertHandler();
     clearManualVoyagePreview();
@@ -977,9 +1074,11 @@ export function setManualRouteEditing(active, points, turnIndex) {
   }
   setManualRouteEditState(true);
   manualRouteEditPoints = normalized;
-  manualRouteEditTurnIndex = clampRouteTurnIndex(turnIndex, normalized.length);
+  manualRouteEditCloseLoop = options.closeLoop !== false;
+  manualRouteEditLegIndex = Number.isInteger(options.legIndex) ? options.legIndex : null;
+  manualRouteEditTurnIndex = manualRouteEditCloseLoop ? clampRouteTurnIndex(turnIndex, normalized.length) : null;
   hideVoyageLayersForRouteEdit();
-  drawManualVoyagePreview(manualRouteEditPoints, { closeLoop: true, showDirection: true });
+  drawManualVoyagePreview(manualRouteEditPoints, { closeLoop: manualRouteEditCloseLoop, showDirection: true });
   attachManualRouteInsertHandler(insertRoutePoint);
   renderManualRouteEditMarkers();
 }
@@ -1189,21 +1288,32 @@ function handleManualVoyagePreview(payload = {}) {
   const routeTurnIndex = Number.isInteger(payload?.routeTurnIndex) ? payload.routeTurnIndex : null;
   const hasLocations = Array.isArray(locations) && locations.length >= 2;
   const hasRoutePoints = Array.isArray(routePoints) && routePoints.length >= 2;
+  manualPreviewRoutePoints = null;
+  manualPreviewCloseLoop = Boolean(returnTrip);
   if (!hasLocations && !hasRoutePoints) {
     clearManualVoyagePreview();
     return;
   }
   if (returnTrip) {
     if (hasRoutePoints) {
+      manualPreviewRoutePoints = normalizeRoutePoints(routePoints);
       drawManualVoyagePreview(routePoints, { closeLoop: true, showDirection: true });
     } else if (hasLocations) {
+      manualPreviewRoutePoints = normalizeRoutePoints(locations);
       drawManualVoyagePreview(locations, { closeLoop: true, showDirection: true });
     }
   } else if (hasLocations) {
+    manualPreviewRoutePoints = stitchLegRoutePoints(locations) || normalizeRoutePoints(locations);
+    manualPreviewCloseLoop = false;
+    if (getManualRouteEditActive()) {
+      return;
+    }
     drawManualVoyagePreview(locations, { closeLoop: false, showDirection: false });
   }
-  if (getManualRouteEditActive() && hasRoutePoints) {
-    syncManualRouteEditor(routePoints, routeTurnIndex);
+  if (getManualRouteEditActive()) {
+    if (hasRoutePoints) {
+      syncManualRouteEditor(routePoints, routeTurnIndex);
+    }
     // Reattach the insert handler since drawManualVoyagePreview detaches it
     attachManualRouteInsertHandler(insertRoutePoint);
   }
@@ -1255,21 +1365,31 @@ function createManualRouteHighlightPolylines(points, options = {}) {
  */
 function handleManualRouteEditRequested(payload = {}) {
   const active = Boolean(payload?.active);
+  const closeLoop = payload?.closeLoop !== false;
   if (!active) {
-    // Get the updated route points before clearing edit state
+    // Get the updated route points and mode before clearing edit state
     const updatedPoints = manualRouteEditPoints.slice();
+    const wasCloseLoop = manualRouteEditCloseLoop;
 
     setManualRouteEditing(false, null, null);
 
     // Create red highlight polylines from the updated route
     if (updatedPoints.length >= 2) {
-      const highlights = createManualRouteHighlightPolylines(updatedPoints, { closeLoop: true });
-      setActivePolylines(highlights);
-      skipNextManualPreview = true;
+      const shouldHighlightFullVoyage = !wasCloseLoop && Array.isArray(manualPreviewRoutePoints);
+      const highlightPoints = shouldHighlightFullVoyage ? manualPreviewRoutePoints : updatedPoints;
+      const highlightCloseLoop = shouldHighlightFullVoyage ? manualPreviewCloseLoop : wasCloseLoop;
+      if (Array.isArray(highlightPoints) && highlightPoints.length >= 2) {
+        const highlights = createManualRouteHighlightPolylines(highlightPoints, { closeLoop: highlightCloseLoop });
+        setActivePolylines(highlights);
+        skipNextManualPreview = true;
+      }
     }
     return;
   }
-  setManualRouteEditing(true, payload?.points, payload?.turnIndex);
+  setManualRouteEditing(true, payload?.points, payload?.turnIndex, {
+    closeLoop,
+    legIndex: payload?.legIndex
+  });
 }
 
 // Register event handlers
@@ -1306,7 +1426,11 @@ export function resetInteractionState() {
   manualRouteEditMarkers = [];
   manualRouteEditPoints = [];
   manualRouteEditTurnIndex = null;
+  manualRouteEditCloseLoop = true;
+  manualRouteEditLegIndex = null;
   manualRouteHiddenLayers = null;
   manualRouteDimmedLayers = null;
   skipNextManualPreview = false;
+  manualPreviewRoutePoints = null;
+  manualPreviewCloseLoop = false;
 }

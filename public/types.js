@@ -100,6 +100,7 @@
  * @property {number} lat Latitude in decimal degrees.
  * @property {number} lon Longitude in decimal degrees.
  * @property {string} time ISO timestamp for the stop.
+ * @property {ManualRoutePoint[]} [routePoints] Custom route points for the leg starting at this stop.
  */
 
 /**
