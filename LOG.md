@@ -19,6 +19,9 @@
 - Remove the Tab View header toggle from the UI
 - Add clickable Max Wind values in the table to focus the max wind point on the map
 - Add average and maximum speed to the summary panel (excluding manual voyages) while keeping it within two rows
+- Split average and max speed into separate summary cards and switch to four columns per row
+- Add sailing and motoring average speeds to the summary average speed card
+- Move sailing and motoring averages into their own cards and drop the max speed summary card
 
 ## 2026-01-29
 

@@ -40,11 +40,15 @@ import {
   buildManualVoyageFromRecord,
   buildManualSegmentsFromStops,
   buildManualReturnSegmentFromStops,
+  calculateDistanceNm,
   fetchVoyagesData,
   fetchManualVoyagesData,
   formatDurationMs,
+  getPointActivity,
+  getVoyagePoints,
   applyVoyageTimeMetrics,
-  MANUAL_AVG_SPEED_KN
+  MANUAL_AVG_SPEED_KN,
+  shouldSkipConnection
 } from './data.js';
 import { emit, on, EVENTS } from './events.js';
 import { initManualVoyagePanel } from './manual.js';
@@ -60,7 +64,8 @@ const summarySeaTimeEl = document.getElementById('summarySeaTime');
 const summaryNightEl = document.getElementById('summaryNight');
 const summarySailingEl = document.getElementById('summarySailing');
 const summaryAvgSpeedEl = document.getElementById('summaryAvgSpeed');
-const summaryMaxSpeedEl = document.getElementById('summaryMaxSpeed');
+const summarySailingSpeedEl = document.getElementById('summarySailingSpeed');
+const summaryMotoringSpeedEl = document.getElementById('summaryMotoringSpeed');
 const tableWrapperEl = document.querySelector('.table-wrapper');
 const summaryLabels = {
   show: 'Summary',
@@ -135,7 +140,8 @@ function updateSummaryPanel(totals, seaTimeMs, speedStats) {
   const totalSeaTimeMs = Number.isFinite(seaTimeMs) ? seaTimeMs : 0;
   const sailingPct = totalActiveMs > 0 ? ((totalSailingMs / totalActiveMs) * 100) : 0;
   const avgSpeed = Number.isFinite(speedStats?.avgSpeed) ? speedStats.avgSpeed : 0;
-  const maxSpeed = Number.isFinite(speedStats?.maxSpeed) ? speedStats.maxSpeed : 0;
+  const sailingSpeed = Number.isFinite(speedStats?.sailingAvgSpeed) ? speedStats.sailingAvgSpeed : 0;
+  const motoringSpeed = Number.isFinite(speedStats?.motoringAvgSpeed) ? speedStats.motoringAvgSpeed : 0;
 
   if (summaryDistanceEl) {
     summaryDistanceEl.textContent = `${totalDistanceNm.toFixed(1)} NM (${totalDistanceKm.toFixed(0)} km)`;
@@ -153,11 +159,28 @@ function updateSummaryPanel(totals, seaTimeMs, speedStats) {
     summarySailingEl.textContent = `${formatDurationMs(totalSailingMs)} (${sailingPct.toFixed(1)}%)`;
   }
   if (summaryAvgSpeedEl) {
-    summaryAvgSpeedEl.textContent = `Avg ${avgSpeed.toFixed(1)} kn`;
+    summaryAvgSpeedEl.textContent = `${avgSpeed.toFixed(1)} kn`;
   }
-  if (summaryMaxSpeedEl) {
-    summaryMaxSpeedEl.textContent = `Max ${maxSpeed.toFixed(1)} kn`;
+  if (summarySailingSpeedEl) {
+    summarySailingSpeedEl.textContent = `${sailingSpeed.toFixed(2)} kn`;
   }
+  if (summaryMotoringSpeedEl) {
+    summaryMotoringSpeedEl.textContent = `${motoringSpeed.toFixed(2)} kn`;
+  }
+}
+
+/**
+ * Function: getPointTimestampMs
+ * Description: Resolve a voyage point timestamp in milliseconds.
+ * Parameters:
+ *   point (object): Voyage point to inspect for datetime metadata.
+ * Returns: number|null - Millisecond timestamp or null when unavailable.
+ */
+function getPointTimestampMs(point) {
+  const value = point?.entry?.datetime || point?.datetime;
+  if (!value) return null;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : null;
 }
 
 /**
@@ -389,10 +412,53 @@ async function load() {
     if (maxSpeed !== null && maxSpeed > acc.maxSpeed) {
       acc.maxSpeed = maxSpeed;
     }
+
+    const points = getVoyagePoints(voyage);
+    if (!Array.isArray(points) || points.length < 2) return acc;
+    for (let idx = 1; idx < points.length; idx += 1) {
+      const prev = points[idx - 1];
+      const curr = points[idx];
+      if (shouldSkipConnection(prev, curr)) continue;
+      const prevMs = getPointTimestampMs(prev);
+      const currMs = getPointTimestampMs(curr);
+      if (!Number.isFinite(prevMs) || !Number.isFinite(currMs)) continue;
+      const gap = currMs - prevMs;
+      if (!(gap > 0)) continue;
+      const prevAct = getPointActivity(prev);
+      const currAct = getPointActivity(curr);
+      if (prevAct !== currAct) continue;
+      if (prevAct !== 'sailing' && prevAct !== 'motoring') continue;
+      const distanceNm = calculateDistanceNm(prev.lat, prev.lon, curr.lat, curr.lon);
+      if (!Number.isFinite(distanceNm)) continue;
+      if (prevAct === 'sailing') {
+        acc.sailingDistanceNm += distanceNm;
+        acc.sailingMs += gap;
+      } else {
+        acc.motoringDistanceNm += distanceNm;
+        acc.motoringMs += gap;
+      }
+    }
     return acc;
-  }, { speedSum: 0, speedCount: 0, maxSpeed: 0 });
+  }, {
+    speedSum: 0,
+    speedCount: 0,
+    sailingDistanceNm: 0,
+    sailingMs: 0,
+    motoringDistanceNm: 0,
+    motoringMs: 0
+  });
   const avgSpeed = speedStats.speedCount > 0 ? (speedStats.speedSum / speedStats.speedCount) : 0;
-  updateSummaryPanel(totals, seaTimeMs, { avgSpeed, maxSpeed: speedStats.maxSpeed });
+  const sailingAvgSpeed = speedStats.sailingMs > 0
+    ? (speedStats.sailingDistanceNm / (speedStats.sailingMs / (1000 * 60 * 60)))
+    : 0;
+  const motoringAvgSpeed = speedStats.motoringMs > 0
+    ? (speedStats.motoringDistanceNm / (speedStats.motoringMs / (1000 * 60 * 60)))
+    : 0;
+  updateSummaryPanel(totals, seaTimeMs, {
+    avgSpeed,
+    sailingAvgSpeed,
+    motoringAvgSpeed
+  });
 
   let allBounds = null;
   voyages.forEach((voyage, index) => {

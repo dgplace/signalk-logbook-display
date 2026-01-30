@@ -330,7 +330,7 @@ html, body { height: 100%; }
 
 .summary-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
   gap: 12px;
 }
 
@@ -355,11 +355,6 @@ html, body { height: 100%; }
 
 .summary-metric strong {
   font-size: 1.1rem;
-}
-
-.summary-sub {
-  font-size: 0.9rem;
-  color: var(--muted-text-color);
 }
 
 .container.table-collapsed .table-wrapper {
