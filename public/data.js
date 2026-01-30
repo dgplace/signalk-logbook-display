@@ -3,13 +3,15 @@
  * - Provide utilities for normalising voyage datasets returned by the back-end.
  * - Calculate derived metrics such as voyage totals, per-leg segments, and wind statistics.
  * - Expose fetch helpers with consistent caching behaviour for the front-end.
+ * - Manage activity overrides that allow users to change point activities.
  *
  * Exported API:
  * - Extraction helpers: `getVoyagePoints`, `getPointActivity`, `shouldSkipConnection`, `extractWindSpeed`.
  * - Aggregation helpers: `computeVoyageTotals`, `computeVoyageNightMs`, `computeDaySegments`, `applyVoyageTimeMetrics`, `circularMean`.
  * - Formatting helpers: `formatDurationMs`.
  * - Manual helpers: `calculateDistanceNm`, `buildManualVoyageFromRecord`, `buildManualSegmentsFromStops`, `buildManualReturnSegmentFromStops`.
- * - Data loading: `fetchVoyagesData`, `fetchManualVoyagesData`.
+ * - Activity override helpers: `setActivityOverrides`, `getActivityOverride`, `buildPointKey`, `updateLocalOverride`, `fetchActivityOverrides`.
+ * - Data loading: `fetchVoyagesData`, `fetchManualVoyagesData`, `fetchActivityOverrides`.
  *
  * @typedef {import('./types.js').Voyage} Voyage
  * @typedef {import('./types.js').VoyagePoint} VoyagePoint
@@ -17,6 +19,9 @@
  * @typedef {import('./types.js').VoyageTotals} VoyageTotals
  * @typedef {import('./types.js').ManualVoyageRecord} ManualVoyageRecord
  */
+
+// Module-level state for activity overrides
+let activityOverridesMap = new Map();
 
 /**
  * Function: getVoyagePoints
@@ -35,13 +40,83 @@ export function getVoyagePoints(voyage) {
 }
 
 /**
+ * Function: buildPointKey
+ * Description: Build a composite key for a voyage point using datetime, longitude, and latitude.
+ * Parameters:
+ *   point (object): Voyage point containing datetime and coordinates.
+ * Returns: string|null - Composite key string or null when required fields are missing.
+ */
+export function buildPointKey(point) {
+  if (!point || typeof point !== 'object') return null;
+  const datetime = point?.entry?.datetime || point?.datetime;
+  const lon = point?.lon;
+  const lat = point?.lat;
+  if (!datetime || typeof lon !== 'number' || typeof lat !== 'number') return null;
+  return `${datetime}|${lon}|${lat}`;
+}
+
+/**
+ * Function: getActivityOverride
+ * Description: Look up an activity override for a voyage point by its composite key.
+ * Parameters:
+ *   point (object): Voyage point to check for overrides.
+ * Returns: object|null - Override object with activity property or null when not found.
+ */
+export function getActivityOverride(point) {
+  const key = buildPointKey(point);
+  if (!key) return null;
+  return activityOverridesMap.get(key) || null;
+}
+
+/**
+ * Function: setActivityOverrides
+ * Description: Initialize the activity overrides Map from loaded data.
+ * Parameters:
+ *   overrides (object[]): Array of override objects with key and activity properties.
+ * Returns: void.
+ */
+export function setActivityOverrides(overrides) {
+  activityOverridesMap.clear();
+  if (!Array.isArray(overrides)) return;
+  overrides.forEach((override) => {
+    if (override && typeof override.key === 'string' && override.key) {
+      activityOverridesMap.set(override.key, override);
+    }
+  });
+}
+
+/**
+ * Function: updateLocalOverride
+ * Description: Update the local overrides Map after saving an override to the server.
+ * Parameters:
+ *   key (string): Composite key for the point.
+ *   activity (string): New activity value.
+ *   originalActivity (string): Original activity value before override.
+ * Returns: void.
+ */
+export function updateLocalOverride(key, activity, originalActivity) {
+  if (!key || !activity) return;
+  activityOverridesMap.set(key, {
+    key,
+    activity,
+    originalActivity,
+    updatedAt: new Date().toISOString()
+  });
+}
+
+/**
  * Function: getPointActivity
- * Description: Determine the activity type for a voyage point, falling back to sailing.
+ * Description: Determine the activity type for a voyage point, checking overrides first, then falling back to sailing.
  * Parameters:
  *   point (object): Voyage point potentially containing activity metadata.
  * Returns: string - Activity label such as 'sailing', 'motoring', or 'anchored'.
  */
 export function getPointActivity(point) {
+  // Check override first
+  const override = getActivityOverride(point);
+  if (override && override.activity) return override.activity;
+
+  // Original logic
   const activity = point?.activity ?? point?.entry?.activity;
   if (activity === 'sailing' || activity === 'motoring' || activity === 'anchored') return activity;
   return 'sailing';
@@ -1327,6 +1402,41 @@ export async function fetchManualVoyagesData(apiBasePath = '') {
     } catch (apiErr) {
       console.warn('[voyage-webapp] Failed to fetch manual voyages', apiErr);
       return { voyages: [] };
+    }
+  }
+}
+
+/**
+ * Function: fetchActivityOverrides
+ * Description: Retrieve activity overrides from a static JSON file, falling back to the API when needed.
+ * Parameters:
+ *   apiBasePath (string): Optional API base path when running inside the plugin.
+ * Returns: Promise<object> - Parsed activity overrides payload.
+ */
+export async function fetchActivityOverrides(apiBasePath = '') {
+  const staticUrl = resolveRelativeUrl('activity-overrides.json');
+  try {
+    const response = await fetch(staticUrl, { cache: 'no-cache' });
+    if (!response.ok) {
+      throw new Error(`Activity overrides request failed with status ${response.status}`);
+    }
+    return response.json();
+  } catch (err) {
+    const base = typeof apiBasePath === 'string' ? apiBasePath.replace(/\/$/, '') : '';
+    if (!base) {
+      console.warn('[voyage-webapp] Failed to fetch activity overrides', err);
+      return { overrides: [] };
+    }
+    try {
+      const apiUrl = `${base}/activity-overrides`;
+      const response = await fetch(apiUrl, { cache: 'no-cache', credentials: 'include' });
+      if (!response.ok) {
+        throw new Error(`Activity overrides request failed with status ${response.status}`);
+      }
+      return response.json();
+    } catch (apiErr) {
+      console.warn('[voyage-webapp] Failed to fetch activity overrides', apiErr);
+      return { overrides: [] };
     }
   }
 }

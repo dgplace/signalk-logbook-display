@@ -55,6 +55,7 @@
 
 - **public/voyages.json**: Generated voyage dataset consumed by the SPA (overwritten via parser runs).
 - **public/manual-voyages.json**: Stored manual voyage entries containing named locations, timestamps, and optional multi-leg stop arrays, served as a static asset for UI loads.
+- **public/activity-overrides.json**: Stored activity overrides allowing users to change point activities without modifying the generated voyage data.
 - **public/Polar.json**: Generated polar dataset used by the polar plotting tooling.
 
 ## Supporting Scripts
@@ -76,7 +77,7 @@
 
 ### API Endpoints
 
-- Plugin endpoints: `GET /plugins/voyage-webapp/generate` regenerates voyages and polar data; `/generate/polar` recomputes polar data only; `/manual-voyages` supports manual voyage create/update/delete with GET kept for API access.
+- Plugin endpoints: `GET /plugins/voyage-webapp/generate` regenerates voyages and polar data; `/generate/polar` recomputes polar data only; `/manual-voyages` supports manual voyage create/update/delete with GET kept for API access; `/activity-overrides` supports activity override CRUD operations.
 - Development server runs at `http://localhost:3645/` via `node server.js` and mirrors plugin regeneration endpoints.
 - The development server also strips a `/logbook` prefix (or `VOYAGE_BASE_PATH`/`X-Forwarded-Prefix`) so JSON assets and manual-voyage endpoints work when the UI is hosted under a subpath.
 
@@ -147,3 +148,12 @@
 - **Map module decomposition**: Map functionality split into `core.js` (lifecycle), `layers.js` (rendering), and `interaction.js` (selection) with `map.js` serving as a facade
 - **Pure logic extraction**: Testable calculation functions in `manual-logic.js` and state management in `manual-state.js` enable unit testing without DOM dependencies
 - **Test infrastructure**: Node.js built-in `node:test` module for unit tests (run with `node --test test/*.test.mjs`)
+
+### Activity Override System
+
+- **Separate storage**: Activity overrides stored in `public/activity-overrides.json` without modifying `voyages.json`
+- **Point matching**: Composite key `${datetime}|${lon}|${lat}` matches points across voyage regenerations
+- **Central lookup**: `getPointActivity()` in `data.js` checks overrides first, ensuring all calculations use override values
+- **Immediate updates**: `ACTIVITY_OVERRIDE_CHANGED` event triggers polyline refresh on the map
+- **Persistence**: Overrides survive page reloads and voyage regenerations via the separate JSON file
+- **API endpoints**: GET/POST/DELETE `/activity-overrides` for CRUD operations

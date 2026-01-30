@@ -1,5 +1,18 @@
 # Change Log
 
+## 2026-01-31
+
+- Add activity override feature for voyage point inspection:
+  - Replace static activity text in point details panel with a dropdown selector
+  - Store activity overrides in `public/activity-overrides.json` separate from voyage data
+  - Use composite key `${datetime}|${lon}|${lat}` to match points across regenerations
+  - Add GET/POST/DELETE endpoints for `/activity-overrides` in `server.js` and `plugin.js`
+  - Add `setActivityOverrides`, `getActivityOverride`, `buildPointKey`, `updateLocalOverride`, `fetchActivityOverrides` functions in `data.js`
+  - Modify `getPointActivity()` to check overrides first, ensuring all calculations use override values
+  - Add `ACTIVITY_OVERRIDE_CHANGED` event to refresh map polylines after activity change
+  - Load activity overrides in parallel with voyage data on app init
+  - Style dropdown for consistent appearance in point details panel
+
 ## 2026-01-30
 
 - Replace the Maximize pill button with a macOS-style green control in the voyage table header row

@@ -52,7 +52,8 @@ import {
 } from './layers.js';
 import { emit, on, EVENTS } from '../events.js';
 import { getVoyageData, getVoyageRows } from '../table.js';
-import { getVoyagePoints, getPointActivity } from '../data.js';
+import { getVoyagePoints, getPointActivity, buildPointKey, updateLocalOverride } from '../data.js';
+import { apiBasePath } from './core.js';
 import {
   ensureMobileLayoutReadiness,
   ensureMobileMapView
@@ -257,6 +258,83 @@ function wireDetailsControls(panel) {
   panel.dataset.controlsWired = 'true';
 }
 
+// Store reference to currently displayed point for activity change handler
+let currentDetailsPoint = null;
+
+/**
+ * Function: getOriginalPointActivity
+ * Description: Get the original activity value from a point, ignoring any overrides.
+ * Parameters:
+ *   point (object): Voyage point to inspect.
+ * Returns: string - Original activity label or 'sailing' as default.
+ */
+function getOriginalPointActivity(point) {
+  const activity = point?.activity ?? point?.entry?.activity;
+  if (activity === 'sailing' || activity === 'motoring' || activity === 'anchored') return activity;
+  return 'sailing';
+}
+
+/**
+ * Function: saveActivityOverride
+ * Description: Save an activity override to the server and update local state.
+ * Parameters:
+ *   point (object): Voyage point being modified.
+ *   newActivity (string): New activity value to save.
+ * Returns: Promise<boolean> - True when the save succeeded.
+ */
+async function saveActivityOverride(point, newActivity) {
+  const key = buildPointKey(point);
+  if (!key) {
+    console.error('[voyage-webapp] Cannot save activity override: invalid point key');
+    return false;
+  }
+  const originalActivity = getOriginalPointActivity(point);
+  const base = typeof apiBasePath === 'string' ? apiBasePath.replace(/\/$/, '') : '';
+  const url = base ? `${base}/activity-overrides` : 'activity-overrides';
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ key, activity: newActivity, originalActivity })
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Request failed with status ${response.status}`);
+    }
+    updateLocalOverride(key, newActivity, originalActivity);
+    return true;
+  } catch (err) {
+    console.error('[voyage-webapp] Failed to save activity override:', err);
+    return false;
+  }
+}
+
+/**
+ * Function: wireActivitySelectHandler
+ * Description: Attach change listener to the activity dropdown in the point details panel.
+ * Parameters:
+ *   point (object): Voyage point associated with the dropdown.
+ * Returns: void.
+ */
+function wireActivitySelectHandler(point) {
+  const select = document.getElementById('pointActivitySelect');
+  if (!select) return;
+  select.addEventListener('change', async (event) => {
+    const newActivity = event.target.value;
+    if (!newActivity) return;
+    select.disabled = true;
+    const success = await saveActivityOverride(point, newActivity);
+    select.disabled = false;
+    if (success) {
+      emit(EVENTS.ACTIVITY_OVERRIDE_CHANGED, { point, activity: newActivity });
+    } else {
+      // Revert to current value on failure
+      select.value = getPointActivity(point);
+    }
+  });
+}
+
 /**
  * Function: renderPointDetails
  * Description: Populate the point details panel with data from the selected voyage point.
@@ -268,6 +346,7 @@ function renderPointDetails(point) {
   const elements = getDetailsPanelElements();
   if (!elements) return;
   const { panel, body } = elements;
+  currentDetailsPoint = point;
   const entry = point.entry || point;
   const when = entry.datetime ? new Date(entry.datetime).toLocaleString() : '—';
   const sog = entry?.speed?.sog;
@@ -280,6 +359,15 @@ function renderPointDetails(point) {
   const locationRow = locationName
     ? `<div class="row"><dt>Location</dt><dd>${escapeHtml(String(locationName))}</dd></div>`
     : '';
+  const currentActivity = getPointActivity(point);
+  const pointKey = buildPointKey(point);
+  const activityDropdown = pointKey
+    ? `<select id="pointActivitySelect" data-point-key="${escapeHtml(pointKey)}">
+        <option value="anchored"${currentActivity === 'anchored' ? ' selected' : ''}>Anchored</option>
+        <option value="motoring"${currentActivity === 'motoring' ? ' selected' : ''}>Motoring</option>
+        <option value="sailing"${currentActivity === 'sailing' ? ' selected' : ''}>Sailing</option>
+      </select>`
+    : escapeHtml(currentActivity);
   const summary = `
     <dl class="point-details">
       <div class="row"><dt>Time</dt><dd>${when}</dd></div>
@@ -288,11 +376,12 @@ function renderPointDetails(point) {
       <div class="row"><dt>SOG</dt><dd>${typeof sog === 'number' ? sog.toFixed(2) + ' kn' : '—'}</dd></div>
       <div class="row"><dt>STW</dt><dd>${typeof stw === 'number' ? stw.toFixed(2) + ' kn' : '—'}</dd></div>
       <div class="row"><dt>Wind</dt><dd>${typeof windSpd === 'number' ? windSpd.toFixed(2) + ' kn' : '—'} @ ${windDirTxt}</dd></div>
-      <div class="row"><dt>Activity</dt><dd>${getPointActivity(point)}</dd></div>
+      <div class="row"><dt>Activity</dt><dd>${activityDropdown}</dd></div>
     </dl>`;
   panel.style.display = '';
   body.innerHTML = summary;
   wireDetailsControls(panel);
+  wireActivitySelectHandler(point);
 }
 
 /**
@@ -1487,6 +1576,32 @@ function handleManualRouteEditRequested(payload = {}) {
   });
 }
 
+/**
+ * Function: handleActivityOverrideChanged
+ * Description: Refresh highlight polylines when an activity override changes.
+ * Parameters:
+ *   payload (object): Event payload containing point and new activity.
+ * Returns: void.
+ */
+function handleActivityOverrideChanged(payload = {}) {
+  const mapInstance = getMapInstance();
+  if (!mapInstance) return;
+  const currentPoints = getCurrentVoyagePoints();
+  if (!Array.isArray(currentPoints) || currentPoints.length < 2) return;
+
+  // Remove existing active polylines
+  removeActivePolylines();
+  detachActiveClickers();
+
+  // Recreate with updated activity colors
+  const highlightLines = createActivityHighlightPolylines(mapInstance, currentPoints, { closeLoop: false });
+  setActivePolylines(highlightLines);
+
+  // Re-wire polyline selection handlers
+  const activePolylines = getActivePolylines();
+  wirePolylineSelectionHandlers(activePolylines, currentPoints);
+}
+
 // Register event handlers
 on(EVENTS.VOYAGE_SELECT_REQUESTED, handleVoyageSelectRequested);
 on(EVENTS.VOYAGE_MAX_SPEED_REQUESTED, handleVoyageMaxSpeedRequested);
@@ -1498,6 +1613,7 @@ on(EVENTS.SELECTION_RESET_REQUESTED, handleSelectionResetRequested);
 on(EVENTS.MANUAL_LOCATION_SELECTED, handleManualLocationSelected);
 on(EVENTS.MANUAL_VOYAGE_PREVIEW, handleManualVoyagePreview);
 on(EVENTS.MANUAL_ROUTE_EDIT_REQUESTED, handleManualRouteEditRequested);
+on(EVENTS.ACTIVITY_OVERRIDE_CHANGED, handleActivityOverrideChanged);
 
 /**
  * Function: getSelectedPointMarker
@@ -1530,4 +1646,5 @@ export function resetInteractionState() {
   skipNextManualPreview = false;
   manualPreviewRoutePoints = null;
   manualPreviewCloseLoop = false;
+  currentDetailsPoint = null;
 }

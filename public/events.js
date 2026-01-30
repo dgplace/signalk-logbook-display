@@ -147,7 +147,8 @@ export function getEventNames() {
     SEGMENT_MAX_SPEED_REQUESTED: 'segment:max-speed-requested',
     SEGMENT_MAX_WIND_REQUESTED: 'segment:max-wind-requested',
     SELECTION_RESET_REQUESTED: 'selection:reset-requested',
-    SELECTION_RESET_COMPLETE: 'selection:reset-complete'
+    SELECTION_RESET_COMPLETE: 'selection:reset-complete',
+    ACTIVITY_OVERRIDE_CHANGED: 'activity:override-changed'
   };
 }
 

@@ -66,6 +66,7 @@ const LOG_DIR = path.join(process.env.HOME, '.signalk', 'plugin-config-data', 's
 const OUTPUT_JSON = path.join(__dirname, 'public', 'voyages.json');
 const OUTPUT_POLAR = path.join(__dirname, 'public', 'Polar.json');
 const MANUAL_JSON = path.join(__dirname, 'public', 'manual-voyages.json');
+const ACTIVITY_OVERRIDES_JSON = path.join(__dirname, 'public', 'activity-overrides.json');
 const MANUAL_PAYLOAD_MAX_BYTES = 100 * 1024;
 
 /**
@@ -310,6 +311,63 @@ async function writeManualVoyages(payload) {
 }
 
 /**
+ * Function: readActivityOverrides
+ * Description: Load the stored activity overrides from disk, returning an empty payload when missing.
+ * Parameters: None.
+ * Returns: Promise<object> - Activity overrides payload with an `overrides` array.
+ */
+async function readActivityOverrides() {
+  try {
+    const contents = await fs.promises.readFile(ACTIVITY_OVERRIDES_JSON, 'utf8');
+    const parsed = JSON.parse(contents);
+    if (parsed && Array.isArray(parsed.overrides)) {
+      return parsed;
+    }
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      return { overrides: [] };
+    }
+    throw err;
+  }
+  return { overrides: [] };
+}
+
+/**
+ * Function: writeActivityOverrides
+ * Description: Persist the activity overrides payload to disk.
+ * Parameters:
+ *   payload (object): Activity overrides payload to save.
+ * Returns: Promise<void> - Resolves when the file is written.
+ */
+async function writeActivityOverrides(payload) {
+  await ensureManualVoyageDir();
+  await fs.promises.writeFile(ACTIVITY_OVERRIDES_JSON, JSON.stringify(payload, null, 2));
+}
+
+/**
+ * Function: normalizeActivityOverridePayload
+ * Description: Validate activity override submission payloads before persistence.
+ * Parameters:
+ *   payload (object): Parsed JSON payload from the request body.
+ * Returns: object - Normalized payload or an error descriptor.
+ */
+function normalizeActivityOverridePayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return { error: 'Invalid payload.' };
+  }
+  const key = typeof payload.key === 'string' ? payload.key.trim() : '';
+  const activity = typeof payload.activity === 'string' ? payload.activity.trim().toLowerCase() : '';
+  const originalActivity = typeof payload.originalActivity === 'string' ? payload.originalActivity.trim().toLowerCase() : '';
+  if (!key) {
+    return { error: 'Missing point key.' };
+  }
+  if (activity !== 'sailing' && activity !== 'motoring' && activity !== 'anchored') {
+    return { error: 'Invalid activity value. Must be sailing, motoring, or anchored.' };
+  }
+  return { key, activity, originalActivity: originalActivity || undefined };
+}
+
+/**
  * Function: readJsonBody
  * Description: Read and parse a JSON request body with a size cap.
  * Parameters:
@@ -505,6 +563,76 @@ module.exports = function(app) {
       } catch (err) {
         app.error(`[voyage-webapp] Failed to delete manual voyage: ${err.message}`);
         res.status(500).send({ message: 'Failed to delete manual voyage' });
+      }
+    });
+
+    router.get('/activity-overrides', async (req, res) => {
+      const targetUrl = req.originalUrl || req.url || '/activity-overrides';
+      app.debug(`[voyage-webapp] GET ${targetUrl} -> loading activity overrides`);
+      try {
+        const payload = await readActivityOverrides();
+        res.json(payload);
+      } catch (err) {
+        app.error(`[voyage-webapp] Failed to read activity overrides: ${err.message}`);
+        res.status(500).send({ message: 'Failed to read activity overrides' });
+      }
+    });
+
+    router.post('/activity-overrides', async (req, res) => {
+      const targetUrl = req.originalUrl || req.url || '/activity-overrides';
+      app.debug(`[voyage-webapp] POST ${targetUrl} -> saving activity override`);
+      try {
+        const payload = await readJsonBody(req);
+        const normalized = normalizeActivityOverridePayload(payload);
+        if (normalized.error) {
+          res.status(400).send({ message: normalized.error });
+          return;
+        }
+        const existing = await readActivityOverrides();
+        const overrides = Array.isArray(existing.overrides) ? existing.overrides.slice() : [];
+        const existingIndex = overrides.findIndex(o => o && o.key === normalized.key);
+        const override = {
+          key: normalized.key,
+          activity: normalized.activity,
+          originalActivity: normalized.originalActivity,
+          updatedAt: new Date().toISOString()
+        };
+        if (existingIndex !== -1) {
+          overrides[existingIndex] = override;
+        } else {
+          overrides.push(override);
+        }
+        await writeActivityOverrides({ overrides });
+        res.status(existingIndex !== -1 ? 200 : 201).json(override);
+      } catch (err) {
+        const status = err.message === 'Payload too large' ? 413 : 400;
+        const message = err.message === 'Payload too large' ? 'Payload too large' : 'Invalid JSON payload';
+        app.error(`[voyage-webapp] Failed to save activity override: ${err.message}`);
+        res.status(status).send({ message });
+      }
+    });
+
+    router.delete('/activity-overrides/:key', async (req, res) => {
+      const targetUrl = req.originalUrl || req.url || '/activity-overrides/:key';
+      const { key } = req.params || {};
+      app.debug(`[voyage-webapp] DELETE ${targetUrl} -> deleting activity override ${key || ''}`);
+      if (!key) {
+        res.status(400).send({ message: 'Missing override key' });
+        return;
+      }
+      try {
+        const existing = await readActivityOverrides();
+        const overrides = Array.isArray(existing.overrides) ? existing.overrides : [];
+        const next = overrides.filter(o => o && o.key !== key);
+        if (next.length === overrides.length) {
+          res.status(404).send({ message: 'Override not found' });
+          return;
+        }
+        await writeActivityOverrides({ overrides: next });
+        res.json({ status: 'ok' });
+      } catch (err) {
+        app.error(`[voyage-webapp] Failed to delete activity override: ${err.message}`);
+        res.status(500).send({ message: 'Failed to delete activity override' });
       }
     });
 

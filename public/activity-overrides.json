@@ -1,0 +1,370 @@
+{
+  "overrides": [
+    {
+      "key": "2025-12-20T23:00:45.000Z|153.3556608|-27.320176",
+      "activity": "sailing",
+      "originalActivity": "motoring",
+      "updatedAt": "2026-01-30T22:43:57.809Z"
+    },
+    {
+      "key": "2025-12-21T01:51:37.000Z|153.212416|-27.4416096",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:44:46.798Z"
+    },
+    {
+      "key": "2025-12-21T01:51:55.000Z|153.2125184|-27.4413952",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:44:51.041Z"
+    },
+    {
+      "key": "2025-12-21T01:51:59.000Z|153.2124928|-27.441344",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:45:01.319Z"
+    },
+    {
+      "key": "2025-12-21T01:52:16.000Z|153.2122624|-27.4413408",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:45:07.045Z"
+    },
+    {
+      "key": "2025-12-21T01:52:12.000Z|153.2123136|-27.4413024",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:45:11.905Z"
+    },
+    {
+      "key": "2025-12-21T01:52:08.000Z|153.2123776|-27.4412896",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:45:16.026Z"
+    },
+    {
+      "key": "2025-12-21T01:52:03.000Z|153.2124544|-27.4413056",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:45:22.113Z"
+    },
+    {
+      "key": "2025-12-21T01:47:14.000Z|153.210428|-27.4446725",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:45:46.497Z"
+    },
+    {
+      "key": "2025-12-21T01:47:33.000Z|153.21047466666667|-27.4443645",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:45:51.202Z"
+    },
+    {
+      "key": "2025-12-21T01:47:18.000Z|153.21039|-27.44459833333333",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:45:59.623Z"
+    },
+    {
+      "key": "2025-12-21T01:47:23.000Z|153.2103936|-27.4445024",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:46:05.492Z"
+    },
+    {
+      "key": "2026-01-26T00:00:12.000Z|153.3277568|-27.5226752",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:47:25.454Z"
+    },
+    {
+      "key": "2026-01-26T00:06:16.000Z|153.3214976|-27.5169376",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:47:32.154Z"
+    },
+    {
+      "key": "2026-01-26T00:06:23.000Z|153.321344|-27.5168448",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:47:41.081Z"
+    },
+    {
+      "key": "2026-01-26T00:06:34.000Z|153.3211264|-27.516768",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:47:45.369Z"
+    },
+    {
+      "key": "2026-01-26T00:06:46.000Z|153.3208832|-27.5166144",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:47:49.367Z"
+    },
+    {
+      "key": "2026-01-26T00:43:26.400Z|153.2771712|-27.4768032",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:48:41.160Z"
+    },
+    {
+      "key": "2026-01-26T00:43:43.800Z|153.2768256|-27.4764896",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:48:44.893Z"
+    },
+    {
+      "key": "2026-01-26T00:44:10.800Z|153.2763264|-27.4759072",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:48:49.421Z"
+    },
+    {
+      "key": "2026-01-26T00:44:10.800Z|153.2763264|-27.475904",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:49:03.704Z"
+    },
+    {
+      "key": "2026-01-26T00:47:01.800Z|153.2732032|-27.4724096",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:49:13.545Z"
+    },
+    {
+      "key": "2026-01-26T00:47:01.800Z|153.2732032|-27.4724032",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:49:18.748Z"
+    },
+    {
+      "key": "2026-01-26T00:48:23.799Z|153.2715392|-27.4707264",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:49:22.526Z"
+    },
+    {
+      "key": "2026-01-26T00:48:23.799Z|153.2715264|-27.47072",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:49:26.143Z"
+    },
+    {
+      "key": "2026-01-26T00:50:23.699Z|153.269056|-27.4682464",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:49:35.160Z"
+    },
+    {
+      "key": "2026-01-26T00:57:23.699Z|153.2600064|-27.4594816",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:49:44.998Z"
+    },
+    {
+      "key": "2026-01-26T01:00:23.699Z|153.2557952|-27.4556416",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:49:49.492Z"
+    },
+    {
+      "key": "2026-01-26T01:02:23.699Z|153.252992|-27.45304",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:49:55.772Z"
+    },
+    {
+      "key": "2026-01-26T01:02:23.699Z|153.2529792|-27.4530336",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:50:06.106Z"
+    },
+    {
+      "key": "2026-01-26T01:05:22.700Z|153.2484096|-27.4492832",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:50:13.825Z"
+    },
+    {
+      "key": "2026-01-26T01:05:22.700Z|153.2484096|-27.44928",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:50:18.796Z"
+    },
+    {
+      "key": "2026-01-26T01:06:57.700Z|153.2461184|-27.4479584",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:50:24.506Z"
+    },
+    {
+      "key": "2026-01-26T01:08:21.700Z|153.2437888|-27.447296",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:50:29.534Z"
+    },
+    {
+      "key": "2026-01-26T01:11:21.700Z|153.2377472|-27.4457152",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:50:35.656Z"
+    },
+    {
+      "key": "2026-01-26T01:11:21.700Z|153.2377472|-27.445712",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:50:40.440Z"
+    },
+    {
+      "key": "2026-01-26T01:14:21.300Z|153.2321024|-27.44424",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:50:56.074Z"
+    },
+    {
+      "key": "2026-01-26T01:19:41.599Z|153.2221696|-27.4431584",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:51:03.719Z"
+    },
+    {
+      "key": "2026-01-26T01:21:04.599Z|153.2209536|-27.442384",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:51:08.739Z"
+    },
+    {
+      "key": "2026-01-26T01:21:27.599Z|153.220736|-27.4421472",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:51:15.568Z"
+    },
+    {
+      "key": "2026-01-26T01:21:47.599Z|153.2204544|-27.441904",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:51:19.853Z"
+    },
+    {
+      "key": "2026-01-26T01:21:53.599Z|153.2203264|-27.4419072",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:51:23.307Z"
+    },
+    {
+      "key": "2026-01-26T01:22:18.599Z|153.2197248|-27.4421152",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:51:28.741Z"
+    },
+    {
+      "key": "2026-01-26T01:27:33.599Z|153.2106368|-27.4434048",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:51:48.052Z"
+    },
+    {
+      "key": "2026-01-26T01:29:06.199Z|153.2079872|-27.4438368",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:51:57.177Z"
+    },
+    {
+      "key": "2026-01-26T01:31:34.599Z|153.2039936|-27.4454656",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:52:04.055Z"
+    },
+    {
+      "key": "2026-01-26T01:32:15.199Z|153.2029312|-27.4459616",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:52:08.138Z"
+    },
+    {
+      "key": "2026-01-25T00:00:24.000Z|153.2127232|-27.438064",
+      "activity": "sailing",
+      "originalActivity": "motoring",
+      "updatedAt": "2026-01-30T22:52:47.326Z"
+    },
+    {
+      "key": "2026-01-24T23:59:56.000Z|153.2120704|-27.4379296",
+      "activity": "sailing",
+      "originalActivity": "motoring",
+      "updatedAt": "2026-01-30T22:52:53.837Z"
+    },
+    {
+      "key": "2026-01-24T23:59:07.000Z|153.211008|-27.4375008",
+      "activity": "sailing",
+      "originalActivity": "motoring",
+      "updatedAt": "2026-01-30T22:52:59.026Z"
+    },
+    {
+      "key": "2025-06-01T03:36:13.500Z|153.3475968|-27.4636512",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:54:46.478Z"
+    },
+    {
+      "key": "2025-06-01T03:33:53.900Z|153.3462466|-27.4649016",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:54:52.773Z"
+    },
+    {
+      "key": "2025-12-20T22:28:46.699Z|153.38453783333333|-27.287859666666666",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:56:43.807Z"
+    },
+    {
+      "key": "2025-12-20T05:55:42.000Z|153.3735168|-27.2954784",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:57:00.967Z"
+    },
+    {
+      "key": "2025-12-20T05:50:01.000Z|153.3656832|-27.2983488",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:57:07.427Z"
+    },
+    {
+      "key": "2025-12-20T05:47:46.000Z|153.3628544|-27.299568",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:57:11.752Z"
+    },
+    {
+      "key": "2025-12-20T05:44:58.000Z|153.3610624|-27.3014592",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:57:15.969Z"
+    },
+    {
+      "key": "2025-12-20T05:44:26.000Z|153.3608448|-27.301856",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:57:21.969Z"
+    },
+    {
+      "key": "2026-01-06T21:41:45.000Z|153.3633024|-27.0722688",
+      "activity": "anchored",
+      "originalActivity": "anchored",
+      "updatedAt": "2026-01-30T22:58:30.626Z"
+    },
+    {
+      "key": "2026-01-06T21:46:06.000Z|153.3607424|-27.0784288",
+      "activity": "motoring",
+      "originalActivity": "anchored",
+      "updatedAt": "2026-01-30T22:58:50.049Z"
+    },
+    {
+      "key": "2026-01-06T14:19:54.899Z|153.3356416|-26.9969696",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-30T22:59:01.508Z"
+    }
+  ]
+}

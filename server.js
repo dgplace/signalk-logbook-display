@@ -16,6 +16,7 @@ const LOG_DIR = path.join(process.env.HOME, '.signalk', 'plugin-config-data', 's
 const OUTPUT_JSON = path.join(PUBLIC_DIR, 'voyages.json');
 const OUTPUT_POLAR = path.join(PUBLIC_DIR, 'Polar.json');
 const MANUAL_JSON = path.join(PUBLIC_DIR, 'manual-voyages.json');
+const ACTIVITY_OVERRIDES_JSON = path.join(PUBLIC_DIR, 'activity-overrides.json');
 const MANUAL_PAYLOAD_MAX_BYTES = 100 * 1024;
 const BASE_PATH = process.env.VOYAGE_BASE_PATH || '';
 
@@ -587,6 +588,157 @@ function handleManualVoyageDelete(id, res) {
 }
 
 /**
+ * Function: readActivityOverrides
+ * Description: Load the stored activity overrides from disk, returning an empty payload when missing.
+ * Parameters: None.
+ * Returns: Promise<object> - Activity overrides payload with an `overrides` array.
+ */
+async function readActivityOverrides() {
+  try {
+    const contents = await fs.promises.readFile(ACTIVITY_OVERRIDES_JSON, 'utf8');
+    const parsed = JSON.parse(contents);
+    if (parsed && Array.isArray(parsed.overrides)) {
+      return parsed;
+    }
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      return { overrides: [] };
+    }
+    throw err;
+  }
+  return { overrides: [] };
+}
+
+/**
+ * Function: writeActivityOverrides
+ * Description: Persist the activity overrides payload to disk.
+ * Parameters:
+ *   payload (object): Activity overrides payload to save.
+ * Returns: Promise<void> - Resolves when the file is written.
+ */
+async function writeActivityOverrides(payload) {
+  await ensureManualVoyageDir();
+  await fs.promises.writeFile(ACTIVITY_OVERRIDES_JSON, JSON.stringify(payload, null, 2));
+}
+
+/**
+ * Function: normalizeActivityOverridePayload
+ * Description: Validate activity override submission payloads before persistence.
+ * Parameters:
+ *   payload (object): Parsed JSON payload from the request body.
+ * Returns: object - Normalized payload or an error descriptor.
+ */
+function normalizeActivityOverridePayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return { error: 'Invalid payload.' };
+  }
+  const key = typeof payload.key === 'string' ? payload.key.trim() : '';
+  const activity = typeof payload.activity === 'string' ? payload.activity.trim().toLowerCase() : '';
+  const originalActivity = typeof payload.originalActivity === 'string' ? payload.originalActivity.trim().toLowerCase() : '';
+  if (!key) {
+    return { error: 'Missing point key.' };
+  }
+  if (activity !== 'sailing' && activity !== 'motoring' && activity !== 'anchored') {
+    return { error: 'Invalid activity value. Must be sailing, motoring, or anchored.' };
+  }
+  return { key, activity, originalActivity: originalActivity || undefined };
+}
+
+/**
+ * Function: handleActivityOverridesList
+ * Description: Return the stored activity overrides list to the client.
+ * Parameters:
+ *   res (http.ServerResponse): Response object used to transmit data.
+ * Returns: void.
+ */
+function handleActivityOverridesList(res) {
+  readActivityOverrides()
+    .then(payload => {
+      send(res, 200, { 'Content-Type': 'application/json' }, JSON.stringify(payload));
+    })
+    .catch(err => {
+      console.error(`[voyage-webapp] Failed to read activity overrides: ${err.message}`);
+      send(res, 500, { 'Content-Type': 'application/json' }, JSON.stringify({ message: 'Failed to read activity overrides' }));
+    });
+}
+
+/**
+ * Function: handleActivityOverrideCreate
+ * Description: Create or update an activity override based on the request payload.
+ * Parameters:
+ *   req (http.IncomingMessage): Request stream containing JSON payload.
+ *   res (http.ServerResponse): Response object used to transmit data.
+ * Returns: void.
+ */
+function handleActivityOverrideCreate(req, res) {
+  readJsonBody(req)
+    .then((payload) => {
+      const normalized = normalizeActivityOverridePayload(payload);
+      if (normalized.error) {
+        send(res, 400, { 'Content-Type': 'application/json' }, JSON.stringify({ message: normalized.error }));
+        return null;
+      }
+      return readActivityOverrides().then(existing => {
+        const overrides = Array.isArray(existing.overrides) ? existing.overrides.slice() : [];
+        const existingIndex = overrides.findIndex(o => o && o.key === normalized.key);
+        const override = {
+          key: normalized.key,
+          activity: normalized.activity,
+          originalActivity: normalized.originalActivity,
+          updatedAt: new Date().toISOString()
+        };
+        if (existingIndex !== -1) {
+          overrides[existingIndex] = override;
+        } else {
+          overrides.push(override);
+        }
+        return writeActivityOverrides({ overrides }).then(() => {
+          send(res, existingIndex !== -1 ? 200 : 201, { 'Content-Type': 'application/json' }, JSON.stringify(override));
+        });
+      });
+    })
+    .catch(err => {
+      const status = err.message === 'Payload too large' ? 413 : 400;
+      const message = err.message === 'Payload too large' ? 'Payload too large' : 'Invalid JSON payload';
+      if (status === 400) {
+        console.error(`[voyage-webapp] Failed to parse activity override payload: ${err.message}`);
+      }
+      send(res, status, { 'Content-Type': 'application/json' }, JSON.stringify({ message }));
+    });
+}
+
+/**
+ * Function: handleActivityOverrideDelete
+ * Description: Delete an activity override by key.
+ * Parameters:
+ *   key (string): Activity override key to delete.
+ *   res (http.ServerResponse): Response object used to transmit data.
+ * Returns: void.
+ */
+function handleActivityOverrideDelete(key, res) {
+  if (!key) {
+    send(res, 400, { 'Content-Type': 'application/json' }, JSON.stringify({ message: 'Missing override key' }));
+    return;
+  }
+  readActivityOverrides()
+    .then(existing => {
+      const overrides = Array.isArray(existing.overrides) ? existing.overrides : [];
+      const next = overrides.filter(o => o && o.key !== key);
+      if (next.length === overrides.length) {
+        send(res, 404, { 'Content-Type': 'application/json' }, JSON.stringify({ message: 'Override not found' }));
+        return null;
+      }
+      return writeActivityOverrides({ overrides: next }).then(() => {
+        send(res, 200, { 'Content-Type': 'application/json' }, JSON.stringify({ status: 'ok' }));
+      });
+    })
+    .catch(err => {
+      console.error(`[voyage-webapp] Failed to delete activity override: ${err.message}`);
+      send(res, 500, { 'Content-Type': 'application/json' }, JSON.stringify({ message: 'Failed to delete activity override' }));
+    });
+}
+
+/**
  * Function: serveFile
  * Description: Stream a static file to the HTTP client, applying appropriate MIME type and cache headers.
  * Parameters:
@@ -695,6 +847,22 @@ const server = http.createServer((req, res) => {
   if (req.method === 'DELETE' && normalizedPath.startsWith('/manual-voyages/')) {
     const manualId = normalizedPath.split('/').pop();
     handleManualVoyageDelete(manualId, res);
+    return;
+  }
+
+  if (req.method === 'GET' && normalizedPath === '/activity-overrides') {
+    handleActivityOverridesList(res);
+    return;
+  }
+
+  if (req.method === 'POST' && normalizedPath === '/activity-overrides') {
+    handleActivityOverrideCreate(req, res);
+    return;
+  }
+
+  if (req.method === 'DELETE' && normalizedPath.startsWith('/activity-overrides/')) {
+    const overrideKey = decodeURIComponent(normalizedPath.slice('/activity-overrides/'.length));
+    handleActivityOverrideDelete(overrideKey, res);
     return;
   }
 

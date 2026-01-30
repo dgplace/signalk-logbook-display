@@ -1126,6 +1126,32 @@ tbody tr.selected-row:hover td {
   color: var(--details-text);
 }
 
+#pointActivitySelect {
+  padding: 4px 8px;
+  border: 1px solid var(--details-border);
+  border-radius: 4px;
+  background: var(--details-bg);
+  color: var(--details-text);
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#pointActivitySelect:hover {
+  border-color: var(--max-speed-color);
+}
+
+#pointActivitySelect:focus {
+  outline: none;
+  border-color: var(--max-speed-color);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+#pointActivitySelect:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 /* Disable text selection during resize for smoother UX */
 body.resizing {
   user-select: none;
