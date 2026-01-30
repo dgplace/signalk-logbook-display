@@ -17,6 +17,8 @@
 - Show total distance in NM with km in parentheses in the summary panel
 - Reset the table/map splitter to its default position when opening the summary panel
 - Remove the Tab View header toggle from the UI
+- Add clickable Max Wind values in the table to focus the max wind point on the map
+- Add average and maximum speed to the summary panel (excluding manual voyages) while keeping it within two rows
 
 ## 2026-01-29
 

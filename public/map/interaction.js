@@ -39,6 +39,7 @@ import {
   getActivePolylines,
   bearingBetween,
   drawMaxSpeedMarkerFromCoord,
+  drawMaxWindMarkerFromCoord,
   renderSelectedWindGraphics,
   getActivePointMarkersGroup,
   getSelectedWindGroup,
@@ -1190,6 +1191,66 @@ function handleVoyageMaxSpeedRequested(payload = {}) {
 }
 
 /**
+ * Function: findMaxWindPoint
+ * Description: Locate the point with the highest recorded wind speed.
+ * Parameters:
+ *   points (object[]): Ordered voyage points containing wind metadata.
+ * Returns: object|null - Object with coord and windSpeed or null when unavailable.
+ */
+function findMaxWindPoint(points) {
+  if (!Array.isArray(points) || points.length === 0) return null;
+  let maxWind = -Infinity;
+  let coord = null;
+  for (let i = 0; i < points.length; i += 1) {
+    const point = points[i];
+    const windSpeed = point?.windSpeed ?? point?.wind?.speed ?? point?.entry?.wind?.speed;
+    if (!Number.isFinite(windSpeed)) continue;
+    if (windSpeed <= maxWind) continue;
+    if (!Number.isFinite(point?.lat) || !Number.isFinite(point?.lon)) continue;
+    maxWind = windSpeed;
+    coord = [point.lon, point.lat];
+  }
+  if (!Number.isFinite(maxWind) || !coord) return null;
+  return { coord, windSpeed: maxWind };
+}
+
+/**
+ * Function: handleVoyageMaxWindRequested
+ * Description: Respond to a voyage max-wind request by selecting the voyage and placing the marker.
+ * Parameters:
+ *   payload (object): Descriptor including voyage, row, coordinate pair, and wind speed value.
+ * Returns: void.
+ */
+function handleVoyageMaxWindRequested(payload = {}) {
+  performVoyageSelection(payload);
+  const currentVoyagePoints = getCurrentVoyagePoints();
+  const maxWind = findMaxWindPoint(currentVoyagePoints);
+  if (!maxWind) return;
+  const onMaxSelect = (e) => {
+    if (getManualRouteEditActive()) return;
+    const clickLL = e.latlng || (e.originalEvent && e.originalEvent.touches && e.originalEvent.touches[0]
+      ? getMapInstance().mouseEventToLatLng(e.originalEvent.touches[0])
+      : null);
+    if (!clickLL || !Array.isArray(currentVoyagePoints) || currentVoyagePoints.length === 0) return;
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < currentVoyagePoints.length; i += 1) {
+      const point = currentVoyagePoints[i];
+      if (typeof point.lat !== 'number' || typeof point.lon !== 'number') continue;
+      const pll = L.latLng(point.lat, point.lon);
+      const d = clickLL.distanceTo(pll);
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    }
+    const selected = currentVoyagePoints[bestIdx];
+    updateSelectedPoint(selected, { prev: currentVoyagePoints[bestIdx - 1], next: currentVoyagePoints[bestIdx + 1] });
+  };
+  drawMaxWindMarkerFromCoord(maxWind.coord, maxWind.windSpeed, onMaxSelect);
+}
+
+/**
  * Function: handleSegmentSelectRequested
  * Description: Handle a segment focus request by selecting the voyage and highlighting the segment.
  * Parameters:
@@ -1235,6 +1296,40 @@ function handleSegmentMaxSpeedRequested(payload = {}) {
     };
     drawMaxSpeedMarkerFromCoord(payload.coord, payload.speed, onMaxSelect);
   }
+}
+
+/**
+ * Function: handleSegmentMaxWindRequested
+ * Description: Focus a segment and display its maximum wind marker when requested.
+ * Parameters:
+ *   payload (object): Descriptor containing voyage, segment, coordinate, and wind speed details.
+ * Returns: void.
+ */
+function handleSegmentMaxWindRequested(payload = {}) {
+  handleSegmentSelectRequested(payload);
+  const currentVoyagePoints = getCurrentVoyagePoints();
+  const maxWind = findMaxWindPoint(currentVoyagePoints);
+  if (!maxWind) return;
+  const onMaxSelect = (e) => {
+    if (getManualRouteEditActive()) return;
+    const clickLL = e.latlng;
+    if (!clickLL || !Array.isArray(currentVoyagePoints) || currentVoyagePoints.length === 0) return;
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < currentVoyagePoints.length; i += 1) {
+      const point = currentVoyagePoints[i];
+      if (typeof point.lat !== 'number' || typeof point.lon !== 'number') continue;
+      const pll = L.latLng(point.lat, point.lon);
+      const d = clickLL.distanceTo(pll);
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = i;
+      }
+    }
+    const selected = currentVoyagePoints[bestIdx];
+    updateSelectedPoint(selected, { prev: currentVoyagePoints[bestIdx - 1], next: currentVoyagePoints[bestIdx + 1] });
+  };
+  drawMaxWindMarkerFromCoord(maxWind.coord, maxWind.windSpeed, onMaxSelect);
 }
 
 /**
@@ -1395,8 +1490,10 @@ function handleManualRouteEditRequested(payload = {}) {
 // Register event handlers
 on(EVENTS.VOYAGE_SELECT_REQUESTED, handleVoyageSelectRequested);
 on(EVENTS.VOYAGE_MAX_SPEED_REQUESTED, handleVoyageMaxSpeedRequested);
+on(EVENTS.VOYAGE_MAX_WIND_REQUESTED, handleVoyageMaxWindRequested);
 on(EVENTS.SEGMENT_SELECT_REQUESTED, handleSegmentSelectRequested);
 on(EVENTS.SEGMENT_MAX_SPEED_REQUESTED, handleSegmentMaxSpeedRequested);
+on(EVENTS.SEGMENT_MAX_WIND_REQUESTED, handleSegmentMaxWindRequested);
 on(EVENTS.SELECTION_RESET_REQUESTED, handleSelectionResetRequested);
 on(EVENTS.MANUAL_LOCATION_SELECTED, handleManualLocationSelected);
 on(EVENTS.MANUAL_VOYAGE_PREVIEW, handleManualVoyagePreview);

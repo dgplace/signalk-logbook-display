@@ -186,6 +186,9 @@ function createVoyageRowHTML(voyage, index, segmentCount) {
   const windDirContent = isManual ? '' : avgWindDir;
   const maxSpeedTabIndex = isManual ? '' : 'tabindex="0"';
   const maxSpeedClass = isManual ? '' : 'max-speed-cell';
+  const hasMaxWind = !isManual && Number.isFinite(voyage.maxWind) && voyage.maxWind > 0;
+  const maxWindTabIndex = hasMaxWind ? 'tabindex="0"' : '';
+  const maxWindClass = hasMaxWind ? 'max-wind-cell max-wind-link' : 'max-wind-cell';
   return `
     <td class="exp-cell">${expander}</td>
     <td class="idx-cell">${index + 1}</td>
@@ -195,7 +198,7 @@ function createVoyageRowHTML(voyage, index, segmentCount) {
     <td class="total-time-col">${totalHoursLabel}</td>
     <td class="${maxSpeedClass}" ${maxSpeedTabIndex}>${maxSpeedContent}</td>
     <td class="avg-speed-col">${avgSpeedContent}</td>
-    <td class="max-wind-cell">${maxWindContent}</td>
+    <td class="${maxWindClass}" ${maxWindTabIndex}>${maxWindContent}</td>
     <td class="avg-wind-col">${avgWindContent}</td>
     <td>${windDirContent}</td>
     <td class="manual-edit-col">${editCell}</td>`;
@@ -224,6 +227,9 @@ function createDayRowHTML(segment, segmentIndex, voyage) {
   const windDirContent = isManual ? '' : avgWindDirDay;
   const maxSpeedTabIndex = isManual ? '' : 'tabindex="0"';
   const maxSpeedClass = isManual ? '' : 'max-speed-cell';
+  const hasMaxWind = !isManual && Number.isFinite(segment.maxWind) && segment.maxWind > 0;
+  const maxWindTabIndex = hasMaxWind ? 'tabindex="0"' : '';
+  const maxWindClass = hasMaxWind ? 'max-wind-cell max-wind-link' : 'max-wind-cell';
   return `
     <td class="exp-cell"></td>
     <td class="idx-cell">${dayLbl}</td>
@@ -233,7 +239,7 @@ function createDayRowHTML(segment, segmentIndex, voyage) {
     <td class="total-time-col">${totalHoursLabel}</td>
     <td class="${maxSpeedClass}" ${maxSpeedTabIndex}>${maxSpeedContent}</td>
     <td class="avg-speed-col">${avgSpeedContent}</td>
-    <td class="max-wind-cell">${maxWindContent}</td>
+    <td class="${maxWindClass}" ${maxWindTabIndex}>${maxWindContent}</td>
     <td class="avg-wind-col">${avgWindContent}</td>
     <td>${windDirContent}</td>
     <td class="manual-edit-col"></td>`;
@@ -278,6 +284,32 @@ function attachVoyageRowHandlers(row, voyage) {
     };
     maxSpeedCell.addEventListener('click', activate);
     maxSpeedCell.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        activate(event);
+      }
+    });
+  }
+
+  const maxWindCell = row.querySelector('.max-wind-link');
+  if (maxWindCell && !(voyage && voyage.manual)) {
+    const activate = (event) => {
+      event.stopPropagation();
+      const wasSelected = row.classList.contains('selected-row');
+      emit(EVENTS.VOYAGE_MAX_WIND_REQUESTED, {
+        voyage,
+        row,
+        source: 'table-row-max-wind',
+        windSpeed: voyage.maxWind,
+        options: {
+          fit: !wasSelected,
+          suppressHistory: wasSelected
+        },
+        metadata: { wasSelected }
+      });
+    };
+    maxWindCell.addEventListener('click', activate);
+    maxWindCell.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         activate(event);
@@ -341,6 +373,31 @@ function attachDayRowHandlers(dayRow, voyage, segment, voyageRow) {
     };
     maxSpeedCell.addEventListener('click', activate);
     maxSpeedCell.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        activate(event);
+      }
+    });
+  }
+
+  const maxWindCell = dayRow.querySelector('.max-wind-link');
+  if (maxWindCell && !(voyage && voyage.manual)) {
+    const activate = (event) => {
+      event.stopPropagation();
+      emit(EVENTS.SEGMENT_MAX_WIND_REQUESTED, {
+        voyage,
+        row: voyageRow,
+        segment,
+        source: 'table-day-max-wind',
+        windSpeed: segment.maxWind,
+        options: {
+          fit: false,
+          suppressHistory: true
+        }
+      });
+    };
+    maxWindCell.addEventListener('click', activate);
+    maxWindCell.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         activate(event);

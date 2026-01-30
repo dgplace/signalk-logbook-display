@@ -59,6 +59,8 @@ const summaryActiveEl = document.getElementById('summaryActive');
 const summarySeaTimeEl = document.getElementById('summarySeaTime');
 const summaryNightEl = document.getElementById('summaryNight');
 const summarySailingEl = document.getElementById('summarySailing');
+const summaryAvgSpeedEl = document.getElementById('summaryAvgSpeed');
+const summaryMaxSpeedEl = document.getElementById('summaryMaxSpeed');
 const tableWrapperEl = document.querySelector('.table-wrapper');
 const summaryLabels = {
   show: 'Summary',
@@ -120,9 +122,10 @@ function hideLoading() {
  * Parameters:
  *   totals (VoyageTotals): Aggregated voyage totals for all voyages.
  *   seaTimeMs (number): Sum of voyage durations from start to end timestamps.
+ *   speedStats (object): Summary of average and max speeds for generated voyages.
  * Returns: void.
  */
-function updateSummaryPanel(totals, seaTimeMs) {
+function updateSummaryPanel(totals, seaTimeMs, speedStats) {
   if (!totals) return;
   const totalDistanceNm = Number.isFinite(totals.totalDistanceNm) ? totals.totalDistanceNm : 0;
   const totalDistanceKm = totalDistanceNm * 1.852;
@@ -131,6 +134,8 @@ function updateSummaryPanel(totals, seaTimeMs) {
   const totalNightMs = Number.isFinite(totals.totalNightMs) ? totals.totalNightMs : 0;
   const totalSeaTimeMs = Number.isFinite(seaTimeMs) ? seaTimeMs : 0;
   const sailingPct = totalActiveMs > 0 ? ((totalSailingMs / totalActiveMs) * 100) : 0;
+  const avgSpeed = Number.isFinite(speedStats?.avgSpeed) ? speedStats.avgSpeed : 0;
+  const maxSpeed = Number.isFinite(speedStats?.maxSpeed) ? speedStats.maxSpeed : 0;
 
   if (summaryDistanceEl) {
     summaryDistanceEl.textContent = `${totalDistanceNm.toFixed(1)} NM (${totalDistanceKm.toFixed(0)} km)`;
@@ -146,6 +151,12 @@ function updateSummaryPanel(totals, seaTimeMs) {
   }
   if (summarySailingEl) {
     summarySailingEl.textContent = `${formatDurationMs(totalSailingMs)} (${sailingPct.toFixed(1)}%)`;
+  }
+  if (summaryAvgSpeedEl) {
+    summaryAvgSpeedEl.textContent = `Avg ${avgSpeed.toFixed(1)} kn`;
+  }
+  if (summaryMaxSpeedEl) {
+    summaryMaxSpeedEl.textContent = `Max ${maxSpeed.toFixed(1)} kn`;
   }
 }
 
@@ -367,7 +378,21 @@ async function load() {
     }
     return sum + (end - start);
   }, 0);
-  updateSummaryPanel(totals, seaTimeMs);
+  const speedStats = voyages.reduce((acc, voyage) => {
+    if (voyage && voyage.manual) return acc;
+    const avgSpeed = Number.isFinite(voyage?.avgSpeed) ? voyage.avgSpeed : null;
+    if (avgSpeed !== null) {
+      acc.speedSum += avgSpeed;
+      acc.speedCount += 1;
+    }
+    const maxSpeed = Number.isFinite(voyage?.maxSpeed) ? voyage.maxSpeed : null;
+    if (maxSpeed !== null && maxSpeed > acc.maxSpeed) {
+      acc.maxSpeed = maxSpeed;
+    }
+    return acc;
+  }, { speedSum: 0, speedCount: 0, maxSpeed: 0 });
+  const avgSpeed = speedStats.speedCount > 0 ? (speedStats.speedSum / speedStats.speedCount) : 0;
+  updateSummaryPanel(totals, seaTimeMs, { avgSpeed, maxSpeed: speedStats.maxSpeed });
 
   let allBounds = null;
   voyages.forEach((voyage, index) => {

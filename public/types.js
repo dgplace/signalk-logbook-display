@@ -177,6 +177,17 @@
  */
 
 /**
+ * @typedef {Object} MaxWindPayload
+ * @property {Voyage} voyage Voyage owning the max-wind point.
+ * @property {HTMLTableRowElement} [row] Table row associated with the voyage.
+ * @property {VoyageSegment} [segment] Segment containing the max-wind point when scoped to a leg.
+ * @property {number[]} [coord] `[lon, lat]` pair marking the max-wind location.
+ * @property {number} [windSpeed] Wind speed in knots for the tooltip.
+ * @property {VoyageSelectionOptions} [options] Behaviour flags applied to the parent selection.
+ * @property {string} [source] Identifier describing the selection trigger.
+ */
+
+/**
  * @typedef {Object} ResetPayload
  * @property {string} [source] Identifier describing the reset trigger.
  */

@@ -357,6 +357,11 @@ html, body { height: 100%; }
   font-size: 1.1rem;
 }
 
+.summary-sub {
+  font-size: 0.9rem;
+  color: var(--muted-text-color);
+}
+
 .container.table-collapsed .table-wrapper {
   min-height: 0;
   overflow-y: auto;
@@ -1036,6 +1041,19 @@ tbody tr.selected-row:hover td {
 }
 .max-speed-cell:hover,
 .max-speed-cell:focus-visible {
+  color: var(--max-speed-hover);
+  outline: none;
+}
+.max-wind-link {
+  color: var(--max-speed-color);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  transition: color 0.2s ease;
+}
+.max-wind-link:hover,
+.max-wind-link:focus-visible {
   color: var(--max-speed-hover);
   outline: none;
 }

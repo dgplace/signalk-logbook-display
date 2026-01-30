@@ -10,7 +10,7 @@
  * - refreshWindOverlay, setWindOverlayEnabled, setWindOverlayToggleAvailability
  * - clearWindIntensityLayer, clearSelectedWindGraphics
  * - drawManualVoyagePreview, clearManualVoyagePreview
- * - drawMaxSpeedMarkerFromCoord, clearMaxSpeedMarker
+ * - drawMaxSpeedMarkerFromCoord, drawMaxWindMarkerFromCoord, clearMaxSpeedMarker
  * - highlightLocation, clearHighlightedLocationMarker
  * - restoreBasePolylineStyles, setCurrentVoyagePoints, getCurrentVoyagePoints
  * - getPolylines, getActivePolylines
@@ -372,6 +372,28 @@ export function drawMaxSpeedMarkerFromCoord(coord, speed, onMaxSelect) {
   const [lon, lat] = coord;
   maxMarker = L.circleMarker([lat, lon], { color: 'orange', radius: 6 }).addTo(mapInstance);
   maxMarker.bindPopup(`Max SoG: ${Number(speed).toFixed(1)} kn`, { autoPan: false, autoClose: false, closeOnClick: false }).openPopup();
+  if (typeof onMaxSelect === 'function') {
+    maxMarker.on('click', onMaxSelect);
+    maxMarker.on('tap', onMaxSelect);
+  }
+}
+
+/**
+ * Function: drawMaxWindMarkerFromCoord
+ * Description: Render the maximum wind marker and popup at the supplied coordinate.
+ * Parameters:
+ *   coord (number[]): Longitude and latitude pair representing the maximum wind location.
+ *   windSpeed (number): Wind speed in knots to present in the popup.
+ *   onMaxSelect (Function): Handler for clicking the max wind marker.
+ * Returns: void.
+ */
+export function drawMaxWindMarkerFromCoord(coord, windSpeed, onMaxSelect) {
+  const mapInstance = getMapInstance();
+  clearMaxSpeedMarker();
+  if (!Array.isArray(coord) || coord.length !== 2 || !mapInstance) return;
+  const [lon, lat] = coord;
+  maxMarker = L.circleMarker([lat, lon], { color: '#0ea5e9', radius: 6 }).addTo(mapInstance);
+  maxMarker.bindPopup(`Max Wind: ${Number(windSpeed).toFixed(1)} kn`, { autoPan: false, autoClose: false, closeOnClick: false }).openPopup();
   if (typeof onMaxSelect === 'function') {
     maxMarker.on('click', onMaxSelect);
     maxMarker.on('tap', onMaxSelect);
