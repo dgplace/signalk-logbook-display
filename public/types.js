@@ -128,6 +128,7 @@
  * @property {number} totalDistanceNm Total nautical miles across all voyages.
  * @property {number} totalActiveMs Total active duration in milliseconds from leg durations.
  * @property {number} totalSailingMs Total sailing duration in milliseconds.
+ * @property {number} [totalNightMs] Total travel duration in milliseconds that occurs at night.
  */
 
 /**

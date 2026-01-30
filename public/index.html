@@ -21,16 +21,11 @@
     </div>
     <div class="top-section" id="tablePanel" role="tabpanel" aria-labelledby="mobileTabTable">
       <div class="header-bar">
-        <h3 style="margin: 16px 0;"><a href="/logbook" style="text-decoration: none; color: inherit;">Logbook SV Tequila Mockingbird</a></h3>
+        <h3 style="margin: 16px 0;"><a href="/logbook" style="text-decoration: none; color: inherit;">SV Tequila Mockingbird</a></h3>
         <div class="header-actions">
-          <label class="toggle-switch" id="layoutOverrideToggleWrapper">
-            <input type="checkbox" id="layoutOverrideToggle" aria-label="Force tab layout">
-            <span class="toggle-slider" aria-hidden="true"></span>
-            <span class="toggle-text">Tab View</span>
-          </label>
-          <button id="regenBtn">Regenerate voyages</button>
+          <button id="regenBtn">Regen voyages</button>
           <button type="button" id="manualToggleBtn">Add voyage</button>
-          <button type="button" id="summaryToggleBtn" class="summary-toggle" aria-pressed="false" aria-controls="summaryPanel voyTable">Show summary</button>
+          <button type="button" id="summaryToggleBtn" class="summary-toggle" aria-pressed="false" aria-controls="summaryPanel voyTable">Summary</button>
           <!--<button id="regenPolarBtn">Regenerate polar</button>-->
         </div>
       </div>
@@ -71,12 +66,16 @@
             <strong id="summaryDistance">0.0 NM</strong>
           </div>
           <div class="summary-metric">
-            <span>Active time</span>
+            <span>Travel time</span>
             <strong id="summaryActive">0d 0h 0m</strong>
           </div>
           <div class="summary-metric">
             <span>Sea time</span>
             <strong id="summarySeaTime">0d 0h 0m</strong>
+          </div>
+          <div class="summary-metric">
+            <span>Night time</span>
+            <strong id="summaryNight">0d 0h 0m</strong>
           </div>
           <div class="summary-metric">
             <span>Sailing time</span>

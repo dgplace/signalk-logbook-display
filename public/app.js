@@ -26,6 +26,7 @@ import {
   initMobileLayoutControls,
   initSplitters,
   initMaximizeControl,
+  resetTableLayout,
   syncInitialMobileView
 } from './view.js';
 import {
@@ -56,11 +57,12 @@ const summaryPanel = document.getElementById('summaryPanel');
 const summaryDistanceEl = document.getElementById('summaryDistance');
 const summaryActiveEl = document.getElementById('summaryActive');
 const summarySeaTimeEl = document.getElementById('summarySeaTime');
+const summaryNightEl = document.getElementById('summaryNight');
 const summarySailingEl = document.getElementById('summarySailing');
 const tableWrapperEl = document.querySelector('.table-wrapper');
 const summaryLabels = {
-  show: 'Show summary',
-  hide: 'Show table'
+  show: 'Summary',
+  hide: 'Table'
 };
 
 console.log(`[voyage-webapp] apiBasePath resolved to "${apiBasePath || '/'}" for pathname "${window.location.pathname}"`);
@@ -123,19 +125,24 @@ function hideLoading() {
 function updateSummaryPanel(totals, seaTimeMs) {
   if (!totals) return;
   const totalDistanceNm = Number.isFinite(totals.totalDistanceNm) ? totals.totalDistanceNm : 0;
+  const totalDistanceKm = totalDistanceNm * 1.852;
   const totalActiveMs = Number.isFinite(totals.totalActiveMs) ? totals.totalActiveMs : 0;
   const totalSailingMs = Number.isFinite(totals.totalSailingMs) ? totals.totalSailingMs : 0;
+  const totalNightMs = Number.isFinite(totals.totalNightMs) ? totals.totalNightMs : 0;
   const totalSeaTimeMs = Number.isFinite(seaTimeMs) ? seaTimeMs : 0;
   const sailingPct = totalActiveMs > 0 ? ((totalSailingMs / totalActiveMs) * 100) : 0;
 
   if (summaryDistanceEl) {
-    summaryDistanceEl.textContent = `${totalDistanceNm.toFixed(1)} NM`;
+    summaryDistanceEl.textContent = `${totalDistanceNm.toFixed(1)} NM (${totalDistanceKm.toFixed(0)} km)`;
   }
   if (summaryActiveEl) {
     summaryActiveEl.textContent = formatDurationMs(totalActiveMs);
   }
   if (summarySeaTimeEl) {
     summarySeaTimeEl.textContent = formatDurationMs(totalSeaTimeMs);
+  }
+  if (summaryNightEl) {
+    summaryNightEl.textContent = formatDurationMs(totalNightMs);
   }
   if (summarySailingEl) {
     summarySailingEl.textContent = `${formatDurationMs(totalSailingMs)} (${sailingPct.toFixed(1)}%)`;
@@ -151,6 +158,9 @@ function updateSummaryPanel(totals, seaTimeMs) {
  */
 function setSummaryViewEnabled(enabled) {
   isSummaryViewActive = Boolean(enabled);
+  if (isSummaryViewActive) {
+    resetTableLayout();
+  }
   if (summaryPanel) {
     summaryPanel.hidden = !isSummaryViewActive;
   }

@@ -10,6 +10,13 @@
 - Fix summary panel visibility toggle and update the button label to show the current action
 - Reduce the default voyage table height by one row while keeping the minimum height unchanged
 - Add Sea Time to the summary panel using voyage start/end timestamps
+- Rename Active time to Travel time and add Night time totals based on dawn/dusk at voyage coordinates
+- Show summary metrics in a fixed 3-column grid capped at two rows
+- Refine Night time to count sailing/motoring gaps only and add a test that reports per-voyage night totals
+- Exclude manual voyages from Night time totals to match generated-voyage travel at night
+- Show total distance in NM with km in parentheses in the summary panel
+- Reset the table/map splitter to its default position when opening the summary panel
+- Remove the Tab View header toggle from the UI
 
 ## 2026-01-29
 

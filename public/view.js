@@ -10,6 +10,7 @@
  * - Interaction helpers: `ensureMobileMapView`.
  * - Initialisers: `initMobileLayoutControls`, `syncInitialMobileView`, `initSplitters`,
  *   `initMaximizeControl`.
+ * - Layout reset: `resetTableLayout`.
  */
 
 const MOBILE_BREAKPOINT_PX = 700;
@@ -38,6 +39,17 @@ let hasInitializedMobileView = false;
 let mapResizeCallback = null;
 let splittersInitialized = false;
 let maximizeInitialized = false;
+let isTableMaximized = false;
+let isTableCollapsed = false;
+let maximizeUpdateFn = null;
+const maximizeControls = {
+  btn: null,
+  collapseBtn: null,
+  container: null,
+  top: null,
+  wrapper: null,
+  headerBar: null
+};
 let layoutMode = (layoutOverrideToggleInput && layoutOverrideToggleInput.checked)
   ? LAYOUT_MODE_PORTRAIT
   : LAYOUT_MODE_AUTO;
@@ -467,88 +479,113 @@ export function initMaximizeControl() {
   const hDivider = document.getElementById('hDivider');
   if (!btn || !collapseBtn || !container || !top) return;
   maximizeInitialized = true;
-
-  let maximized = false;
-  let collapsed = false;
+  maximizeControls.btn = btn;
+  maximizeControls.collapseBtn = collapseBtn;
+  maximizeControls.container = container;
+  maximizeControls.top = top;
+  maximizeControls.wrapper = wrapper;
+  maximizeControls.headerBar = headerBar;
 
   const update = () => {
     const thead = document.querySelector('#voyTable thead');
     const tbody = document.querySelector('#voyTable tbody');
-    if (maximized) {
-      const wrapStyles = wrapper ? getComputedStyle(wrapper) : null;
+    if (isTableMaximized) {
+      const wrapStyles = maximizeControls.wrapper ? getComputedStyle(maximizeControls.wrapper) : null;
       const borders = wrapStyles ? (parseFloat(wrapStyles.borderTopWidth || '0') + parseFloat(wrapStyles.borderBottomWidth || '0')) : 0;
       const paddings = wrapStyles ? (parseFloat(wrapStyles.paddingTop || '0') + parseFloat(wrapStyles.paddingBottom || '0')) : 0;
-      const headerHeight = headerBar ? headerBar.getBoundingClientRect().height : 0;
+      const headerHeight = maximizeControls.headerBar ? maximizeControls.headerBar.getBoundingClientRect().height : 0;
       const headHeight = thead ? thead.getBoundingClientRect().height : 0;
       const bodyHeight = tbody ? tbody.scrollHeight : 0;
       const requiredTopHeight = Math.max(MIN_TOP_SECTION_HEIGHT, Math.ceil(headerHeight + headHeight + bodyHeight + borders + paddings + 2));
-      const containerRect = container.getBoundingClientRect();
-      const currentTopHeight = top.getBoundingClientRect().height;
+      const containerRect = maximizeControls.container.getBoundingClientRect();
+      const currentTopHeight = maximizeControls.top.getBoundingClientRect().height;
       const delta = Math.max(0, requiredTopHeight - currentTopHeight);
-      container.style.height = `${Math.ceil(containerRect.height + delta)}px`;
-      container.style.setProperty('--top-height', `${requiredTopHeight}px`);
-      container.classList.remove('table-collapsed');
-      btn.classList.add('is-maximized');
-      btn.setAttribute('aria-pressed', 'true');
-      btn.setAttribute('aria-label', 'Restore voyage table');
-      btn.setAttribute('title', 'Restore');
-      collapseBtn.classList.remove('is-collapsed');
-      collapseBtn.setAttribute('aria-pressed', 'false');
-      collapseBtn.setAttribute('aria-label', 'Collapse voyage table');
-      collapseBtn.setAttribute('title', 'Collapse');
-    } else if (collapsed) {
-      const wrapStyles = wrapper ? getComputedStyle(wrapper) : null;
+      maximizeControls.container.style.height = `${Math.ceil(containerRect.height + delta)}px`;
+      maximizeControls.container.style.setProperty('--top-height', `${requiredTopHeight}px`);
+      maximizeControls.container.classList.remove('table-collapsed');
+      maximizeControls.btn.classList.add('is-maximized');
+      maximizeControls.btn.setAttribute('aria-pressed', 'true');
+      maximizeControls.btn.setAttribute('aria-label', 'Restore voyage table');
+      maximizeControls.btn.setAttribute('title', 'Restore');
+      maximizeControls.collapseBtn.classList.remove('is-collapsed');
+      maximizeControls.collapseBtn.setAttribute('aria-pressed', 'false');
+      maximizeControls.collapseBtn.setAttribute('aria-label', 'Collapse voyage table');
+      maximizeControls.collapseBtn.setAttribute('title', 'Collapse');
+    } else if (isTableCollapsed) {
+      const wrapStyles = maximizeControls.wrapper ? getComputedStyle(maximizeControls.wrapper) : null;
       const borders = wrapStyles ? (parseFloat(wrapStyles.borderTopWidth || '0') + parseFloat(wrapStyles.borderBottomWidth || '0')) : 0;
       const paddings = wrapStyles ? (parseFloat(wrapStyles.paddingTop || '0') + parseFloat(wrapStyles.paddingBottom || '0')) : 0;
-      const headerHeight = headerBar ? headerBar.getBoundingClientRect().height : 0;
+      const headerHeight = maximizeControls.headerBar ? maximizeControls.headerBar.getBoundingClientRect().height : 0;
       const headHeight = thead ? thead.getBoundingClientRect().height : 0;
       const keepRow = getCollapseTargetRow(tbody);
       const rowHeight = keepRow ? keepRow.getBoundingClientRect().height : 0;
       const requiredTopHeight = Math.max(MIN_COLLAPSED_SECTION_HEIGHT, Math.ceil(headerHeight + headHeight + rowHeight + borders + paddings + 2));
-      container.style.height = '';
-      container.style.setProperty('--top-height', `${requiredTopHeight}px`);
-      container.classList.add('table-collapsed');
-      btn.classList.remove('is-maximized');
-      btn.setAttribute('aria-pressed', 'false');
-      btn.setAttribute('aria-label', 'Maximize voyage table');
-      btn.setAttribute('title', 'Maximize');
-      collapseBtn.classList.add('is-collapsed');
-      collapseBtn.setAttribute('aria-pressed', 'true');
-      collapseBtn.setAttribute('aria-label', 'Expand voyage table');
-      collapseBtn.setAttribute('title', 'Expand');
+      maximizeControls.container.style.height = '';
+      maximizeControls.container.style.setProperty('--top-height', `${requiredTopHeight}px`);
+      maximizeControls.container.classList.add('table-collapsed');
+      maximizeControls.btn.classList.remove('is-maximized');
+      maximizeControls.btn.setAttribute('aria-pressed', 'false');
+      maximizeControls.btn.setAttribute('aria-label', 'Maximize voyage table');
+      maximizeControls.btn.setAttribute('title', 'Maximize');
+      maximizeControls.collapseBtn.classList.add('is-collapsed');
+      maximizeControls.collapseBtn.setAttribute('aria-pressed', 'true');
+      maximizeControls.collapseBtn.setAttribute('aria-label', 'Expand voyage table');
+      maximizeControls.collapseBtn.setAttribute('title', 'Expand');
     } else {
-      container.style.height = '';
-      container.style.removeProperty('--top-height');
-      container.classList.remove('table-collapsed');
-      btn.classList.remove('is-maximized');
-      btn.setAttribute('aria-pressed', 'false');
-      btn.setAttribute('aria-label', 'Maximize voyage table');
-      btn.setAttribute('title', 'Maximize');
-      collapseBtn.classList.remove('is-collapsed');
-      collapseBtn.setAttribute('aria-pressed', 'false');
-      collapseBtn.setAttribute('aria-label', 'Collapse voyage table');
-      collapseBtn.setAttribute('title', 'Collapse');
+      maximizeControls.container.style.height = '';
+      maximizeControls.container.style.removeProperty('--top-height');
+      maximizeControls.container.classList.remove('table-collapsed');
+      maximizeControls.btn.classList.remove('is-maximized');
+      maximizeControls.btn.setAttribute('aria-pressed', 'false');
+      maximizeControls.btn.setAttribute('aria-label', 'Maximize voyage table');
+      maximizeControls.btn.setAttribute('title', 'Maximize');
+      maximizeControls.collapseBtn.classList.remove('is-collapsed');
+      maximizeControls.collapseBtn.setAttribute('aria-pressed', 'false');
+      maximizeControls.collapseBtn.setAttribute('aria-label', 'Collapse voyage table');
+      maximizeControls.collapseBtn.setAttribute('title', 'Collapse');
     }
     invalidateMapSizeDeferred();
   };
+  maximizeUpdateFn = update;
 
   btn.addEventListener('click', () => {
-    maximized = !maximized;
-    if (maximized) {
-      collapsed = false;
+    isTableMaximized = !isTableMaximized;
+    if (isTableMaximized) {
+      isTableCollapsed = false;
     }
     update();
   });
 
   collapseBtn.addEventListener('click', () => {
-    collapsed = !collapsed;
-    if (collapsed) {
-      maximized = false;
+    isTableCollapsed = !isTableCollapsed;
+    if (isTableCollapsed) {
+      isTableMaximized = false;
     }
     update();
   });
 
   update();
+}
+
+/**
+ * Function: resetTableLayout
+ * Description: Reset the top section height and maximize/collapse controls to defaults.
+ * Parameters: None.
+ * Returns: void.
+ */
+export function resetTableLayout() {
+  if (!maximizeUpdateFn || !maximizeControls.container) {
+    const container = document.querySelector('.container');
+    if (container) {
+      container.style.height = '';
+      container.style.removeProperty('--top-height');
+      container.classList.remove('table-collapsed');
+    }
+    return;
+  }
+  isTableMaximized = false;
+  isTableCollapsed = false;
+  maximizeUpdateFn();
 }
 
 /**

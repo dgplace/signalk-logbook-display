@@ -6,7 +6,7 @@
  *
  * Exported API:
  * - Extraction helpers: `getVoyagePoints`, `getPointActivity`, `shouldSkipConnection`, `extractWindSpeed`.
- * - Aggregation helpers: `computeVoyageTotals`, `computeDaySegments`, `applyVoyageTimeMetrics`, `circularMean`.
+ * - Aggregation helpers: `computeVoyageTotals`, `computeVoyageNightMs`, `computeDaySegments`, `applyVoyageTimeMetrics`, `circularMean`.
  * - Formatting helpers: `formatDurationMs`.
  * - Manual helpers: `calculateDistanceNm`, `buildManualVoyageFromRecord`, `buildManualSegmentsFromStops`, `buildManualReturnSegmentFromStops`.
  * - Data loading: `fetchVoyagesData`, `fetchManualVoyagesData`.
@@ -111,21 +111,222 @@ function sumSegmentDurationMs(segments) {
   }, 0);
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const SOLAR_OFFSET_MS_PER_DEG = 4 * 60 * 1000;
+
+/**
+ * Function: getLocalSolarDayStartMs
+ * Description: Convert a timestamp into the UTC start of its local solar day using longitude offset.
+ * Parameters:
+ *   timestampMs (number): Epoch milliseconds to convert.
+ *   longitude (number): Longitude in decimal degrees.
+ * Returns: number - UTC timestamp for the start of the local solar day.
+ */
+function getLocalSolarDayStartMs(timestampMs, longitude) {
+  if (!Number.isFinite(timestampMs) || !Number.isFinite(longitude)) return Number.NaN;
+  const offsetMs = longitude * SOLAR_OFFSET_MS_PER_DEG;
+  const localDate = new Date(timestampMs + offsetMs);
+  const utcStartMs = Date.UTC(
+    localDate.getUTCFullYear(),
+    localDate.getUTCMonth(),
+    localDate.getUTCDate()
+  );
+  return utcStartMs - offsetMs;
+}
+
+/**
+ * Function: getCivilTwilightTimes
+ * Description: Calculate civil dawn and dusk for a local date at a given location.
+ * Parameters:
+ *   date (Date): Date representing the local solar day.
+ *   latitude (number): Latitude in decimal degrees.
+ *   longitude (number): Longitude in decimal degrees.
+ * Returns: object - Dawn/dusk timestamps with flags for polar day/night conditions.
+ */
+function getCivilTwilightTimes(date, latitude, longitude) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return { dawnMs: null, duskMs: null, alwaysDay: false, alwaysNight: false };
+  }
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return { dawnMs: null, duskMs: null, alwaysDay: false, alwaysNight: false };
+  }
+
+  const rad = Math.PI / 180;
+  const J1970 = 2440588;
+  const J2000 = 2451545;
+  const dateMs = date.getTime();
+  const d = (dateMs / DAY_MS - 0.5 + J1970) - J2000;
+  const lw = rad * -longitude;
+  const phi = rad * latitude;
+  const n = Math.round(d - 0.0009 - lw / (2 * Math.PI));
+  const ds = 0.0009 + (lw / (2 * Math.PI)) + n;
+  const M = rad * (357.5291 + 0.98560028 * ds);
+  const C = rad * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M));
+  const P = rad * 102.9372;
+  const L = M + C + P + Math.PI;
+  const e = rad * 23.4397;
+  const dec = Math.asin(Math.sin(e) * Math.sin(L));
+  const Jnoon = J2000 + ds + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * L);
+  const h = rad * -6;
+  const numerator = Math.sin(h) - Math.sin(phi) * Math.sin(dec);
+  const denominator = Math.cos(phi) * Math.cos(dec);
+  if (!Number.isFinite(denominator) || denominator === 0) {
+    if (numerator > 0) {
+      return { dawnMs: null, duskMs: null, alwaysDay: false, alwaysNight: true };
+    }
+    if (numerator < 0) {
+      return { dawnMs: null, duskMs: null, alwaysDay: true, alwaysNight: false };
+    }
+    return { dawnMs: null, duskMs: null, alwaysDay: false, alwaysNight: false };
+  }
+  const cosH = numerator / denominator;
+  if (cosH > 1) {
+    return { dawnMs: null, duskMs: null, alwaysDay: false, alwaysNight: true };
+  }
+  if (cosH < -1) {
+    return { dawnMs: null, duskMs: null, alwaysDay: true, alwaysNight: false };
+  }
+  const w = Math.acos(cosH);
+  const a = 0.0009 + (w + lw) / (2 * Math.PI) + n;
+  const Jset = J2000 + a + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * L);
+  const Jrise = Jnoon - (Jset - Jnoon);
+  const dawnMs = (Jrise + 0.5 - J1970) * DAY_MS;
+  const duskMs = (Jset + 0.5 - J1970) * DAY_MS;
+  return { dawnMs, duskMs, alwaysDay: false, alwaysNight: false };
+}
+
+/**
+ * Function: calculateNightOverlapMs
+ * Description: Calculate the overlap between a time range and night hours at a given location.
+ * Parameters:
+ *   startMs (number): Range start time in milliseconds.
+ *   endMs (number): Range end time in milliseconds.
+ *   latitude (number): Latitude for the segment midpoint.
+ *   longitude (number): Longitude for the segment midpoint.
+ * Returns: number - Milliseconds of the range that occur at night.
+ */
+function calculateNightOverlapMs(startMs, endMs, latitude, longitude) {
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return 0;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return 0;
+  const offsetMs = longitude * SOLAR_OFFSET_MS_PER_DEG;
+  let dayStartMs = getLocalSolarDayStartMs(startMs, longitude);
+  if (!Number.isFinite(dayStartMs)) return 0;
+  let totalNightMs = 0;
+  let safety = 0;
+  while (dayStartMs < endMs && safety < 4000) {
+    const dayEndMs = dayStartMs + DAY_MS;
+    const overlapStart = Math.max(startMs, dayStartMs);
+    const overlapEnd = Math.min(endMs, dayEndMs);
+    if (overlapEnd > overlapStart) {
+      const sunTimes = getCivilTwilightTimes(new Date(dayStartMs + offsetMs), latitude, longitude);
+      if (sunTimes.alwaysNight) {
+        totalNightMs += overlapEnd - overlapStart;
+      } else if (!sunTimes.alwaysDay) {
+        const dawnMs = sunTimes.dawnMs;
+        const duskMs = sunTimes.duskMs;
+        if (Number.isFinite(dawnMs) && Number.isFinite(duskMs) && dawnMs < duskMs) {
+          const dawnStart = dayStartMs;
+          const dawnEnd = Math.min(Math.max(dawnMs, dayStartMs), dayEndMs);
+          const duskStart = Math.min(Math.max(duskMs, dayStartMs), dayEndMs);
+          const duskEnd = dayEndMs;
+          if (dawnEnd > dawnStart) {
+            totalNightMs += Math.max(0, Math.min(overlapEnd, dawnEnd) - Math.max(overlapStart, dawnStart));
+          }
+          if (duskEnd > duskStart) {
+            totalNightMs += Math.max(0, Math.min(overlapEnd, duskEnd) - Math.max(overlapStart, duskStart));
+          }
+        } else {
+          totalNightMs += overlapEnd - overlapStart;
+        }
+      }
+    }
+    dayStartMs += DAY_MS;
+    safety += 1;
+  }
+  return totalNightMs;
+}
+
+/**
+ * Function: sumNightDurationMs
+ * Description: Sum the night-time duration between consecutive points in a voyage path.
+ * Parameters:
+ *   points (object[]): Ordered voyage points with timestamps and coordinates.
+ *   options (object): Options controlling activity filtering and connection skips.
+ * Returns: number - Milliseconds of night travel across the points.
+ */
+function sumNightDurationMs(points, options = {}) {
+  if (!Array.isArray(points) || points.length < 2) return 0;
+  const useActivityFilter = options.useActivityFilter === true;
+  const activeActivities = options.activeActivities instanceof Set ? options.activeActivities : new Set();
+  const respectSkipConnection = options.respectSkipConnection !== false;
+  let totalNightMs = 0;
+
+  for (let idx = 1; idx < points.length; idx += 1) {
+    const prev = points[idx - 1];
+    const curr = points[idx];
+    if (respectSkipConnection && shouldSkipConnection(prev, curr)) continue;
+    const prevMs = getPointTimeMs(prev);
+    const currMs = getPointTimeMs(curr);
+    if (!Number.isFinite(prevMs) || !Number.isFinite(currMs)) continue;
+    const gap = currMs - prevMs;
+    if (!(gap > 0)) continue;
+    if (useActivityFilter) {
+      const prevAct = readPointActivity(prev);
+      const currAct = readPointActivity(curr);
+      if (!activeActivities.has(prevAct) || !activeActivities.has(currAct)) {
+        continue;
+      }
+    }
+    const prevLat = Number.isFinite(prev?.lat) ? prev.lat : null;
+    const prevLon = Number.isFinite(prev?.lon) ? prev.lon : null;
+    const currLat = Number.isFinite(curr?.lat) ? curr.lat : null;
+    const currLon = Number.isFinite(curr?.lon) ? curr.lon : null;
+    const hasPrev = Number.isFinite(prevLat) && Number.isFinite(prevLon);
+    const hasCurr = Number.isFinite(currLat) && Number.isFinite(currLon);
+    if (!hasPrev && !hasCurr) continue;
+    const midLat = hasPrev && hasCurr ? (prevLat + currLat) / 2 : (hasPrev ? prevLat : currLat);
+    const midLon = hasPrev && hasCurr ? (prevLon + currLon) / 2 : (hasPrev ? prevLon : currLon);
+    totalNightMs += calculateNightOverlapMs(prevMs, currMs, midLat, midLon);
+  }
+
+  return totalNightMs;
+}
+
+/**
+ * Function: computeVoyageNightMs
+ * Description: Compute night-time travel duration for a voyage based on sailing/motoring point gaps.
+ * Parameters:
+ *   voyage (object): Voyage summary containing point data and timestamps.
+ * Returns: number - Night-time travel duration in milliseconds.
+ */
+export function computeVoyageNightMs(voyage) {
+  if (voyage && voyage.manual) return 0;
+  const points = getVoyagePoints(voyage);
+  if (!Array.isArray(points) || points.length < 2) return 0;
+  const travelActivities = new Set(['sailing', 'motoring']);
+  return sumNightDurationMs(points, {
+    useActivityFilter: true,
+    activeActivities: travelActivities,
+    respectSkipConnection: true
+  });
+}
+
 /**
  * Function: computeVoyageTotals
- * Description: Aggregate voyage distance plus active time from voyage total hours or leg durations and sailing activity durations.
+ * Description: Aggregate voyage distance plus active time from voyage total hours or leg durations and sailing/night activity durations.
  * Parameters:
  *   voyages (object[]): Voyage summaries containing point data and statistics.
  * Returns: object - Accumulated totals for distance (NM) and activity durations (milliseconds).
  */
 export function computeVoyageTotals(voyages) {
   if (!Array.isArray(voyages) || voyages.length === 0) {
-    return { totalDistanceNm: 0, totalActiveMs: 0, totalSailingMs: 0 };
+    return { totalDistanceNm: 0, totalActiveMs: 0, totalSailingMs: 0, totalNightMs: 0 };
   }
 
   let totalDistanceNm = 0;
   let totalActiveMs = 0;
   let totalSailingMs = 0;
+  let totalNightMs = 0;
   const activeActivities = new Set(['sailing', 'motoring', 'anchored']);
 
   const readActivity = (point) => {
@@ -184,9 +385,15 @@ export function computeVoyageTotals(voyages) {
       voyageSailingMs = voyageActiveMs;
     }
     totalSailingMs += voyageSailingMs;
+
+    let voyageNightMs = computeVoyageNightMs(voyage);
+    if (voyageActiveMs > 0 && voyageNightMs > voyageActiveMs) {
+      voyageNightMs = voyageActiveMs;
+    }
+    totalNightMs += voyageNightMs;
   });
 
-  return { totalDistanceNm, totalActiveMs, totalSailingMs };
+  return { totalDistanceNm, totalActiveMs, totalSailingMs, totalNightMs };
 }
 
 /**
