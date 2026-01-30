@@ -28,7 +28,6 @@
             <span class="toggle-slider" aria-hidden="true"></span>
             <span class="toggle-text">Tab View</span>
           </label>
-          <button id="toggleMaxBtn" aria-pressed="false">Maximize</button>
           <button id="regenBtn">Regenerate voyages</button>
           <button type="button" id="manualToggleBtn">Add voyage</button>
           <!--<button id="regenPolarBtn">Regenerate polar</button>-->
@@ -38,7 +37,12 @@
         <table id="voyTable">
           <thead>
             <tr>
-              <th class="expander-col" style="width:8px;"></th>
+              <th class="expander-col">
+                <div class="window-controls">
+                  <button id="toggleCollapseBtn" class="macos-toggle macos-toggle--yellow" type="button" aria-pressed="false" aria-label="Collapse voyage table" title="Collapse"></button>
+                  <button id="toggleMaxBtn" class="macos-toggle" type="button" aria-pressed="false" aria-label="Maximize voyage table" title="Maximize"></button>
+                </div>
+              </th>
               <th class="idx-col">#</th>
               <th>Start</th>
               <th class="end-col">End</th>

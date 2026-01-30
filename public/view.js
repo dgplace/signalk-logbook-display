@@ -14,6 +14,7 @@
 
 const MOBILE_BREAKPOINT_PX = 700;
 const MIN_TOP_SECTION_HEIGHT = 230;
+const MIN_COLLAPSED_SECTION_HEIGHT = 140;
 const MIN_MAP_SECTION_HEIGHT = 400;
 const GRID_ROW_GAP_PX = 12;
 const LAYOUT_MODE_AUTO = 'auto';
@@ -62,6 +63,21 @@ function invalidateMapSize() {
 function invalidateMapSizeDeferred() {
   if (typeof window === 'undefined') return;
   window.requestAnimationFrame(() => invalidateMapSize());
+}
+
+/**
+ * Function: getCollapseTargetRow
+ * Description: Determine which voyage row should remain visible when the table is collapsed.
+ * Parameters:
+ *   tbody (HTMLElement|null): Table body element containing voyage rows.
+ * Returns: HTMLTableRowElement|null - Row to keep visible when collapsed, or null if none.
+ */
+function getCollapseTargetRow(tbody) {
+  if (!tbody) return null;
+  const selectedRow = tbody.querySelector('tr.selected-row');
+  if (selectedRow) return selectedRow;
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  return rows.find(row => !row.classList.contains('totals-row')) || null;
 }
 
 /**
@@ -443,20 +459,22 @@ export function initSplitters() {
 export function initMaximizeControl() {
   if (maximizeInitialized) return;
   const btn = document.getElementById('toggleMaxBtn');
+  const collapseBtn = document.getElementById('toggleCollapseBtn');
   const container = document.querySelector('.container');
   const top = document.querySelector('.top-section');
   const wrapper = document.querySelector('.table-wrapper');
   const headerBar = document.querySelector('.header-bar');
   const hDivider = document.getElementById('hDivider');
-  if (!btn || !container || !top) return;
+  if (!btn || !collapseBtn || !container || !top) return;
   maximizeInitialized = true;
 
   let maximized = false;
+  let collapsed = false;
 
   const update = () => {
+    const thead = document.querySelector('#voyTable thead');
+    const tbody = document.querySelector('#voyTable tbody');
     if (maximized) {
-      const thead = document.querySelector('#voyTable thead');
-      const tbody = document.querySelector('#voyTable tbody');
       const wrapStyles = wrapper ? getComputedStyle(wrapper) : null;
       const borders = wrapStyles ? (parseFloat(wrapStyles.borderTopWidth || '0') + parseFloat(wrapStyles.borderBottomWidth || '0')) : 0;
       const paddings = wrapStyles ? (parseFloat(wrapStyles.paddingTop || '0') + parseFloat(wrapStyles.paddingBottom || '0')) : 0;
@@ -469,19 +487,64 @@ export function initMaximizeControl() {
       const delta = Math.max(0, requiredTopHeight - currentTopHeight);
       container.style.height = `${Math.ceil(containerRect.height + delta)}px`;
       container.style.setProperty('--top-height', `${requiredTopHeight}px`);
-      btn.textContent = 'Restore';
+      container.classList.remove('table-collapsed');
+      btn.classList.add('is-maximized');
       btn.setAttribute('aria-pressed', 'true');
+      btn.setAttribute('aria-label', 'Restore voyage table');
+      btn.setAttribute('title', 'Restore');
+      collapseBtn.classList.remove('is-collapsed');
+      collapseBtn.setAttribute('aria-pressed', 'false');
+      collapseBtn.setAttribute('aria-label', 'Collapse voyage table');
+      collapseBtn.setAttribute('title', 'Collapse');
+    } else if (collapsed) {
+      const wrapStyles = wrapper ? getComputedStyle(wrapper) : null;
+      const borders = wrapStyles ? (parseFloat(wrapStyles.borderTopWidth || '0') + parseFloat(wrapStyles.borderBottomWidth || '0')) : 0;
+      const paddings = wrapStyles ? (parseFloat(wrapStyles.paddingTop || '0') + parseFloat(wrapStyles.paddingBottom || '0')) : 0;
+      const headerHeight = headerBar ? headerBar.getBoundingClientRect().height : 0;
+      const headHeight = thead ? thead.getBoundingClientRect().height : 0;
+      const keepRow = getCollapseTargetRow(tbody);
+      const rowHeight = keepRow ? keepRow.getBoundingClientRect().height : 0;
+      const requiredTopHeight = Math.max(MIN_COLLAPSED_SECTION_HEIGHT, Math.ceil(headerHeight + headHeight + rowHeight + borders + paddings + 2));
+      container.style.height = '';
+      container.style.setProperty('--top-height', `${requiredTopHeight}px`);
+      container.classList.add('table-collapsed');
+      btn.classList.remove('is-maximized');
+      btn.setAttribute('aria-pressed', 'false');
+      btn.setAttribute('aria-label', 'Maximize voyage table');
+      btn.setAttribute('title', 'Maximize');
+      collapseBtn.classList.add('is-collapsed');
+      collapseBtn.setAttribute('aria-pressed', 'true');
+      collapseBtn.setAttribute('aria-label', 'Expand voyage table');
+      collapseBtn.setAttribute('title', 'Expand');
     } else {
       container.style.height = '';
       container.style.removeProperty('--top-height');
-      btn.textContent = 'Maximize';
+      container.classList.remove('table-collapsed');
+      btn.classList.remove('is-maximized');
       btn.setAttribute('aria-pressed', 'false');
+      btn.setAttribute('aria-label', 'Maximize voyage table');
+      btn.setAttribute('title', 'Maximize');
+      collapseBtn.classList.remove('is-collapsed');
+      collapseBtn.setAttribute('aria-pressed', 'false');
+      collapseBtn.setAttribute('aria-label', 'Collapse voyage table');
+      collapseBtn.setAttribute('title', 'Collapse');
     }
     invalidateMapSizeDeferred();
   };
 
   btn.addEventListener('click', () => {
     maximized = !maximized;
+    if (maximized) {
+      collapsed = false;
+    }
+    update();
+  });
+
+  collapseBtn.addEventListener('click', () => {
+    collapsed = !collapsed;
+    if (collapsed) {
+      maximized = false;
+    }
     update();
   });
 

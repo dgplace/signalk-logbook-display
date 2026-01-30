@@ -1,5 +1,11 @@
 # Change Log
 
+## 2026-01-30
+
+- Replace the Maximize pill button with a macOS-style green control in the voyage table header row
+- Add a macOS-style yellow collapse control to show only a single voyage row
+- Keep the collapsed voyage table scrollable so other rows can be browsed
+
 ## 2026-01-29
 
 - Add per-leg route editing for multi-stop voyages:
