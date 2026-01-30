@@ -5,6 +5,11 @@
 - Replace the Maximize pill button with a macOS-style green control in the voyage table header row
 - Add a macOS-style yellow collapse control to show only a single voyage row
 - Keep the collapsed voyage table scrollable so other rows can be browsed
+- Add a summary pill toggle next to Add voyage to swap the table for a global totals panel
+- Move Active Time, total distance, and Sailing Time totals out of the voyage table into the summary panel
+- Fix summary panel visibility toggle and update the button label to show the current action
+- Reduce the default voyage table height by one row while keeping the minimum height unchanged
+- Add Sea Time to the summary panel using voyage start/end timestamps
 
 ## 2026-01-29
 

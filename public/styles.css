@@ -152,7 +152,7 @@ html, body { height: 100%; }
   margin: 0 auto;
   min-height: 95vh;        /* allow layout to scroll when content exceeds viewport */
   display: grid;
-  grid-template-rows: minmax(230px, var(--top-height, 25vh)) 6px minmax(400px, 1fr); /* header/table, divider, map/panel */
+  grid-template-rows: minmax(230px, var(--top-height, calc(25vh - 32px))) 6px minmax(400px, 1fr); /* header/table, divider, map/panel */
   gap: 12px;
   background: var(--container-bg);
   border: 1px solid var(--container-border);
@@ -297,6 +297,64 @@ html, body { height: 100%; }
   border-radius: 12px;
   background: var(--panel-bg);
   box-shadow: var(--panel-shadow);
+}
+
+.summary-panel {
+  flex: 1 1 auto;
+  min-height: 150px;
+  border: 1px solid var(--table-border);
+  border-radius: 12px;
+  background: var(--panel-bg);
+  box-shadow: var(--panel-shadow);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.summary-panel[hidden],
+.table-wrapper[hidden] {
+  display: none;
+}
+
+.summary-header h4 {
+  margin: 0 0 4px 0;
+  color: var(--header-color);
+}
+
+.summary-header p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted-text-color);
+}
+
+.summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.summary-metric {
+  border: 1px solid var(--totals-border);
+  border-radius: 12px;
+  background: var(--totals-bg);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--header-color);
+  font-weight: 600;
+}
+
+.summary-metric span {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-text-color);
+}
+
+.summary-metric strong {
+  font-size: 1.1rem;
 }
 
 .container.table-collapsed .table-wrapper {
@@ -912,6 +970,11 @@ html, body { height: 100%; }
 .header-actions button:hover, button#regenBtn:hover {
   transform: translateY(-1px);
   box-shadow: var(--button-hover-shadow);
+}
+.header-actions .summary-toggle.is-active {
+  background: var(--tab-active-bg);
+  color: var(--tab-active-text);
+  box-shadow: var(--tab-active-shadow);
 }
 /* give the table Signal K‑style borders and zebra stripes */
 table {

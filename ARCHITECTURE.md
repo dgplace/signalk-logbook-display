@@ -5,7 +5,7 @@
 - Signal K plugin that exposes a web interface for exploring logbook voyages and generating polar data.
 - Node.js back-end components parse raw YAML log entries into structured JSON consumed by the front-end, splitting voyages on inactivity gaps over 48 hours, discarding voyages under 1 nm, pruning repeated anchored fixes within 100 meters of the leg-end anchor, segmenting legs on anchored gaps (>= 1 hour) while filtering out legs under 1 nm, and filtering GPS outliers beyond a 100 nm jump threshold.
 - Manual voyage entries are stored in `public/manual-voyages.json`, loaded by the UI as a static JSON asset (with an API fallback), merged into the front-end view, and can be added or edited from a movable overlay panel on the map (desktop-only) that stays hidden until toggled open, with a tabbed multi-stop editor (including Add stop for intermediate legs), a single-leg return-trip toggle that stays a single table leg, optional day-trip loop editing on the map (insert/move/remove route points with direction arrows), per-leg route editing for multi-stop voyages (open A→B segments with custom waypoints stored per-location and reused in segment rendering), remembered locations, map click picking for coordinates, panel-based deletion, stop times auto-filled from the prior stop plus leg duration at 5 kn (with the final stop time derived automatically and read-only), manual duration derived from total distance at 5 kn (using custom routes when available), manual map tracks rendered in gray, and manual table rows suppressing max speed and wind metrics.
-- Front-end single-page app (SPA) renders voyage tracks on Leaflet maps, provides rich voyage analytics, includes responsive layout controls with a tab-view toggle that mirrors the active layout and can override auto switching, and shows leg total-time hours (h) in cell values plus voyage totals (including summed multi-leg durations) while summing Active Time from voyage total hours/leg durations and averaging multi-leg voyage speeds from leg averages.
+- Front-end single-page app (SPA) renders voyage tracks on Leaflet maps, provides rich voyage analytics, includes responsive layout controls with a tab-view toggle that mirrors the active layout and can override auto switching, and shows leg total-time hours (h) in cell values plus voyage totals (including summed multi-leg durations) while surfacing Active Time, Sea Time, total distance, and Sailing Time in a summary panel and averaging multi-leg voyage speeds from leg averages.
 - Utility scripts support data preparation, polar analysis, and batch log maintenance outside the runtime path.
 
 ## Data Flow Summary
@@ -15,7 +15,7 @@
 3. `parse_logbook.js` processes the YAML files into `public/voyages.json`, splitting voyages after inactivity gaps greater than 48 hours, discarding voyages under 1 nm, pruning repeated anchored fixes within 100 meters of the leg-end anchor, and marking anchored gaps (>= 1 hour) for leg segmentation, filtering position jumps greater than 100 nm from the last known fix, enriching points with activity metadata, and ignoring speed/wind readings that lack positional data.
 4. `parse_polar.js` transforms the voyage output into polar performance points saved in `public/Polar.json`.
 5. The `plugin.js` router or standalone `server.js` endpoint triggers regeneration on demand and persists manual voyages.
-6. `public/app.js` fetches the JSON resources, merges generated and manual voyages chronologically, derives leg segments from anchored activity or skip-connection markers (allowing manual legs under 1 nm), computes leg durations to drive total-time/average-speed display (including summed multi-leg totals) and totals-row Active Time, renders voyages on the map, and exposes UI interactions.
+6. `public/app.js` fetches the JSON resources, merges generated and manual voyages chronologically, derives leg segments from anchored activity or skip-connection markers (allowing manual legs under 1 nm), computes leg durations to drive total-time/average-speed display (including summed multi-leg totals) and summary-panel Active Time/Sea Time/Distance/Sailing Time totals, renders voyages on the map, and exposes UI interactions.
 
 ## Core Files
 
@@ -95,7 +95,7 @@
 - Front-end relies on Leaflet globals; ensure assets are served from `public/` for proper styling and script load.
 - The header includes a tab-view toggle that mirrors the active layout and can force the tab or desktop layout even when the viewport would choose the opposite.
 - Desktop tables add a Total Time column for leg rows and voyages with hours shown in cell values, summing multi-leg voyage durations while averaging voyage speed across leg averages.
-- Totals row Active Time is computed by summing voyage total hours (leg durations for parsed voyages and distance-based hours for manual entries); Sailing Time still derives from point activity samples and is capped to Active Time.
+- Summary panel Active Time is computed by summing voyage total hours (leg durations for parsed voyages and distance-based hours for manual entries); Sea Time is computed from voyage start/end timestamps; Sailing Time still derives from point activity samples and is capped to Active Time.
 
 ### Parser Behavior
 

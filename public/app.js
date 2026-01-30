@@ -31,7 +31,6 @@ import {
 import {
   getVoyageByIndex,
   getVoyageRowByIndex,
-  renderTotalsRow,
   renderVoyageTable
 } from './table.js';
 import {
@@ -52,12 +51,25 @@ import { initManualVoyagePanel } from './manual.js';
 // DOM references
 const loadingOverlay = document.getElementById('loadingOverlay');
 const loadingMessageEl = loadingOverlay ? loadingOverlay.querySelector('.loading-message') : null;
+const summaryToggleBtn = document.getElementById('summaryToggleBtn');
+const summaryPanel = document.getElementById('summaryPanel');
+const summaryDistanceEl = document.getElementById('summaryDistance');
+const summaryActiveEl = document.getElementById('summaryActive');
+const summarySeaTimeEl = document.getElementById('summarySeaTime');
+const summarySailingEl = document.getElementById('summarySailing');
+const tableWrapperEl = document.querySelector('.table-wrapper');
+const summaryLabels = {
+  show: 'Show summary',
+  hide: 'Show table'
+};
 
 console.log(`[voyage-webapp] apiBasePath resolved to "${apiBasePath || '/'}" for pathname "${window.location.pathname}"`);
 
 initMobileLayoutControls();
 initSplitters();
 initMaximizeControl();
+
+let isSummaryViewActive = false;
 
 const manualPanelApi = initManualVoyagePanel({
   apiBasePath,
@@ -99,6 +111,67 @@ function hideLoading() {
     loadingMessageEl.textContent = 'Working...';
   }
 }
+
+/**
+ * Function: updateSummaryPanel
+ * Description: Update the summary panel with aggregated voyage totals.
+ * Parameters:
+ *   totals (VoyageTotals): Aggregated voyage totals for all voyages.
+ *   seaTimeMs (number): Sum of voyage durations from start to end timestamps.
+ * Returns: void.
+ */
+function updateSummaryPanel(totals, seaTimeMs) {
+  if (!totals) return;
+  const totalDistanceNm = Number.isFinite(totals.totalDistanceNm) ? totals.totalDistanceNm : 0;
+  const totalActiveMs = Number.isFinite(totals.totalActiveMs) ? totals.totalActiveMs : 0;
+  const totalSailingMs = Number.isFinite(totals.totalSailingMs) ? totals.totalSailingMs : 0;
+  const totalSeaTimeMs = Number.isFinite(seaTimeMs) ? seaTimeMs : 0;
+  const sailingPct = totalActiveMs > 0 ? ((totalSailingMs / totalActiveMs) * 100) : 0;
+
+  if (summaryDistanceEl) {
+    summaryDistanceEl.textContent = `${totalDistanceNm.toFixed(1)} NM`;
+  }
+  if (summaryActiveEl) {
+    summaryActiveEl.textContent = formatDurationMs(totalActiveMs);
+  }
+  if (summarySeaTimeEl) {
+    summarySeaTimeEl.textContent = formatDurationMs(totalSeaTimeMs);
+  }
+  if (summarySailingEl) {
+    summarySailingEl.textContent = `${formatDurationMs(totalSailingMs)} (${sailingPct.toFixed(1)}%)`;
+  }
+}
+
+/**
+ * Function: setSummaryViewEnabled
+ * Description: Toggle the summary panel visibility while hiding or showing the voyage table.
+ * Parameters:
+ *   enabled (boolean): True when the summary panel should replace the voyage table.
+ * Returns: void.
+ */
+function setSummaryViewEnabled(enabled) {
+  isSummaryViewActive = Boolean(enabled);
+  if (summaryPanel) {
+    summaryPanel.hidden = !isSummaryViewActive;
+  }
+  if (tableWrapperEl) {
+    tableWrapperEl.hidden = isSummaryViewActive;
+  }
+  if (summaryToggleBtn) {
+    summaryToggleBtn.classList.toggle('is-active', isSummaryViewActive);
+    summaryToggleBtn.setAttribute('aria-pressed', String(isSummaryViewActive));
+    summaryToggleBtn.textContent = isSummaryViewActive ? summaryLabels.hide : summaryLabels.show;
+    summaryToggleBtn.setAttribute('aria-label', summaryToggleBtn.textContent);
+  }
+}
+
+if (summaryToggleBtn) {
+  summaryToggleBtn.addEventListener('click', () => {
+    setSummaryViewEnabled(!isSummaryViewActive);
+  });
+}
+
+setSummaryViewEnabled(false);
 
 /**
  * Function: getTripIdFromPath
@@ -276,7 +349,15 @@ async function load() {
   renderVoyageTable(tbody, voyages);
 
   const totals = computeVoyageTotals(voyages);
-  renderTotalsRow(tbody, totals, formatDurationMs);
+  const seaTimeMs = voyages.reduce((sum, voyage) => {
+    const start = voyage?.startTime ? new Date(voyage.startTime).getTime() : Number.NaN;
+    const end = voyage?.endTime ? new Date(voyage.endTime).getTime() : Number.NaN;
+    if (Number.isNaN(start) || Number.isNaN(end) || end < start) {
+      return sum;
+    }
+    return sum + (end - start);
+  }, 0);
+  updateSummaryPanel(totals, seaTimeMs);
 
   let allBounds = null;
   voyages.forEach((voyage, index) => {

@@ -30,6 +30,7 @@
           </label>
           <button id="regenBtn">Regenerate voyages</button>
           <button type="button" id="manualToggleBtn">Add voyage</button>
+          <button type="button" id="summaryToggleBtn" class="summary-toggle" aria-pressed="false" aria-controls="summaryPanel voyTable">Show summary</button>
           <!--<button id="regenPolarBtn">Regenerate polar</button>-->
         </div>
       </div>
@@ -59,6 +60,30 @@
           <tbody></tbody>
         </table>
       </div>
+      <section class="summary-panel" id="summaryPanel" aria-label="Global voyage summary" hidden>
+        <div class="summary-header">
+          <h4>Summary</h4>
+          <p>Totals across all voyages.</p>
+        </div>
+        <div class="summary-metrics">
+          <div class="summary-metric">
+            <span>Total distance</span>
+            <strong id="summaryDistance">0.0 NM</strong>
+          </div>
+          <div class="summary-metric">
+            <span>Active time</span>
+            <strong id="summaryActive">0d 0h 0m</strong>
+          </div>
+          <div class="summary-metric">
+            <span>Sea time</span>
+            <strong id="summarySeaTime">0d 0h 0m</strong>
+          </div>
+          <div class="summary-metric">
+            <span>Sailing time</span>
+            <strong id="summarySailing">0d 0h 0m (0.0%)</strong>
+          </div>
+        </div>
+      </section>
     </div>
     <div id="hDivider" class="h-divider" role="separator" aria-orientation="horizontal" aria-label="Resize panels"></div>
     <div class="map-row" id="mapPanel" role="tabpanel" aria-labelledby="mobileTabMap">
