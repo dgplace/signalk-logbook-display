@@ -25,6 +25,27 @@
   - Update `public/manual.js` to manage overlay visibility and initialization
   - Hide Point Details panel when Manual Voyage panel is open to reduce clutter, restoring it when closed
 - Keep the nautical (OpenSeaMap) overlay active after saving a manual voyage by reapplying it on map reloads
+- Move the manual voyage toggle into the header beside Regenerate voyages and rename it to "Add voyage"
+- Fix manual voyage date/time input overflow so it stays within the panel width
+- Constrain manual date/time fields to shrink inside the overlay layout
+- Add iPad-friendly inline sizing so date/time inputs stay within the manual panel
+- Cap the manual voyage date/time input width for a more compact layout
+- Tighten the manual voyage date/time width cap and rename the panel title to "Voyage"
+- Apply a fixed-width time field wrapper so the manual date/time input can be smaller
+- Override manual time field sizing with higher-specificity rules so the fixed width applies
+- Widen the manual voyage date/time field by 20px after confirming the narrow layout
+- Expand the manual voyage date/time field by another 40px for readability
+- Remove the manual trip type legend and shorten the overnight label to "Overnights"
+- Omit the 0d prefix when formatting durations shorter than a day
+- Hide the manual voyage location section title to simplify the form
+- Remove the manual group title markup from the manual voyage template
+- Remove unused manual group title references after dropping the label
+- Replace the manual stop remove button with a red × icon in the panel corner
+- Ensure the red remove icon is hidden for Start and To stops
+- Restyle manual trip type radios as pill buttons to match the app controls
+- Revert to radio-style trip type controls with custom circles and focus styling
+- Dim the manual route hint text whenever route editing is disabled
+- Rename manual location tab labels from Anchorage to Stop for intermediate legs
 
 ## 2026-01-28
 

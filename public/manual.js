@@ -230,7 +230,7 @@ function coerceDateValue(value) {
 function buildLocationLabel(index, total) {
   if (index === 0) return 'Start';
   if (index === total - 1) return 'To';
-  return `Anchorage ${index}`;
+  return `Stop ${index}`;
 }
 
 /**
@@ -289,9 +289,10 @@ function refreshLocationLabels(state) {
   state.locations.forEach((entry, index) => {
     const label = buildLocationLabel(index, total);
     if (entry.tab) entry.tab.textContent = label;
-    if (entry.title) entry.title.textContent = label;
     if (entry.removeBtn) {
-      entry.removeBtn.hidden = index === 0 || index === total - 1;
+      const shouldHide = index === 0 || index === total - 1;
+      entry.removeBtn.hidden = shouldHide;
+      entry.removeBtn.style.display = shouldHide ? 'none' : '';
     }
     if (entry.timeInput) {
       entry.timeInput.required = index < total - 1;
@@ -390,6 +391,9 @@ function updateRouteToggleUI(state, allowDayTrip, canEdit) {
   if (toggleWrapper) {
     toggleWrapper.classList.toggle('is-active', enabled && state.routeEditActive);
     toggleWrapper.classList.toggle('is-disabled', !enabled);
+  }
+  if (state.routeHint) {
+    state.routeHint.classList.toggle('is-disabled', !enabled);
   }
 }
 
@@ -611,7 +615,6 @@ function createLocationEntry(state, data = {}, insertIndex = null) {
   const fragment = template.content.cloneNode(true);
   const panel = fragment.querySelector('.manual-location-panel');
   if (!panel) return null;
-  const title = panel.querySelector('.manual-group-title');
   const timeInput = panel.querySelector('.manual-time-input');
   const nameInput = panel.querySelector('.manual-name-input');
   const latInput = panel.querySelector('.manual-lat-input');
@@ -636,7 +639,6 @@ function createLocationEntry(state, data = {}, insertIndex = null) {
     id: entryId,
     tab,
     panel,
-    title,
     timeInput,
     nameInput,
     latInput,
@@ -988,7 +990,7 @@ function setPanelVisibility(state, isVisible) {
   state.panel.hidden = !isVisible;
   state.panel.style.display = isVisible ? '' : 'none';
   if (state.panelToggleBtn) {
-    state.panelToggleBtn.textContent = isVisible ? 'Hide manual voyage' : 'Add manual voyage';
+    state.panelToggleBtn.textContent = isVisible ? 'Hide voyage' : 'Add voyage';
   }
 
   if (!isVisible) {
@@ -1015,7 +1017,7 @@ function setEditMode(state, voyage) {
   const isEdit = Boolean(voyage && voyage.manualId);
   state.editId = isEdit ? voyage.manualId : null;
   if (state.panelTitle) {
-    state.panelTitle.textContent = isEdit ? 'Edit manual voyage' : 'Manual voyage';
+    state.panelTitle.textContent = isEdit ? 'Edit voyage' : 'Voyage';
   }
   if (state.panelSubtitle) {
     state.panelSubtitle.textContent = isEdit

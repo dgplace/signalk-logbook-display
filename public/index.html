@@ -30,6 +30,7 @@
           </label>
           <button id="toggleMaxBtn" aria-pressed="false">Maximize</button>
           <button id="regenBtn">Regenerate voyages</button>
+          <button type="button" id="manualToggleBtn">Add voyage</button>
           <!--<button id="regenPolarBtn">Regenerate polar</button>-->
         </div>
       </div>
@@ -53,10 +54,6 @@
           </thead>
           <tbody></tbody>
         </table>
-        <div class="manual-toggle">
-          <button type="button" id="manualToggleBtn">Add manual voyage</button>
-        </div>
-
       </div>
     </div>
     <div id="hDivider" class="h-divider" role="separator" aria-orientation="horizontal" aria-label="Resize panels"></div>
@@ -73,15 +70,14 @@
             <p id="manualPanelSubtitle" style="display:none">Add voyages that do not exist in the logbook parser output.</p>
             <form id="manualVoyageForm">
               <div class="manual-trip-type">
-                <fieldset>
-                  <legend>Trip type</legend>
+                <fieldset aria-label="Trip type">
                   <label>
                     <input type="radio" id="manualDayTripInput" name="manualTripType" value="day">
                     <span>Day trip</span>
                   </label>
                   <label>
                     <input type="radio" id="manualOvernightInput" name="manualTripType" value="overnight" checked>
-                    <span>Overnight / Anch...</span>
+                    <span>Overnights</span>
                   </label>
                 </fieldset>
               </div>
@@ -92,9 +88,9 @@
               <div class="manual-tab-panels" id="manualTabPanels"></div>
               <template id="manualLocationTemplate">
                 <section class="manual-group manual-location-panel" role="tabpanel">
-                  <div class="manual-group-title">Start</div>
+                  <button type="button" class="manual-remove-btn" aria-label="Remove stop" title="Remove">×</button>
                   <div class="manual-row-group">
-                    <label>
+                    <label class="manual-time-field">
                       Date/time
                       <input type="datetime-local" class="manual-time-input" required>
                     </label>
@@ -118,19 +114,16 @@
                       <input type="number" class="manual-lon-input" step="0.000001" min="-180" max="180" inputmode="decimal" placeholder="153.021072">
                     </label>
                   </div>
-                  <div class="manual-location-actions">
-                    <button type="button" class="manual-remove-btn">Remove</button>
-                  </div>
                 </section>
               </template>
               <datalist id="manualLocationList"></datalist>
               <div class="manual-metrics">
                 <div class="manual-metric">
-                  <span>Dist</span>
+                  <span>Distance</span>
                   <strong id="manualDistance">—</strong>
                 </div>
                 <div class="manual-metric">
-                  <span>Dur</span>
+                  <span>Duration</span>
                   <strong id="manualDuration">—</strong>
                 </div>
               </div>
@@ -139,7 +132,7 @@
                   <label class="toggle-switch manual-route-toggle" id="manualRouteToggleWrapper">
                     <input type="checkbox" id="manualRouteToggle" aria-label="Edit day trip loop on map">
                     <span class="toggle-slider" aria-hidden="true"></span>
-                    <span class="toggle-text">Edit loop</span>
+                    <span class="toggle-text">Edit path</span>
                   </label>
                   <button type="button" class="manual-secondary-btn" id="manualRouteResetBtn">Reset</button>
                 </div>

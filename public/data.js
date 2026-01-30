@@ -191,19 +191,22 @@ export function computeVoyageTotals(voyages) {
 
 /**
  * Function: formatDurationMs
- * Description: Convert a duration in milliseconds to a human-readable days, hours, and minutes string.
+ * Description: Convert a duration in milliseconds to a human-readable hours/minutes string, adding days when needed.
  * Parameters:
  *   durationMs (number): Duration expressed in milliseconds.
- * Returns: string - Formatted "Xd Yh Zm" duration string.
+ * Returns: string - Formatted "Xd Yh Zm" or "Yh Zm" duration string.
  */
 export function formatDurationMs(durationMs) {
-  if (!Number.isFinite(durationMs) || durationMs <= 0) return '0d 0h 0m';
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return '0h 0m';
   const totalMinutes = Math.round(durationMs / (1000 * 60));
   const days = Math.floor(totalMinutes / (60 * 24));
   const remainingMinutes = totalMinutes - (days * 24 * 60);
   const hours = Math.floor(remainingMinutes / 60);
   const minutes = remainingMinutes % 60;
-  return `${days}d ${hours}h ${minutes}m`;
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m`;
+  }
+  return `${hours}h ${minutes}m`;
 }
 
 /**
