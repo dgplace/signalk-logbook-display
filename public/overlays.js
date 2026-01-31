@@ -6,6 +6,8 @@ import {
 
 export const SAILING_HIGHLIGHT_COLOR = '#ef4444';
 export const NON_SAIL_HIGHLIGHT_COLOR = '#facc15';
+export const ANCHORED_HIGHLIGHT_COLOR = '#10b981';
+
 const DEFAULT_HIGHLIGHT_WEIGHT = 4;
 const DEFAULT_HIGHLIGHT_OPACITY = 0.95;
 const WIND_SPEED_COLOR_STOPS = [
@@ -42,6 +44,28 @@ function darkenHexColor(hex, factor = 0.5) {
   const r = Math.round(parseInt(norm.slice(0, 2), 16) * clampFactor).toString(16).padStart(2, '0');
   const g = Math.round(parseInt(norm.slice(2, 4), 16) * clampFactor).toString(16).padStart(2, '0');
   const b = Math.round(parseInt(norm.slice(4, 6), 16) * clampFactor).toString(16).padStart(2, '0');
+  return `#${r}${g}${b}`;
+}
+
+function interpolateHexColor(c1, c2, factor) {
+  const norm1 = normalizeHexColor(c1);
+  const norm2 = normalizeHexColor(c2);
+  if (!norm1 || !norm2) return c1 || '#000000';
+  
+  const f = Math.max(0, Math.min(1, factor));
+  
+  const r1 = parseInt(norm1.slice(0, 2), 16);
+  const g1 = parseInt(norm1.slice(2, 4), 16);
+  const b1 = parseInt(norm1.slice(4, 6), 16);
+  
+  const r2 = parseInt(norm2.slice(0, 2), 16);
+  const g2 = parseInt(norm2.slice(2, 4), 16);
+  const b2 = parseInt(norm2.slice(4, 6), 16);
+  
+  const r = Math.round(r1 + (r2 - r1) * f).toString(16).padStart(2, '0');
+  const g = Math.round(g1 + (g2 - g1) * f).toString(16).padStart(2, '0');
+  const b = Math.round(b1 + (b2 - b1) * f).toString(16).padStart(2, '0');
+  
   return `#${r}${g}${b}`;
 }
 
@@ -83,7 +107,12 @@ function parseWindDirection(point) {
  */
 export function createPointMarkerIcon(point) {
   const activity = getPointActivity(point);
-  const baseColor = activity === 'sailing' ? SAILING_HIGHLIGHT_COLOR : NON_SAIL_HIGHLIGHT_COLOR;
+  let baseColor = SAILING_HIGHLIGHT_COLOR;
+  if (activity === 'anchored') {
+    baseColor = ANCHORED_HIGHLIGHT_COLOR;
+  } else if (activity === 'motoring') {
+    baseColor = NON_SAIL_HIGHLIGHT_COLOR;
+  }
   const fillColor = darkenHexColor(baseColor, POINT_MARKER_DARKEN_FACTOR);
   const size = POINT_MARKER_SIZE;
   const anchor = Math.ceil(size / 2);
@@ -95,48 +124,13 @@ export function createPointMarkerIcon(point) {
   });
 }
 
-function segmentPointsByActivity(points, options = {}) {
-  const { closeLoop = false } = options;
-  if (!Array.isArray(points) || points.length < 2) return [];
-  const segments = [];
-  let current = null;
-
-  const flush = () => {
-    if (current && Array.isArray(current.latLngs) && current.latLngs.length >= 2) segments.push(current);
-    current = null;
-  };
-
-  // Process all consecutive pairs, plus the closing segment if closeLoop is true
-  const totalPairs = closeLoop ? points.length : points.length - 1;
-  for (let i = 0; i < totalPairs; i += 1) {
-    const start = points[i];
-    const end = points[(i + 1) % points.length];
-    const startValid = typeof start?.lat === 'number' && typeof start?.lon === 'number';
-    const endValid = typeof end?.lat === 'number' && typeof end?.lon === 'number';
-    if (!startValid || !endValid) {
-      flush();
-      continue;
-    }
-    if (shouldSkipConnection(start, end)) {
-      flush();
-      continue;
-    }
-    const startLL = [start.lat, start.lon];
-    const endLL = [end.lat, end.lon];
-    const startAct = getPointActivity(start);
-    const endAct = getPointActivity(end);
-    const color = (startAct === 'sailing' && endAct === 'sailing') ? SAILING_HIGHLIGHT_COLOR : NON_SAIL_HIGHLIGHT_COLOR;
-    if (!current || current.color !== color) {
-      flush();
-      current = { color, latLngs: [startLL] };
-    } else {
-      const last = current.latLngs[current.latLngs.length - 1];
-      if (!last || last[0] !== startLL[0] || last[1] !== startLL[1]) current.latLngs.push(startLL);
-    }
-    current.latLngs.push(endLL);
+function getActivityColor(activity) {
+  switch (activity) {
+    case 'anchored': return ANCHORED_HIGHLIGHT_COLOR;
+    case 'motoring': return NON_SAIL_HIGHLIGHT_COLOR;
+    case 'sailing': return SAILING_HIGHLIGHT_COLOR;
+    default: return SAILING_HIGHLIGHT_COLOR;
   }
-  flush();
-  return segments;
 }
 
 /**
@@ -150,22 +144,107 @@ function segmentPointsByActivity(points, options = {}) {
  */
 export function createActivityHighlightPolylines(map, points, options = {}) {
   if (!map || !Array.isArray(points) || points.length < 2) return [];
+  
   const weight = typeof options.weight === 'number' ? options.weight : DEFAULT_HIGHLIGHT_WEIGHT;
   const opacity = typeof options.opacity === 'number' ? options.opacity : DEFAULT_HIGHLIGHT_OPACITY;
   const closeLoop = Boolean(options.closeLoop);
-  const segments = segmentPointsByActivity(points, { closeLoop });
-  return segments.map((seg) => {
-    const polyline = L.polyline(seg.latLngs, {
-      color: seg.color,
-      weight,
-      opacity,
-      lineCap: 'round',
-      lineJoin: 'round'
-    }).addTo(map);
-    polyline._activityHighlight = true;
-    if (polyline.bringToFront) polyline.bringToFront();
-    return polyline;
-  });
+  const polylines = [];
+  
+  let currentPoints = [points[0]];
+  let currentColor = null;
+  
+  const flushCurrent = () => {
+    if (currentPoints.length >= 2 && currentColor) {
+      const latLngs = currentPoints.map(p => [p.lat, p.lon]);
+      const polyline = L.polyline(latLngs, {
+        color: currentColor,
+        weight,
+        opacity,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(map);
+      polyline._activityHighlight = true;
+      if (polyline.bringToFront) polyline.bringToFront();
+      polylines.push(polyline);
+    }
+  };
+
+  const totalPairs = closeLoop ? points.length : points.length - 1;
+  
+  for (let i = 0; i < totalPairs; i += 1) {
+    const start = points[i];
+    const end = points[(i + 1) % points.length];
+    
+    if (shouldSkipConnection(start, end)) {
+      flushCurrent();
+      currentPoints = [end];
+      currentColor = null;
+      continue;
+    }
+
+    const startAct = getPointActivity(start);
+    const endAct = getPointActivity(end);
+    
+    // Determine segment type and color
+    let segmentColor = null;
+    let isGradient = false;
+    
+    if (startAct === endAct) {
+      segmentColor = getActivityColor(startAct);
+    } else {
+      isGradient = true;
+    }
+    
+    if (!isGradient) {
+      // Solid color handling
+      if (currentColor === segmentColor) {
+        currentPoints.push(end);
+      } else {
+        flushCurrent();
+        currentPoints = [start, end];
+        currentColor = segmentColor;
+      }
+    } else {
+      // Gradient handling (mixed activity)
+      flushCurrent();
+      
+      const startColor = getActivityColor(startAct);
+      const endColor = getActivityColor(endAct);
+      const steps = 10;
+      
+      for (let j = 0; j < steps; j++) {
+        const t1 = j / steps;
+        const t2 = (j + 1) / steps;
+        
+        const lat1 = start.lat + (end.lat - start.lat) * t1;
+        const lon1 = start.lon + (end.lon - start.lon) * t1;
+        const lat2 = start.lat + (end.lat - start.lat) * t2;
+        const lon2 = start.lon + (end.lon - start.lon) * t2;
+        
+        const stepColor = interpolateHexColor(startColor, endColor, t1);
+        
+        const polyline = L.polyline([[lat1, lon1], [lat2, lon2]], {
+          color: stepColor,
+          weight,
+          opacity,
+          lineCap: 'butt', // butt cap for seamless joints
+          lineJoin: 'round'
+        }).addTo(map);
+        
+        polyline._activityHighlight = true;
+        if (polyline.bringToFront) polyline.bringToFront();
+        polylines.push(polyline);
+      }
+      
+      // Reset for next segment
+      currentPoints = [end];
+      currentColor = null;
+    }
+  }
+  
+  flushCurrent();
+  
+  return polylines;
 }
 
 /**
