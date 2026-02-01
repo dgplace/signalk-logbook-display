@@ -659,6 +659,36 @@
       "activity": "motoring",
       "originalActivity": "anchored",
       "updatedAt": "2026-01-30T23:25:53.306Z"
+    },
+    {
+      "key": "2025-09-06T03:43:30.700Z|153.3900544|-27.2909056",
+      "activity": "motoring",
+      "originalActivity": "sailing",
+      "updatedAt": "2026-01-31T13:06:59.046Z"
+    },
+    {
+      "key": "2025-12-06T22:34:42.199Z|153.3589504|-27.5177792",
+      "activity": "motoring",
+      "originalActivity": "anchored",
+      "updatedAt": "2026-01-31T13:24:37.425Z"
+    },
+    {
+      "key": "2025-12-06T22:33:19.199Z|153.3568768|-27.519568",
+      "activity": "motoring",
+      "originalActivity": "anchored",
+      "updatedAt": "2026-01-31T13:24:41.979Z"
+    },
+    {
+      "key": "2025-12-06T22:30:42.200Z|153.3561088|-27.5189376",
+      "activity": "motoring",
+      "originalActivity": "anchored",
+      "updatedAt": "2026-01-31T13:24:52.839Z"
+    },
+    {
+      "key": "2025-12-06T22:31:29.200Z|153.3550848|-27.5198336",
+      "activity": "motoring",
+      "originalActivity": "anchored",
+      "updatedAt": "2026-01-31T13:24:58.253Z"
     }
   ]
 }
