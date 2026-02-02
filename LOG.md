@@ -1,5 +1,9 @@
 # Change Log
 
+## 2026-02-02
+
+- Restore executable permissions on `scripts/push-voyages.sh`
+
 ## 2026-01-31
 
 - Add activity override feature for voyage point inspection:
