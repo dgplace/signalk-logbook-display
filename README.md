@@ -136,3 +136,8 @@ Push local JSON assets back into a Signal K install:
 scripts/push-voyages.sh                                    # copy into ~/.signalk/node_modules/voyage-webapp/public
 scripts/push-voyages.sh /custom/signalk/path/public        # custom Signal K public directory
 ```
+
+## Voyage Actions
+
+Click the voyage index number in the table to open a context menu where you can **Export GPX** for the selected voyage.
+Exported GPX files include available per-point metadata (wind, speed, heading, log text, etc.) within GPX `<extensions>` using explicit field names such as `windSpeedKn`.

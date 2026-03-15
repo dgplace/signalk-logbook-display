@@ -17,6 +17,7 @@
 
 import { degToCompass, dateHourLabel } from './util.js';
 import { emit, on, EVENTS } from './events.js';
+import { handleExportGPX } from './gpx.js';
 
 let voyageRows = [];
 let voyageData = [];
@@ -191,7 +192,7 @@ function createVoyageRowHTML(voyage, index, segmentCount) {
   const maxWindClass = hasMaxWind ? 'max-wind-cell max-wind-link' : 'max-wind-cell';
   return `
     <td class="exp-cell">${expander}</td>
-    <td class="idx-cell">${index + 1}</td>
+    <td class="idx-cell"><span class="idx-wrapper" tabindex="0" title="Click for options">${index + 1}</span></td>
     <td>${dateHourLabel(voyage.startTime)}</td>
     <td class="end-col">${dateHourLabel(voyage.endTime)}</td>
     <td>${voyage.nm.toFixed(1)}</td>
@@ -252,6 +253,11 @@ function attachVoyageRowHandlers(row, voyage) {
       return;
     }
     if (target && target.classList && target.classList.contains('manual-edit-btn')) {
+      return;
+    }
+    if (target && target.classList && target.classList.contains('idx-wrapper')) {
+      showVoyageActionMenu(event, voyage);
+      event.stopPropagation();
       return;
     }
     const wasSelected = row.classList.contains('selected-row');
@@ -509,3 +515,48 @@ function handleSelectionResetComplete() {
 
 on(EVENTS.VOYAGE_SELECTED, handleVoyageSelectedEvent);
 on(EVENTS.SELECTION_RESET_COMPLETE, handleSelectionResetComplete);
+
+/**
+ * Function: showVoyageActionMenu
+ * Description: Display a context menu for voyage actions.
+ * Parameters:
+ *   event (Event): The click event triggering the menu.
+ *   voyage (object): The voyage associated with the menu.
+ */
+function showVoyageActionMenu(event, voyage) {
+  // Remove existing menu if any
+  const existing = document.querySelector('.voyage-context-menu');
+  if (existing) existing.remove();
+
+  const menu = document.createElement('div');
+  menu.className = 'voyage-context-menu';
+  
+  const item = document.createElement('div');
+  item.className = 'voyage-context-menu-item';
+  item.textContent = 'Export GPX';
+  item.onclick = () => {
+    handleExportGPX(voyage);
+    menu.remove();
+  };
+  
+  menu.appendChild(item);
+  document.body.appendChild(menu);
+
+  // Position menu
+  const rect = event.target.getBoundingClientRect();
+  menu.style.top = `${rect.bottom + window.scrollY}px`;
+  menu.style.left = `${rect.left + window.scrollX}px`;
+
+  // Close on outside click
+  const closeMenu = (e) => {
+    if (!menu.contains(e.target) && e.target !== event.target) {
+      menu.remove();
+      document.removeEventListener('click', closeMenu);
+    }
+  };
+  
+  // Defer listener attachment to avoid immediate triggering
+  setTimeout(() => {
+    document.addEventListener('click', closeMenu);
+  }, 0);
+}

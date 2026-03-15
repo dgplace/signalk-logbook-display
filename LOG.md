@@ -1,8 +1,17 @@
 # Change Log
 
+## 2026-02-04
+
+- Include available voyage point metadata (wind, speed, log text, etc.) as GPX extensions during export.
+
 ## 2026-02-02
 
 - Restore executable permissions on `scripts/push-voyages.sh`
+- Add GPX export feature to the voyage table:
+  - Implement `public/gpx.js` to generate GPX XML from voyage data and trigger file download
+  - Add context menu support in `public/styles.css`
+  - Update `public/table.js` to show a popup menu with "Export GPX" option when clicking the voyage index
+  - Make voyage index clickable by wrapping it in `.idx-wrapper`
 
 ## 2026-01-31
 

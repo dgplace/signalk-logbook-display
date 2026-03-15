@@ -1522,3 +1522,42 @@ body.is-loading * {
   font-weight: 600 !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
 }
+
+/* Voyage Context Menu */
+.voyage-context-menu {
+  position: absolute;
+  z-index: 5000;
+  background: var(--panel-bg);
+  border: 1px solid var(--container-border);
+  border-radius: 8px;
+  box-shadow: var(--container-shadow);
+  padding: 6px 0;
+  min-width: 150px;
+  backdrop-filter: blur(10px);
+  animation: fade-in 0.15s ease-out;
+}
+.voyage-context-menu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  color: var(--text-color);
+  font-size: 0.9rem;
+  transition: background 0.2s ease;
+}
+.voyage-context-menu-item:hover {
+  background: var(--table-hover);
+}
+.idx-wrapper {
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+  display: inline-block;
+}
+.idx-wrapper:hover {
+  background: var(--table-hover);
+  text-decoration: underline;
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
